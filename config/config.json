@@ -1,0 +1,18 @@
+{
+  "development": {
+    "username": "ajeku_realty_user",
+    "password": "Prolifik1",
+    "database": "ajeku_realty_db",
+    "host": "localhost",
+    "dialect": "postgres",
+    "port": 5432
+  },
+  "production": {
+    "username": "ajeku_realty_user",
+    "password": "Prolifik1",
+    "database": "ajeku_realty_db",
+    "host": "localhost",
+    "dialect": "postgres",
+    "port": 5432
+  }
+}
