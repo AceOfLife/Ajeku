@@ -9,10 +9,16 @@
   },
   "production": {
     "username": "ajeku_realty_user",
-    "password": "Prolifik1",
-    "database": "ajeku_realty_db",
-    "host": "localhost",
+    "password": "OV8Zvbgpm9c0EQSONgnPXuXVCO1c511B", 
+    "database": "ajeku_realty_db_308g",
+    "host": "dpg-cspnvobqf0us73ct14e0-a",
     "dialect": "postgres",
-    "port": 5432
+    "port": 5432,
+    "dialectOptions": {
+      "ssl": {
+        "require": true,
+        "rejectUnauthorized": false
+      }
+    }
   }
 }
