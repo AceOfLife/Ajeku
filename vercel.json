@@ -11,5 +11,9 @@
       "src": "/(.*)",
       "dest": "/server.js"
     }
-  ]
+  ],
+  "env": {
+    "DATABASE_URL": "postgresql://ajeku_realty_user:OV8Zvbgpm9c0EQSONgnPXuXVCO1c511B@dpg-cspnvobqf0us73ct14e0-a.oregon-postgres.render.com/ajeku_realty_db_308g",
+    "NODE_ENV": "production"
+  }
 }
