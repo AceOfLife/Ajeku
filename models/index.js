@@ -16,10 +16,11 @@ if (process.env.DATABASE_URL) {
     protocol: 'postgres',
     dialectOptions: {
       ssl: {
-        require: true, // This will ensure SSL is used
+        require: true, // This ensures SSL is used
         rejectUnauthorized: false, // Allows self-signed certificates
       },
     },
+    logging: console.log, // Enable this line to get SQL queries in the console/logs for debugging
   });
 } else {
   sequelize = new Sequelize(config.database, config.username, config.password, config);
