@@ -78,6 +78,11 @@ const app = express();
 
 // Serve favicon from the root directory
 app.use(favicon(path.join(__dirname, 'favicon.png'))); // Adjust path if needed
+app.use(express.static(path.join(__dirname))); 
+
+app.get('/favicon.png', (req, res) => {
+  res.sendFile(path.join(__dirname, 'favicon.png')); // Serve favicon.png directly from root
+});
 
 // Middleware
 app.use(bodyParser.json()); // Parse incoming JSON requests
