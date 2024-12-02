@@ -129,6 +129,9 @@ app.get('/favicon.png', (req, res) => {
   res.sendFile(path.join(__dirname, 'favicon.png')); // Serve favicon.png directly from root
 });
 
+// Serve static files from the "uploads" folder
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Middleware
 app.use(bodyParser.json()); // Parse incoming JSON requests
 app.use(cors()); // Enable CORS for cross-origin requests
