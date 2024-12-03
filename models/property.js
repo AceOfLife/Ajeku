@@ -228,10 +228,12 @@ module.exports = (sequelize, DataTypes) => {
     last_checked: { // Last checked date
       type: DataTypes.DATE,
       allowNull: true,
+      defaultValue: DataTypes.NOW, // Automatically set to current timestamp
     },
     listing_updated: { // Date the listing was last updated
       type: DataTypes.DATE,
       allowNull: true,
+      defaultValue: DataTypes.NOW, // Automatically set to current timestamp on create
     },
     listed_by: { // The agent or entity who listed the property
       type: DataTypes.STRING,
