@@ -118,6 +118,7 @@ const path = require('path');
 const favicon = require('serve-favicon'); // Import serve-favicon
 const adminRoutes = require('./routes/admin');
 const authRoutes = require('./routes/authRoutes'); // Import the auth routes
+const { sequelize } = require('./models'); // Import Sequelize connection
 
 const app = express();
 

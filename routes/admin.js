@@ -10,6 +10,9 @@ const MessageController = require('../controllers/MessageController');
 const ReviewController = require('../controllers/ReviewController');
 const UserController = require('../controllers/UserController');
 
+// Import the Bank of Heaven Routes
+const bankOfHeavenRoutes = require('./bankOfHeavenRoutes');
+
 // Import middleware for authentication and authorization
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
 
