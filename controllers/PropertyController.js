@@ -589,7 +589,8 @@ exports.createProperty = async (req, res) => {
                 location, 
                 area, 
                 number_of_baths, 
-                number_of_rooms 
+                number_of_rooms,
+                address
             } = req.body;
 
             // Check if the admin is authenticated and has the correct role
