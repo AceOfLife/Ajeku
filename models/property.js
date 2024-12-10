@@ -173,7 +173,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
     type: { // Property Type (e.g., Rooms, Workspace)
-      type: DataTypes.ENUM('Rooms', 'Workspace'),
+      type: DataTypes.ENUM('Rooms', 'Workspace','Residential', 'Commercial'),
       allowNull: false,
     },
     location: { // Location of the property

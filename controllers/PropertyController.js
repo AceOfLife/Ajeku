@@ -971,7 +971,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage, 
-}).array('images'); // This will allow multiple image uploads
+}).any('images'); // This will allow multiple image uploads
 
 // Create a new property
 exports.createProperty = async (req, res) => {
