@@ -615,6 +615,7 @@ exports.createProperty = async (req, res) => {
                 amenities,
                 location,
                 area,
+                address,
                 number_of_baths, // New field for number of baths
                 number_of_rooms, // New field for number of rooms
                 listed_by: admin.username, // Set listed_by to the admin's username

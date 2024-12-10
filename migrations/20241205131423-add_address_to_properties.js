@@ -4,7 +4,7 @@ module.exports = {
   up: async (queryInterface, Sequelize) => {
     await queryInterface.addColumn('Properties', 'address', {
       type: Sequelize.STRING,
-      allowNull: false,
+      allowNull: true,
       defaultValue: 'No address',
     });
   },
