@@ -971,6 +971,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage, 
+    limits: { fileSize: 10 * 1024 * 1024 }, 
 }).any('images'); // This will allow multiple image uploads
 
 // Create a new property
