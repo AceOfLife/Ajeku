@@ -1163,11 +1163,11 @@ const multer = require('multer');
 // Multer configuration for handling image uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../uploads'); // Absolute path for uploads folder
+        const uploadDir = '/tmp/uploads'; // Vercel provides a temporary writable directory called /tmp
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true }); // Ensure uploads folder exists
         }
-        cb(null, uploadDir); // Save images to uploads folder
+        cb(null, uploadDir); // Store files in /tmp/uploads
     },
     filename: (req, file, cb) => {
         cb(null, Date.now() + path.extname(file.originalname)); // Append timestamp to filenames to avoid conflicts
@@ -1176,53 +1176,43 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage,
-    limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB file size limit
-}).any(); // Accepts multiple files, any type of field name
+}).any(); // Allow multiple files with .any()
 
 // Create a new property
 exports.createProperty = async (req, res) => {
-    // Log incoming request for debugging
-    console.log("Incoming request:", req.body);
-    
-    // Call Multer upload middleware
     upload(req, res, async (err) => {
         if (err) {
-            console.error("Multer error:", err); // Log Multer errors
-            // Return a detailed error message to the client
-            if (err instanceof multer.MulterError) {
-                return res.status(400).json({ message: 'Error uploading files', error: err.message });
-            }
-            return res.status(500).json({ message: 'Server error during file upload', error: err.message });
+            console.error("Multer error:", err);
+            return res.status(400).json({ message: 'Error uploading images', error: err });
         }
 
-        // Continue processing after successful file upload
         try {
-            const {
-                name,
-                size,
-                price,
-                agent_id,
-                type,
-                location,
-                area,
-                number_of_baths,
-                number_of_rooms,
+            const { 
+                name, 
+                size, 
+                price, 
+                agent_id, 
+                type, 
+                location, 
+                area, 
+                number_of_baths, 
+                number_of_rooms, 
                 address
             } = req.body;
 
-            // Check if admin is authenticated
-            const admin = req.user; // Assuming req.user is populated with logged-in admin's data
+            // Check if the admin is authenticated and has the correct role
+            const admin = req.user; // Assuming req.user is populated with the logged-in admin's data
             if (admin.role !== 'admin') {
                 return res.status(403).json({ message: 'You are not authorized to create a property' });
             }
 
-            // Check if the agent exists (agent_id should refer to a user with role 'agent')
+            // Check if the agent exists (the agent_id should refer to a user with role 'agent')
             const agent = await User.findByPk(agent_id, { where: { role: 'agent' } });
             if (!agent) {
                 return res.status(404).json({ message: 'Agent not found' });
             }
 
-            // Create the property in the database
+            // Create the property with the agent_id and other details
             const newProperty = await Property.create({
                 name,
                 size,
@@ -1241,17 +1231,17 @@ exports.createProperty = async (req, res) => {
             if (req.files && req.files.length > 0) {
                 const imageUrls = req.files.map(file => ({
                     property_id: newProperty.id,
-                    image_url: file.path, // Save the image path in the PropertyImage table
+                    image_url: '/uploads/' + file.filename, // Store the temporary path (accessible during the request lifecycle)
                 }));
 
                 // Create records for the images
                 await PropertyImage.bulkCreate(imageUrls);
             }
 
-            res.status(201).json(newProperty); // Send the newly created property in the response
+            res.status(201).json(newProperty);
         } catch (error) {
-            console.error("Error creating property:", error);
-            res.status(500).json({ message: 'Error creating property', error: error.message });
+            console.error(error);
+            res.status(400).json({ message: 'Error creating property', error });
         }
     });
 };
@@ -1277,8 +1267,7 @@ exports.updateProperty = async (req, res) => {
 
         throw new Error('Property not found');
     } catch (error) {
-        console.error("Error updating property:", error);
-        res.status(400).json({ message: 'Error updating property', error: error.message });
+        res.status(400).json({ message: 'Error updating property', error });
     }
 };
 
@@ -1302,13 +1291,12 @@ exports.deleteProperty = async (req, res) => {
         });
 
         if (deleted) {
-            return res.status(204).send(); // No content to send back after successful deletion
+            return res.status(204).send();
         }
 
         throw new Error('Property not found');
     } catch (error) {
-        console.error("Error deleting property:", error);
-        res.status(500).json({ message: 'Error deleting property', error: error.message });
+        res.status(400).json({ message: 'Error deleting property', error });
     }
 };
 
@@ -1318,8 +1306,7 @@ exports.getAllProperties = async (req, res) => {
         const properties = await Property.findAll();
         res.status(200).json(properties);
     } catch (error) {
-        console.error("Error retrieving properties:", error);
-        res.status(500).json({ message: 'Error retrieving properties', error: error.message });
+        res.status(500).json({ message: 'Error retrieving properties', error });
     }
 };
 
@@ -1337,14 +1324,13 @@ exports.getPropertyById = async (req, res) => {
             await property.update({
                 last_checked: new Date(),
             });
-
+            
             res.status(200).json(property);
         } else {
             res.status(404).json({ message: 'Property not found' });
         }
     } catch (error) {
-        console.error("Error retrieving property:", error);
-        res.status(500).json({ message: 'Error retrieving property', error: error.message });
+        res.status(500).json({ message: 'Error retrieving property', error });
     }
 };
 
@@ -1365,7 +1351,6 @@ exports.getFilteredProperties = async (req, res) => {
         const properties = await Property.findAll({ where: filter });
         res.status(200).json(properties);
     } catch (error) {
-        console.error("Error filtering properties:", error);
-        res.status(500).json({ message: 'Error filtering properties', error: error.message });
+        res.status(500).json({ message: 'Error retrieving properties', error });
     }
 };
