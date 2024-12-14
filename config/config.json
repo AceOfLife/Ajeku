@@ -8,6 +8,7 @@
     "port": 5432
   },
   "production": {
+    "use_env_variable": "DATABASE_URL",
     "username": "ajeku_realty_db2_user",
     "password": "2QmmATzbwNZQMfj5rlfwmM6SGlzD8jNA",
     "database": "ajeku_realty_db2",
