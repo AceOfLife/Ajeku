@@ -78,6 +78,15 @@ if (process.env.DATABASE_URL) {
       },
     },
     logging: console.log, // Enable this line to get SQL queries in the console/logs for debugging
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,  // Increase the connection timeout to 30 seconds
+      idle: 10000,
+    },
+    retry: {
+      max: 3, // Retry 3 times in case of failure
+    },
   });
 } else {
   sequelize = new Sequelize(config.database, config.username, config.password, config);
