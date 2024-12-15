@@ -9,12 +9,7 @@
   },
   "production": {
     "use_env_variable": "DATABASE_URL",
-    "username": "ajeku_realty_db2_user",
-    "password": "2QmmATzbwNZQMfj5rlfwmM6SGlzD8jNA",
-    "database": "ajeku_realty_db2",
-    "host": "dpg-ctea4cqj1k6c73askuug-a.oregon-postgres.render.com",
     "dialect": "postgres",
-    "port": 5432,
     "dialectOptions": {
       "ssl": {
         "require": true,
