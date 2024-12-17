@@ -149,6 +149,7 @@ if (process.env.DATABASE_URL) {
       ssl: {
         require: true, // This ensures SSL is used
         rejectUnauthorized: false, // Allows self-signed certificates
+        sslmode: 'require',
       },
     },
     logging: console.log, // Enable this line to get SQL queries in the console/logs for debugging
