@@ -143,7 +143,7 @@ if (process.env.DATABASE_URL) {
     dialectOptions: {
       ssl: {
         require: true, // This ensures SSL is used
-        rejectUnauthorized: false, // Allows self-signed certificates
+        rejectUnauthorized: true, // Allows self-signed certificates
       },
     },
     logging: console.log, // Enable this line to get SQL queries in the console/logs for debugging
