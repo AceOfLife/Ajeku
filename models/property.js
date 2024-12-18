@@ -193,8 +193,9 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
     description: { // Property Description
-      type: DataTypes.TEXT,
+      type: DataTypes.STRING,
       allowNull: true,
+      defaultValue: "",
     },
     address: { // Property Address
       type: DataTypes.STRING,
@@ -208,14 +209,17 @@ module.exports = (sequelize, DataTypes) => {
     payment_plan: { // Payment Plan
       type: DataTypes.STRING,
       allowNull: true,
+      defaultValue: "",
     },
     year_built: { // Year the property was built
-      type: DataTypes.INTEGER,
+      type: DataTypes.STRING,
       allowNull: true,
+      defaultValue: "",
     },
     amount_per_sqft: { // Price per square foot
       type: DataTypes.FLOAT,
       allowNull: true,
+      defaultValue: 0,
     },
     special_features: { // Special Features (multiple possible values)
       type: DataTypes.JSONB, // JSONB is used to store multiple items (array of strings)
@@ -238,14 +242,17 @@ module.exports = (sequelize, DataTypes) => {
     kitchen: { // Kitchen details
       type: DataTypes.STRING,
       allowNull: true,
+      defaultValue: "",
     },
     heating: { // Heating details
       type: DataTypes.STRING,
       allowNull: true,
+      defaultValue: "",
     },
     cooling: { // Cooling details
       type: DataTypes.STRING,
       allowNull: true,
+      defaultValue: "",
     },
     appliances: { // Appliances details
       type: DataTypes.JSONB, // Can store multiple appliance types (e.g., fridge, oven, etc.)
@@ -258,26 +265,32 @@ module.exports = (sequelize, DataTypes) => {
     interior_area: { // Interior Area in square feet or meters
       type: DataTypes.INTEGER,
       allowNull: true,
+      defaultValue: 0,
     },
     parking: { // Parking details (e.g., garage, carport)
       type: DataTypes.STRING,
       allowNull: true,
+      defaultValue: "",
     },
     lot: { // Lot size (e.g., 5000 sqft)
       type: DataTypes.STRING,
       allowNull: true,
+      defaultValue: "",
     },
     type_and_style: { // Type & Style of the property (e.g., Modern, Colonial, etc.)
       type: DataTypes.STRING,
       allowNull: true,
+      defaultValue: "",
     },
     material: { // Building Material (e.g., brick, wood)
       type: DataTypes.STRING,
       allowNull: true,
+      defaultValue: "",
     },
     annual_tax_amount: { // Annual property tax
-      type: DataTypes.FLOAT,
+      type: DataTypes.STRING,
       allowNull: true,
+      defaultValue: "",
     },
     date_on_market: { // Date the property was listed on the market
       type: DataTypes.DATE,
@@ -286,6 +299,7 @@ module.exports = (sequelize, DataTypes) => {
     ownership: { // Ownership type (e.g., Freehold, Leasehold)
       type: DataTypes.STRING,
       allowNull: true,
+      defaultValue: "",
     },
   });
 

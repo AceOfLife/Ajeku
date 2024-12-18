@@ -33,7 +33,7 @@ module.exports = {
       agent_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'Agents', // Ensure this matches the correct table name for agents
+          model: 'Users', // Ensure this matches the correct table name for agents
           key: 'id',
         },
         onUpdate: 'CASCADE',
