@@ -214,7 +214,6 @@ module.exports = (sequelize, DataTypes) => {
     year_built: { // Year the property was built
       type: DataTypes.STRING,
       allowNull: true,
-      defaultValue: "",
     },
     amount_per_sqft: { // Price per square foot
       type: DataTypes.FLOAT,
