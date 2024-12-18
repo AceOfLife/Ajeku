@@ -219,7 +219,7 @@ module.exports = (sequelize, DataTypes) => {
     amount_per_sqft: { // Price per square foot
       type: DataTypes.FLOAT,
       allowNull: true,
-      defaultValue: 0,
+      defaultValue: 0.0,
     },
     special_features: { // Special Features (multiple possible values)
       type: DataTypes.JSONB, // JSONB is used to store multiple items (array of strings)
