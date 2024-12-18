@@ -193,9 +193,8 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
     description: { // Property Description
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       allowNull: true,
-      defaultValue: "",
     },
     address: { // Property Address
       type: DataTypes.STRING,
@@ -209,16 +208,15 @@ module.exports = (sequelize, DataTypes) => {
     payment_plan: { // Payment Plan
       type: DataTypes.STRING,
       allowNull: true,
-      defaultValue: "",
     },
     year_built: { // Year the property was built
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
     amount_per_sqft: { // Price per square foot
       type: DataTypes.FLOAT,
       allowNull: true,
-      defaultValue: 0.0,
+      defaultValue: 0,
     },
     special_features: { // Special Features (multiple possible values)
       type: DataTypes.JSONB, // JSONB is used to store multiple items (array of strings)
