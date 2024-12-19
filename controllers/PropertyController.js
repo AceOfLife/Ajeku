@@ -295,7 +295,7 @@ exports.createProperty = async (req, res) => {
                 material: req.body.material || "", // Empty string for missing material
                 annual_tax_amount: req.body.annual_tax_amount || 0, // Default to 0 for missing annual_tax_amount
                 // date_on_market: req.body.date_on_market || "", // Empty string for missing date_on_market
-                date_on_market: moment(new Date()).format('MMMM Do YYYY, h:mm:ss a'), // Format createdAt to 'pretty' format
+                date_on_market: createAt, // Format createdAt to 'pretty' format
                 ownership: Array.isArray(req.body.ownership) ? req.body.ownership.join(", ") : req.body.ownership || "",
             };
 
