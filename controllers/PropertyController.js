@@ -288,13 +288,13 @@ exports.createProperty = async (req, res) => {
                 appliances: req.body.appliances || [], // Empty array for missing appliances
                 features: req.body.features || [], // Empty array for missing features
                 interior_area: req.body.interior_area || 0, // Default to 0 for missing interior_area
-                parking: req.body.parking || "", // Empty string for missing parking
+                parking: Array.isArray(req.body.parking) ? req.body.parking.join(", ") : req.body.parking || "", // Join array elements into a string
                 lot: req.body.lot || "", // Empty string for missing lot
                 type_and_style: req.body.type_and_style || "", // Empty string for missing type_and_style
                 material: req.body.material || "", // Empty string for missing material
                 annual_tax_amount: req.body.annual_tax_amount || 0, // Default to 0 for missing annual_tax_amount
                 date_on_market: req.body.date_on_market || "", // Empty string for missing date_on_market
-                ownership: req.body.ownership || "", // Empty string for missing ownership
+                ownership: Array.isArray(req.body.ownership) ? req.body.ownership.join(", ") : req.body.ownership || "", // Join array elements into a string
             };
 
             // Create the property record
