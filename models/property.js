@@ -128,7 +128,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     date_on_market: { // Date the property was listed on the market
-      type: DataTypes.STRING,
+      type: DataTypes.DATE,
       allowNull: true,
     },
     ownership: { // Ownership type (e.g., Freehold, Leasehold)
