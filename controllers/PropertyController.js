@@ -293,7 +293,7 @@ exports.createProperty = async (req, res) => {
                 type_and_style: req.body.type_and_style || "", // Empty string for missing type_and_style
                 material: req.body.material || "", // Empty string for missing material
                 annual_tax_amount: req.body.annual_tax_amount || 0, // Default to 0 for missing annual_tax_amount
-                date_on_market: req.body.date_on_market || "", // Empty string for missing date_on_market
+                date_on_market: isValidDate(req.body.date_on_market) ? req.body.date_on_market : null,
                 ownership: Array.isArray(req.body.ownership) ? req.body.ownership.join(", ") : req.body.ownership || "", // Join array elements into a string
             };
 
