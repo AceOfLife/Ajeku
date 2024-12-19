@@ -84,15 +84,15 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     kitchen: { // Kitchen details
-      type: DataTypes.STRING,
+      type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: true,
     },
     heating: { // Heating details
-      type: DataTypes.STRING,
+      type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: true,
     },
     cooling: { // Cooling details
-      type: DataTypes.STRING,
+      type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: true,
     },
     appliances: { // Appliances details
@@ -112,11 +112,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     lot: { // Lot size (e.g., 5000 sqft)
-      type: DataTypes.STRING,
+      type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: true,
     },
     type_and_style: { // Type & Style of the property (e.g., Modern, Colonial, etc.)
-      type: DataTypes.STRING,
+      type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: true,
     },
     material: { // Building Material (e.g., brick, wood)

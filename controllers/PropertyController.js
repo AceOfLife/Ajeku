@@ -276,7 +276,7 @@ exports.createProperty = async (req, res) => {
                 address: address || "", // Empty string for missing address
                 number_of_baths: number_of_baths || 0, // Default to 0 if missing
                 number_of_rooms: number_of_rooms || 0, // Default to 0 if missing
-                listed_by: admin.username,
+                listed_by: req.admin ? req.admin.username : "Unknown",
                 description: req.body.description || "",  // Empty string for missing description
                 payment_plan: req.body.payment_plan || "", // Empty string for missing payment_plan
                 year_built: req.body.year_built || 0, // Default to 0 for missing year_built
