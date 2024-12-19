@@ -210,6 +210,7 @@ const { Property, User, PropertyImage } = require('../models');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const moment = require('moment'); // Import moment.js for date formatting
 
 // Multer configuration for handling image uploads
 const storage = multer.diskStorage({
