@@ -421,11 +421,35 @@ exports.getPropertyById = async (req, res) => {
 };
 
 // Filter properties based on query parameters
+// exports.getFilteredProperties = async (req, res) => {
+//     const { type, location, area, number_of_baths, number_of_rooms } = req.query;
+
+//     // Prepare the filter based on the query parameters
+//     const filter = {};
+//     if (type) filter.type = type;
+//     if (location) filter.location = location;
+//     if (area) filter.area = area;
+//     if (number_of_baths) filter.number_of_baths = number_of_baths;
+//     if (number_of_rooms) filter.number_of_rooms = number_of_rooms;
+
+//     try {
+//         // Find properties that match the filter
+//         const properties = await Property.findAll({ where: filter });
+//         res.status(200).json(properties);
+//     } catch (error) {
+//         res.status(500).json({ message: 'Error retrieving properties', error });
+//     }
+// };
+
+
+//Filter Correction
+
 exports.getFilteredProperties = async (req, res) => {
     const { type, location, area, number_of_baths, number_of_rooms } = req.query;
 
     // Prepare the filter based on the query parameters
     const filter = {};
+
     if (type) filter.type = type;
     if (location) filter.location = location;
     if (area) filter.area = area;
@@ -435,8 +459,15 @@ exports.getFilteredProperties = async (req, res) => {
     try {
         // Find properties that match the filter
         const properties = await Property.findAll({ where: filter });
+
+        // Send the response back with the filtered properties
         res.status(200).json(properties);
     } catch (error) {
-        res.status(500).json({ message: 'Error retrieving properties', error });
+        // Log and return the error message
+        console.error(error);
+        res.status(500).json({
+            message: 'Error retrieving properties',
+            error: error.message
+        });
     }
 };
