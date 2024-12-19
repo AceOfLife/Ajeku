@@ -381,7 +381,15 @@ exports.deleteProperty = async (req, res) => {
 // Get all properties
 exports.getAllProperties = async (req, res) => {
     try {
-        const properties = await Property.findAll();
+        const properties = await Property.findAll({
+            include: [
+                {
+                    model: PropertyImage, // Include the PropertyImage model
+                    as: 'images',         // Alias for the association
+                    attributes: ['image_url'] // Specify the image URL field to include
+                }
+            ]
+        });
         res.status(200).json(properties);
     } catch (error) {
         res.status(500).json({ message: 'Error retrieving properties', error });
