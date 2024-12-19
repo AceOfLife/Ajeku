@@ -365,7 +365,11 @@ exports.deleteProperty = async (req, res) => {
         });
 
         if (deleted) {
-            return res.status(204).send();
+            // return res.status(204).send();
+            // Send a success message
+            return res.status(200).json({
+                message: `Property with ID ${id} has been successfully deleted.`
+            });
         }
 
         throw new Error('Property not found');
