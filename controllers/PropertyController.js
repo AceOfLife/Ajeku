@@ -322,7 +322,20 @@ const upload = multer({
 
 //Create a new property 20/12
 
-// Create a new property
+// Helper function to safely parse arrays from string
+const parseJsonArray = (field) => {
+    try {
+        if (typeof field === 'string' && field.trim().startsWith("[") && field.trim().endsWith("]")) {
+            return JSON.parse(field);
+        } else if (Array.isArray(field)) {
+            return field;
+        }
+        return [];
+    } catch (error) {
+        console.error('Error parsing JSON array', error);
+        return []; // Return empty array on error
+    }
+};
 // Create a new property
 exports.createProperty = async (req, res) => {
     upload(req, res, async (err) => {
