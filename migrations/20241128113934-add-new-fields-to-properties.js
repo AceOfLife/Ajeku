@@ -4,7 +4,7 @@
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.addColumn('Properties', 'sqft', {
-      type: Sequelize.INTEGER,
+      type: Sequelize.STRING,
       allowNull: false,
       defaultValue: 0,
     });
@@ -13,11 +13,11 @@ module.exports = {
       allowNull: true,
     });
     await queryInterface.addColumn('Properties', 'year_built', {
-      type: Sequelize.INTEGER,
+      type: Sequelize.STRING,
       allowNull: true,
     });
     await queryInterface.addColumn('Properties', 'amount_per_sqft', {
-      type: Sequelize.FLOAT,
+      type: Sequelize.STRING,
       allowNull: true,
     });
     await queryInterface.addColumn('Properties', 'special_features', {
@@ -57,11 +57,11 @@ module.exports = {
       allowNull: true,
     });
     await queryInterface.addColumn('Properties', 'interior_area', {
-      type: Sequelize.INTEGER,
+      type: Sequelize.STRING,
       allowNull: true,
     });
     await queryInterface.addColumn('Properties', 'parking', {
-      type: Sequelize.STRING,
+      type: Sequelize.JSONB,
       allowNull: true,
     });
     await queryInterface.addColumn('Properties', 'lot', {
@@ -77,7 +77,7 @@ module.exports = {
       allowNull: true,
     });
     await queryInterface.addColumn('Properties', 'annual_tax_amount', {
-      type: Sequelize.FLOAT,
+      type: Sequelize.STRING,
       allowNull: true,
     });
     await queryInterface.addColumn('Properties', 'date_on_market', {
