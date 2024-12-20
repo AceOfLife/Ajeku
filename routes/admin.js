@@ -73,7 +73,7 @@ const PropertyController = require('../controllers/PropertyController');
 const TransactionController = require('../controllers/TransactionController');
 const MessageController = require('../controllers/MessageController');
 const ReviewController = require('../controllers/ReviewController');
-const UserController = require('../controllers/UserController');
+const UserController = require('../controllers/UserController');  // Ensure this path is correct
 
 // Import the Bank of Heaven Routes
 const bankOfHeavenRoutes = require('./bankOfHeavenRoutes');
@@ -120,13 +120,14 @@ router.delete('/reviews/:id', authenticate, authorizeAdmin, ReviewController.del
 
 // User routes
 router.post('/signup', UserController.createUser); // Signup route, no authentication required
-router.post('/login', UserController.login); // Login route
+router.post('/login', UserController.loginUser); // Login route
 
 // Admin-only user management
 router.post('/users', authenticate, authorizeAdmin, UserController.createUser); // Admin creates users
 router.get('/users', authenticate, authorizeAdmin, UserController.getAllUsers); // Admin fetches all users
 router.get('/users/:id', authenticate, authorizeRole(['admin', 'client', 'agent']), UserController.getUserById); // User details, accessible by the user itself or admin
-router.put('/users/:id', authenticate, authorizeRole(['admin', 'client', 'agent']), UserController.updateUser); // Update user profile
+router.put('/users/:id', authenticate, authorizeRole(['admin', 'client', 'agent']), UserController.editProfile); // Update user profile
 router.delete('/users/:id', authenticate, authorizeAdmin, UserController.deleteUser); // Admin deletes users
 
 module.exports = router;
+
