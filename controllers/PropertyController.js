@@ -323,6 +323,7 @@ const upload = multer({
 //Create a new property 20/12
 
 // Create a new property
+// Create a new property
 exports.createProperty = async (req, res) => {
     upload(req, res, async (err) => {
         if (err) {
@@ -374,6 +375,9 @@ exports.createProperty = async (req, res) => {
                 return res.status(404).json({ message: 'Agent not found' });
             }
 
+            // Handle date_on_market - if it's empty or invalid, set to current date or null
+            const validDateOnMarket = date_on_market && date_on_market.trim() !== "" ? date_on_market : new Date().toISOString();
+
             // Prepare the property data with the required fields, set empty values if missing
             const newPropertyData = {
                 name,
@@ -398,25 +402,34 @@ exports.createProperty = async (req, res) => {
                 parking: parking || "", // Empty string for missing parking
                 material: material || "", // Empty string for missing material
                 annual_tax_amount: annual_tax_amount || 0, // Default to 0 for missing annual_tax_amount
-                date_on_market: date_on_market || null, // Empty string for missing date_on_market
+                date_on_market: validDateOnMarket, // Ensure valid date
                 ownership: ownership || "", // Empty string for missing ownership
             };
 
             // Conditionally handle optional fields (convert string input to array if provided)
+            const splitToArray = (field) => {
+                // Only split if the field is a string
+                if (typeof field === 'string') {
+                    return field.split(",").map(item => item.trim());
+                }
+                // Return an empty array if not a string
+                return [];
+            };
+
             if (kitchen) {
-                newPropertyData.kitchen = kitchen.split(",").map(item => item.trim());
+                newPropertyData.kitchen = splitToArray(kitchen);
             }
             if (heating) {
-                newPropertyData.heating = heating.split(",").map(item => item.trim());
+                newPropertyData.heating = splitToArray(heating);
             }
             if (cooling) {
-                newPropertyData.cooling = cooling.split(",").map(item => item.trim());
+                newPropertyData.cooling = splitToArray(cooling);
             }
             if (type_and_style) {
-                newPropertyData.type_and_style = type_and_style.split(",").map(item => item.trim());
+                newPropertyData.type_and_style = splitToArray(type_and_style);
             }
             if (lot) {
-                newPropertyData.lot = lot.split(",").map(item => item.trim());
+                newPropertyData.lot = splitToArray(lot);
             }
 
             // Create the property record
@@ -433,7 +446,17 @@ exports.createProperty = async (req, res) => {
                 await PropertyImage.bulkCreate(imageUrls);
             }
 
-            res.status(201).json(newProperty);
+            // Filter out fields with empty or null values
+            const filteredProperty = {};
+
+            Object.keys(newPropertyData).forEach(key => {
+                if (newPropertyData[key] && newPropertyData[key] !== "" && newPropertyData[key] !== 0 && newPropertyData[key].length !== 0) {
+                    filteredProperty[key] = newPropertyData[key];
+                }
+            });
+
+            // Return the filtered property in the response
+            res.status(201).json(filteredProperty);
         } catch (error) {
             console.error(error);
             res.status(400).json({ message: 'Error creating property', error });
