@@ -432,10 +432,13 @@ exports.createProperty = async (req, res) => {
                 newPropertyData.lot = splitToArray(lot);
             }
             
-            newPropertyData.special_features = splitToArray(special_features);
-            newPropertyData.appliances = splitToArray(appliances);
-            newPropertyData.features = splitToArray(features);
-            newPropertyData.parking = splitToArray(parking);
+            newPropertyData.special_features = parseJsonArray(special_features);
+            newPropertyData.appliances = parseJsonArray(appliances);
+            newPropertyData.features = parseJsonArray(features);
+            newPropertyData.parking = parseJsonArray(parking);
+            newPropertyData.lot = parseJsonArray(lot);
+            newPropertyData.type_and_style = parseJsonArray(type_and_style);
+            newPropertyData.cooling = parseJsonArray(cooling);
 
             // Create the property record
             const newProperty = await Property.create(newPropertyData);
