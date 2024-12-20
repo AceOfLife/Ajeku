@@ -435,7 +435,7 @@ exports.createProperty = async (req, res) => {
             newPropertyData.special_features = splitToArray(special_features);
             newPropertyData.appliances = splitToArray(appliances);
             newPropertyData.features = splitToArray(features);
-            newProperty.parking = splitToArray(parking);
+            newPropertyData.parking = splitToArray(parking);
 
             // Create the property record
             const newProperty = await Property.create(newPropertyData);
