@@ -453,6 +453,9 @@ exports.createProperty = async (req, res) => {
             if (lot) {
                 newPropertyData.lot = splitToArray(lot);
             }
+            if (special_features) {
+                newPropertyData.special_features = splitToArray(special_features);
+            }
             
             // newPropertyData.special_features = parseJsonArray(special_features);
             // newPropertyData.appliances = parseJsonArray(appliances);
