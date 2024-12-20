@@ -9,7 +9,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
     price: {
-      type: DataTypes.FLOAT,
+      type: DataTypes.STRING,
       allowNull: false,
     },
     agent_id: {
@@ -33,11 +33,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
     number_of_baths: { // Number of bathrooms
-      type: DataTypes.INTEGER,
+      type: DataTypes.STRING,
       allowNull: false,
     },
     number_of_rooms: { // Number of rooms
-      type: DataTypes.INTEGER,
+      type: DataTypes.STRING,
       allowNull: false,
     },
     description: { // Property Description
@@ -49,7 +49,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
     sqft: { // Square footage
-      type: DataTypes.INTEGER,
+      type: DataTypes.STRING,
       allowNull: false,
       defaultValue: 0,
     },
@@ -62,7 +62,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     amount_per_sqft: { // Price per square foot
-      type: DataTypes.FLOAT,
+      type: DataTypes.STRING,
       allowNull: true,
     },
     special_features: { // Special Features (multiple possible values)
@@ -124,7 +124,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     annual_tax_amount: { // Annual property tax
-      type: DataTypes.FLOAT,
+      type: DataTypes.STRING,
       allowNull: true,
     },
     date_on_market: { // Date the property was listed on the market
