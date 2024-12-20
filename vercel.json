@@ -14,6 +14,9 @@
   ],
   "env": {
     "DATABASE_URL": "postgresql://ajeku_db_ekps_user:SQEdY3KMDRZ5Xmo4Dwqr1JUlRrrqbrqO@dpg-cthfpktds78s73f90l2g-a.ohio-postgres.render.com/ajeku_db_ekps",
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "EMAIL_USER": "teddyogbonnaya@gmail.com",
+    "EMAIL_PASS": "&Dreamcodev1",
+    "FRONTEND_URL": "https://ajeku-mu.vercel.app"
   }
 }

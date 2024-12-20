@@ -453,8 +453,8 @@ exports.getFilteredProperties = async (req, res) => {
     if (type) filter.type = type;
     if (location) filter.location = location;
     if (area) filter.area = area;
-    if (number_of_baths) filter.number_of_baths = parseInt(number_of_baths);
-    if (number_of_rooms) filter.number_of_rooms = parseInt(number_of_rooms);
+    if (number_of_baths) filter.number_of_baths = number_of_baths;
+    if (number_of_rooms) filter.number_of_rooms = number_of_rooms;
 
     try {
         // Find properties that match the filter
