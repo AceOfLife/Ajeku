@@ -398,7 +398,7 @@ exports.createProperty = async (req, res) => {
                 parking: parking || "", // Empty string for missing parking
                 material: material || "", // Empty string for missing material
                 annual_tax_amount: annual_tax_amount || 0, // Default to 0 for missing annual_tax_amount
-                date_on_market: date_on_market || "", // Empty string for missing date_on_market
+                date_on_market: date_on_market || null, // Empty string for missing date_on_market
                 ownership: ownership || "", // Empty string for missing ownership
             };
 
