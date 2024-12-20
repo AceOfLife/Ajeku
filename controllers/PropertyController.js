@@ -336,6 +336,16 @@ const parseJsonArray = (field) => {
         return []; // Return empty array on error
     }
 };
+
+const splitToArray = (field) => {
+    // Only split if the field is a string
+    if (typeof field === 'string') {
+        return field.split(",").map(item => item.trim());
+    }
+    return []; // Return empty array if not a string
+};
+
+
 // Create a new property
 exports.createProperty = async (req, res) => {
     upload(req, res, async (err) => {
