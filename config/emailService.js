@@ -1,4 +1,4 @@
-const transporter = require('mailer'); // Import the transporter from mailer.js
+const transporter = require('./mailer'); // Import the transporter from mailer.js
 
 // Function to send an email
 const sendEmail = async (to, subject, text) => {
