@@ -108,7 +108,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     parking: { // Parking details (e.g., garage, carport)
-      type: DataTypes.STRING,
+      type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: true,
     },
     lot: { // Lot size (e.g., 5000 sqft)
