@@ -62,7 +62,7 @@
 // module.exports = router;
 
 
-//User management 20/12
+//User management
 
 const express = require('express');
 const router = express.Router();
@@ -76,8 +76,11 @@ const MessageController = require('../controllers/MessageController');
 const ReviewController = require('../controllers/ReviewController');
 const UserController = require('../controllers/UserController');
 
+// Import the Bank of Heaven Routes
+const bankOfHeavenRoutes = require('./bankOfHeavenRoutes');
+
 // Import middleware for authentication and authorization
-const { authenticate, authorizeAdmin, authorizeRole } = require('../middlewares/authMiddleware');
+const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
 
 // Client routes
 router.get('/clients', authenticate, ClientController.getAllClients);
@@ -93,20 +96,33 @@ router.delete('/agents/:id', authenticate, authorizeAdmin, AgentController.delet
 
 // Property routes
 router.get('/properties', authenticate, PropertyController.getAllProperties);
-router.get('/properties/:id', authenticate, PropertyController.getPropertyById); // View single property by ID
+router.post('/properties', authenticate, authorizeAdmin, PropertyController.createProperty); // Admin-only route
+router.put('/properties/:id', authenticate, authorizeAdmin, PropertyController.updateProperty);
+router.delete('/properties/:id', authenticate, authorizeAdmin, PropertyController.deleteProperty);
+router.get('/properties/:id', PropertyController.getPropertyById);
+
+// Transaction routes
+router.get('/transactions', authenticate, TransactionController.getAllTransactions);
+router.post('/transactions', authenticate, authorizeAdmin, TransactionController.createTransaction);
+router.put('/transactions/:id', authenticate, authorizeAdmin, TransactionController.updateTransaction);
+router.delete('/transactions/:id', authenticate, authorizeAdmin, TransactionController.deleteTransaction);
+
+// Message routes
+router.get('/messages', authenticate, MessageController.getAllMessages);
+router.post('/messages', authenticate, MessageController.createMessage);
+router.put('/messages/:id', authenticate, MessageController.updateMessage);
+router.delete('/messages/:id', authenticate, MessageController.deleteMessage);
+
+// Review routes
+router.get('/reviews', authenticate, ReviewController.getAllReviews);
+router.post('/reviews', authenticate, ReviewController.createReview);
+router.put('/reviews/:id', authenticate, ReviewController.updateReview);
+router.delete('/reviews/:id', authenticate, authorizeAdmin, ReviewController.deleteReview);
 
 // User signup route (no authentication required for signup)
 router.post('/signup', UserController.createUser);
 
-// Admin-only user creation route
-router.post('/admin/signup', authenticate, authorizeAdmin, UserController.createUser);
-
-// Profile routes for editing
-router.put('/profile', authenticate, UserController.editProfile);
-
-// Authentication routes
-router.post('/login', UserController.login);
-router.post('/forgot-password', UserController.forgotPassword);
-router.post('/reset-password', UserController.resetPassword);
+// Admin-only user creation route (requires authentication)
+router.post('/users', authenticate, authorizeAdmin, UserController.createUser);
 
 module.exports = router;
