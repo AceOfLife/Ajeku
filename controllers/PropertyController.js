@@ -412,7 +412,6 @@ exports.createProperty = async (req, res) => {
                 appliances: appliances || [], // Empty array for missing appliances
                 features: features || [], // Empty array for missing features
                 interior_area: interior_area || 0, // Default to 0 for missing interior_area
-                parking: parking || [], // Empty string for missing parking
                 material: material || "", // Empty string for missing material
                 annual_tax_amount: annual_tax_amount || 0, // Default to 0 for missing annual_tax_amount
                 date_on_market: validDateOnMarket, // Ensure valid date
@@ -444,14 +443,15 @@ exports.createProperty = async (req, res) => {
             if (lot) {
                 newPropertyData.lot = splitToArray(lot);
             }
+            if (parking) {
+                newPropertyData.parking = splitToArray(parking);
+            }
             
             newPropertyData.special_features = parseJsonArray(special_features);
             newPropertyData.appliances = parseJsonArray(appliances);
             newPropertyData.features = parseJsonArray(features);
-            newPropertyData.parking = parseJsonArray(parking);
-            newPropertyData.lot = parseJsonArray(lot);
+            // newPropertyData.parking = parseJsonArray(parking);
             newPropertyData.type_and_style = parseJsonArray(type_and_style);
-            newPropertyData.cooling = parseJsonArray(cooling);
 
             // Create the property record
             const newProperty = await Property.create(newPropertyData);
