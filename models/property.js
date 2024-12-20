@@ -66,7 +66,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     special_features: { // Special Features (multiple possible values)
-      type: DataTypes.JSONB, // JSONB is used to store multiple items (array of strings)
+      type: DataTypes.STRING, // JSONB is used to store multiple items (array of strings)
       allowNull: true,
     },
     last_checked: { // Last checked date
