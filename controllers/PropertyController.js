@@ -443,14 +443,11 @@ exports.createProperty = async (req, res) => {
             if (lot) {
                 newPropertyData.lot = splitToArray(lot);
             }
-            if (parking) {
-                newPropertyData.parking = splitToArray(parking);
-            }
             
             newPropertyData.special_features = parseJsonArray(special_features);
             newPropertyData.appliances = parseJsonArray(appliances);
             newPropertyData.features = parseJsonArray(features);
-            // newPropertyData.parking = parseJsonArray(parking);
+            newPropertyData.parking = parseJsonArray(parking);
             newPropertyData.type_and_style = parseJsonArray(type_and_style);
 
             // Create the property record
