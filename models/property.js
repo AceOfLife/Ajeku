@@ -66,7 +66,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     special_features: { // Special Features (multiple possible values)
-      type: DataTypes.ARRAY(DataTypes.STRING), 
+      type: DataTypes.JSONB, // JSONB is used to store multiple items (array of strings)
       allowNull: true,
     },
     last_checked: { // Last checked date
@@ -96,11 +96,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     appliances: { // Appliances details
-      type: DataTypes.ARRAY(DataTypes.STRING), // Can store multiple appliance types (e.g., fridge, oven, etc.)
+      type: DataTypes.JSONB, // Can store multiple appliance types (e.g., fridge, oven, etc.)
       allowNull: true,
     },
     features: { // Features of the property (e.g., pool, garden, etc.)
-      type: DataTypes.ARRAY(DataTypes.STRING), // List of features as JSON
+      type: DataTypes.JSONB, // List of features as JSON
       allowNull: true,
     },
     interior_area: { // Interior Area in square feet or meters
