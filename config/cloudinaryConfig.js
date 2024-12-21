@@ -1,6 +1,8 @@
 // config/cloudinaryConfig.js
 
 const cloudinary = require('cloudinary').v2;
+const dotenv = require('dotenv');
+dotenv.config();
 
 // Cloudinary configuration - replace with your Cloudinary credentials
 cloudinary.config({

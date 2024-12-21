@@ -1,6 +1,6 @@
 const multer = require('multer');
-const cloudinary = require('./cloudinaryConfig');
-const { v2: cloudinaryUploader } = cloudinary; // Use Cloudinary's v2 API
+const cloudinary = require('./cloudinaryConfig'); // Import the cloudinary configuration
+const { v2: cloudinaryUploader } = cloudinary; // Destructure the v2 uploader from the cloudinary instance
 
 // Set up Multer to handle file uploads using memory storage
 const storage = multer.memoryStorage(); // Store the file in memory instead of disk
