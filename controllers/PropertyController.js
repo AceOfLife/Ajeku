@@ -209,7 +209,6 @@
 const { Property, User, PropertyImage } = require('../models');
 const path = require('path');
 const fs = require('fs');
-const multer = require('multer');
 const cloudinary = require('../config/cloudinaryConfig');
 const upload = require('../config/multerConfig');
 
