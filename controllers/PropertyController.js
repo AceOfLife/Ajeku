@@ -146,7 +146,7 @@ exports.createProperty = async (req, res) => {
 
                 const imageRecords = imageUrls.map(url => ({
                     property_id: newProperty.id,
-                    image_url: [url],
+                    image_url: url,
                 }));
 
                 await PropertyImage.bulkCreate(imageRecords);
