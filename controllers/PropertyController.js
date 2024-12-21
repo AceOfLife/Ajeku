@@ -143,10 +143,10 @@ exports.createProperty = async (req, res) => {
                 const imageUrls = await uploadImagesToCloudinary(req.files);
                 
                 console.log("Image URLs:", imageUrls);
-                
+
                 const imageRecords = imageUrls.map(url => ({
                     property_id: newProperty.id,
-                    image_url: url,
+                    image_url: [url],
                 }));
 
                 await PropertyImage.bulkCreate(imageRecords);
