@@ -210,7 +210,7 @@ const { Property, User, PropertyImage } = require('../models');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
-const upload = require('../config/multerConfig');
+const { upload, uploadImagesToCloudinary } = require('../config/multerConfig');
 
 
 
@@ -591,23 +591,14 @@ exports.createProperty = async (req, res) => {
 
             // Handle image uploads to Cloudinary
             if (req.files && req.files.length > 0) {
-                const imageUrls = await Promise.all(req.files.map(async (file) => {
-                    // Upload each file to Cloudinary
-                    const cloudinaryResult = await cloudinary.uploader.upload(file.path, {
-                        folder: 'property_images',  // Define the folder name in Cloudinary
-                    });
-
-                    // Get the secure URL of the uploaded image
-                    const publicUrl = cloudinaryResult.secure_url;
-
-                    return {
-                        property_id: newProperty.id, // Attach to the created property
-                        image_url: publicUrl,  // Cloudinary image URL
-                    };
+                const imageUrls = await uploadImagesToCloudinary(req.files);
+                
+                const imageRecords = imageUrls.map(url => ({
+                    property_id: newProperty.id,
+                    image_url: url,
                 }));
 
-                // Save the images in the PropertyImage table (or appropriate model)
-                await PropertyImage.bulkCreate(imageUrls);
+                await PropertyImage.bulkCreate(imageRecords);
             }
 
             // Filter out fields with empty or null values
