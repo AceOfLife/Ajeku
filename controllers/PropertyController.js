@@ -142,6 +142,8 @@ exports.createProperty = async (req, res) => {
             if (req.files && req.files.length > 0) {
                 const imageUrls = await uploadImagesToCloudinary(req.files);
                 
+                console.log("Image URLs:", imageUrls);
+                
                 const imageRecords = imageUrls.map(url => ({
                     property_id: newProperty.id,
                     image_url: url,
