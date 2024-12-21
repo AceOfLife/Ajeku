@@ -213,17 +213,7 @@ const cloudinary = require('../config/cloudinaryConfig');
 const upload = require('../config/multerConfig');
 
 
-// Multer configuration for handling image uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        // Use Vercel's /tmp directory for storing uploaded files temporarily
-        const uploadDir = '/tmp'; // Vercel's /tmp directory
-        cb(null, uploadDir); // Save images to /tmp directory
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname)); // Append timestamp to filenames to avoid conflicts
-    },
-});
+
 
 
 
