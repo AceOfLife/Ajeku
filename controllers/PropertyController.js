@@ -413,7 +413,7 @@ exports.createProperty = async (req, res) => {
                 address: address || "", // Empty string for missing address
                 number_of_baths: number_of_baths || "0", // Default to 0 if missing
                 number_of_rooms: number_of_rooms || "0", // Default to 0 if missing
-                listed_by: req.admin ? req.admin.username : "Unknown",
+                listed_by: req.admin ? req.admin.username : "Admin",
                 description: description || "",  // Empty string for missing description
                 payment_plan: payment_plan || "", // Empty string for missing payment_plan
                 year_built: year_built || 0, // Default to 0 for missing year_built
@@ -461,6 +461,9 @@ exports.createProperty = async (req, res) => {
             }
             if (appliances) {
                 newPropertyData.appliances = splitToArray(appliances);
+            }
+            if (features) {
+                newPropertyData.features = splitToArray(features);
             }
             
             // newPropertyData.appliances = parseJsonArray(appliances);
@@ -624,16 +627,30 @@ exports.getPropertyById = async (req, res) => {
 //Filter Correction
 
 exports.getFilteredProperties = async (req, res) => {
-    const { type, location, area, number_of_baths, number_of_rooms } = req.query;
+    const { type, location, area, number_of_baths, number_of_rooms, special_features, appliances } = req.query;
 
     // Prepare the filter based on the query parameters
     const filter = {};
 
+    // Basic filters for properties
     if (type) filter.type = type;
     if (location) filter.location = location;
     if (area) filter.area = area;
     if (number_of_baths) filter.number_of_baths = number_of_baths;
     if (number_of_rooms) filter.number_of_rooms = number_of_rooms;
+
+    // Handle array fields if provided as query parameters (e.g., special_features, appliances)
+    if (special_features) {
+        filter.special_features = {
+            [Op.contains]: JSON.parse(special_features)
+        };
+    }
+
+    if (appliances) {
+        filter.appliances = {
+            [Op.contains]: JSON.parse(appliances)
+        };
+    }
 
     try {
         // Find properties that match the filter
@@ -650,3 +667,4 @@ exports.getFilteredProperties = async (req, res) => {
         });
     }
 };
+
