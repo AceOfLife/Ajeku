@@ -585,42 +585,22 @@ exports.createProperty = async (req, res) => {
 
             // Conditionally handle optional fields (convert string input to array if provided)
             const splitToArray = (field) => {
-                // Only split if the field is a string
                 if (typeof field === 'string') {
                     return field.split(",").map(item => item.trim());
                 }
-                // Return an empty array if not a string
                 return [];
             };
 
-            if (kitchen) {
-                newPropertyData.kitchen = splitToArray(kitchen);
-            }
-            if (heating) {
-                newPropertyData.heating = splitToArray(heating);
-            }
-            if (cooling) {
-                newPropertyData.cooling = splitToArray(cooling);
-            }
-            if (type_and_style) {
-                newPropertyData.type_and_style = splitToArray(type_and_style);
-            }
-            if (lot) {
-                newPropertyData.lot = splitToArray(lot);
-            }
-            if (special_features) {
-                newPropertyData.special_features = splitToArray(special_features);
-            }
-            if (parking) {
-                newPropertyData.parking = splitToArray(parking);
-            }
-            if (appliances) {
-                newPropertyData.appliances = splitToArray(appliances);
-            }
-            if (features) {
-                newPropertyData.features = splitToArray(features);
-            }
-        
+            if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
+            if (heating) newPropertyData.heating = splitToArray(heating);
+            if (cooling) newPropertyData.cooling = splitToArray(cooling);
+            if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
+            if (lot) newPropertyData.lot = splitToArray(lot);
+            if (special_features) newPropertyData.special_features = splitToArray(special_features);
+            if (parking) newPropertyData.parking = splitToArray(parking);
+            if (appliances) newPropertyData.appliances = splitToArray(appliances);
+            if (features) newPropertyData.features = splitToArray(features);
+
             // Create the property record
             const newProperty = await Property.create(newPropertyData);
 
@@ -662,8 +642,6 @@ exports.createProperty = async (req, res) => {
         }
     });
 };
-
-
 
 
 // Update an existing property
