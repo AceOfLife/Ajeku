@@ -53,7 +53,7 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
     image_url: {
-      type: DataTypes.STRING,
+      type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: false,
     },
   }, {
