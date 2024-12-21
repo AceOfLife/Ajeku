@@ -1,6 +1,6 @@
 const multer = require('multer');
-const cloudinary = require('./cloudinaryConfig'); // Import the cloudinary configuration
-const { v2: cloudinaryUploader } = cloudinary; // Destructure the v2 uploader from the cloudinary instance
+const cloudinary = require('./cloudinaryConfig'); // Import the entire cloudinary config
+// No need for destructuring since cloudinary.uploader is already available directly
 
 // Set up Multer to handle file uploads using memory storage
 const storage = multer.memoryStorage(); // Store the file in memory instead of disk
@@ -12,7 +12,7 @@ async function uploadImagesToCloudinary(files) {
     const uploadPromises = files.map(file =>
         new Promise((resolve, reject) => {
             // Upload image from memory buffer to Cloudinary
-            const stream = cloudinaryUploader.uploader.upload_stream(
+            const stream = cloudinary.uploader.upload_stream( // Directly use cloudinary.uploader
                 { folder: 'property_images' }, 
                 (error, result) => {
                     if (error) {
