@@ -212,7 +212,6 @@ const fs = require('fs');
 const multer = require('multer');
 const cloudinary = require('../config/cloudinaryConfig');
 const upload = require('../config/multerConfig');
-const PropertyImage = require('../models/PropertyImage');
 
 
 // Multer configuration for handling image uploads
