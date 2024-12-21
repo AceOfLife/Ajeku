@@ -211,6 +211,8 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const cloudinary = require('../config/cloudinaryConfig');
+const upload = require('../config/multerConfig');
+const PropertyImage = require('../models/PropertyImage');
 
 
 // Multer configuration for handling image uploads
@@ -607,21 +609,21 @@ exports.createProperty = async (req, res) => {
             // Handle image uploads to Cloudinary
             if (req.files && req.files.length > 0) {
                 const imageUrls = await Promise.all(req.files.map(async (file) => {
-                    // Upload to Cloudinary
+                    // Upload each file to Cloudinary
                     const cloudinaryResult = await cloudinary.uploader.upload(file.path, {
-                        folder: 'property_images', // Optional: you can create a folder in Cloudinary
+                        folder: 'property_images',  // Define the folder name in Cloudinary
                     });
 
-                    // Get the public URL of the uploaded image
+                    // Get the secure URL of the uploaded image
                     const publicUrl = cloudinaryResult.secure_url;
 
                     return {
-                        property_id: newProperty.id,
-                        image_url: publicUrl, // Save the Cloudinary URL
+                        property_id: newProperty.id, // Attach to the created property
+                        image_url: publicUrl,  // Cloudinary image URL
                     };
                 }));
 
-                // Create records for the images
+                // Save the images in the PropertyImage table (or appropriate model)
                 await PropertyImage.bulkCreate(imageUrls);
             }
 
