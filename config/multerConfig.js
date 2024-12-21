@@ -1,31 +1,33 @@
 const multer = require('multer');
 const cloudinary = require('./cloudinaryConfig');
-const { v2: cloudinaryUploader } = cloudinary; // Assuming you're using Cloudinary's v2 API
+const { v2: cloudinaryUploader } = cloudinary; // Use Cloudinary's v2 API
 
-// Set up Multer to handle the file upload
+// Set up Multer to handle file uploads using memory storage
 const storage = multer.memoryStorage(); // Store the file in memory instead of disk
 
-const upload = multer({ storage: storage }).array('images', 15); // Upload up to 10 files with the field name 'images'
+const upload = multer({ storage: storage }).array('images', 15); // Upload up to 15 files with the field name 'images'
 
-// Add Cloudinary upload directly within the controller
+// Function to upload images to Cloudinary
 async function uploadImagesToCloudinary(files) {
     const uploadPromises = files.map(file =>
-        cloudinaryUploader.uploader.upload_stream({ folder: 'property_images' }, (error, result) => {
-            if (error) throw error;
-            return result.secure_url;
+        new Promise((resolve, reject) => {
+            // Upload image from memory buffer to Cloudinary
+            const stream = cloudinaryUploader.uploader.upload_stream(
+                { folder: 'property_images' }, 
+                (error, result) => {
+                    if (error) {
+                        reject(error); // Reject the promise if an error occurs
+                    } else {
+                        resolve(result.secure_url); // Resolve with the secure URL of the uploaded image
+                    }
+                }
+            );
+            
+            stream.end(file.buffer); // End the stream with the image buffer
         })
     );
 
-    files.forEach(file => {
-        const stream = cloudinaryUploader.uploader.upload_stream({ folder: 'property_images' }, (error, result) => {
-            if (error) throw error;
-            return result.secure_url;
-        });
-        
-        stream.end(file.buffer);  // Upload image from memory
-    });
-
-    // Returns URLs for each image uploaded
+    // Wait for all images to be uploaded and return their URLs
     return Promise.all(uploadPromises);
 }
 
