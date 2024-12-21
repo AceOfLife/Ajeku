@@ -210,6 +210,7 @@ const { Property, User, PropertyImage } = require('../models');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const cloudinary = require('../config/cloudinaryConfig');
 
 
 // Multer configuration for handling image uploads
@@ -623,28 +624,20 @@ exports.createProperty = async (req, res) => {
             // Create the property record
             const newProperty = await Property.create(newPropertyData);
 
-            // Handle image uploads
+            // Handle image uploads to Cloudinary
             if (req.files && req.files.length > 0) {
                 const imageUrls = await Promise.all(req.files.map(async (file) => {
-                    const tempPath = path.join(__dirname, '/tmp/', file.filename);  // Temp location in Vercel
+                    // Upload to Cloudinary
+                    const cloudinaryResult = await cloudinary.uploader.upload(file.path, {
+                        folder: 'property_images', // Optional: you can create a folder in Cloudinary
+                    });
 
-                    // Define the destination path for the public folder
-                    const uploadDir = path.join(__dirname, '../public/images');  // Make sure you have a 'public/images' folder
-                    if (!fs.existsSync(uploadDir)) {
-                        fs.mkdirSync(uploadDir, { recursive: true });
-                    }
-
-                    const targetPath = path.join(uploadDir, file.filename);  // Final destination path in public/images
-
-                    // Move the file from /tmp to public/images
-                    fs.renameSync(tempPath, targetPath);
-
-                    // Create the public URL
-                    const publicUrl = `https://ajeku-mu.vercel.app/images/${file.filename}`;
+                    // Get the public URL of the uploaded image
+                    const publicUrl = cloudinaryResult.secure_url;
 
                     return {
                         property_id: newProperty.id,
-                        image_url: publicUrl,  // Save the URL for the image
+                        image_url: publicUrl, // Save the Cloudinary URL
                     };
                 }));
 

@@ -17,6 +17,9 @@
     "NODE_ENV": "production",
     "EMAIL_USER": "teddyogbonnaya@gmail.com",
     "EMAIL_PASS": "&Dreamcodev1",
-    "FRONTEND_URL": "https://ajeku-mu.vercel.app"
+    "FRONTEND_URL": "https://ajeku-mu.vercel.app",
+    "CLOUDINARY_CLOUD_NAME": "dqqxes1xo",
+    "CLOUDINARY_API_KEY": "942322874736725",
+    "CLOUDINARY_API_SECRET": "7uvqpKsfR2luTaJw3TarDc9lYyU"
   }
 }
