@@ -138,7 +138,7 @@ exports.createProperty = async (req, res) => {
             const newProperty = await Property.create(newPropertyData);
 
             // Handle image uploads to Cloudinary
-            let imageUrls = [];
+            
             if (req.files && req.files.length > 0) {
                 const imageUrls = await uploadImagesToCloudinary(req.files);
                 
