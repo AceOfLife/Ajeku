@@ -129,6 +129,7 @@ exports.createProperty = async (req, res) => {
             };
 
             if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
+            console.log("Is Array: ", Array.isArray(kitchen)); ;
             if (heating) newPropertyData.heating = splitToArray(heating);
             if (cooling) newPropertyData.cooling = splitToArray(cooling);
             if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
