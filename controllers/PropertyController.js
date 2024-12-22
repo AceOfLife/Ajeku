@@ -114,6 +114,8 @@ exports.createProperty = async (req, res) => {
                 annual_tax_amount: annual_tax_amount || 0, // Default to 0 for missing annual_tax_amount
                 date_on_market: validDateOnMarket, // Ensure valid date
                 ownership: ownership || "", // Empty string for missing ownership
+                percentage: percentage || "", // Empty string for missing ownership
+                duration: duration || "", // Empty string for missing ownership
             };
 
             // Conditionally handle optional fields (convert string input to array if provided)

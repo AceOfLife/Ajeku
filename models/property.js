@@ -135,6 +135,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
+    percentage: { // Percentage for part payment
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    duration: { // Duration for part payment
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   });
 
   Property.associate = function(models) {
