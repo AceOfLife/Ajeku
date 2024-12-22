@@ -34,7 +34,6 @@ const splitToArray = (field) => {
 
 // Image upload
 
-
 exports.createProperty = async (req, res) => {
     upload(req, res, async (err) => {
         if (err) {
@@ -121,15 +120,7 @@ exports.createProperty = async (req, res) => {
             };
 
             // Conditionally handle optional fields (convert string input to array if provided)
-            const splitToArray = (field) => {
-                if (typeof field === 'string') {
-                    return field.split(",").map(item => item.trim());
-                }
-                return [];
-            };
-
             if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
-            console.log("Is Array: ", Array.isArray(kitchen)); ;
             if (heating) newPropertyData.heating = splitToArray(heating);
             if (cooling) newPropertyData.cooling = splitToArray(cooling);
             if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
@@ -146,8 +137,6 @@ exports.createProperty = async (req, res) => {
             let imageUrls = [];
             if (req.files && req.files.length > 0) {
                 imageUrls = await uploadImagesToCloudinary(req.files);
-                
-                console.log("Image URLs:", imageUrls);
 
                 const imageRecords = imageUrls.map(url => ({
                     property_id: newProperty.id,
@@ -168,7 +157,7 @@ exports.createProperty = async (req, res) => {
 
             // Return the filtered property in the response
             res.status(201).json({
-                filteredProperty,
+                property: filteredProperty,
                 images: imageUrls || []
             });
         } catch (error) {
@@ -279,73 +268,6 @@ exports.getPropertyById = async (req, res) => {
     }
 };
 
-// Filter properties based on query parameters
-// exports.getFilteredProperties = async (req, res) => {
-//     const { type, location, area, number_of_baths, number_of_rooms } = req.query;
-
-//     // Prepare the filter based on the query parameters
-//     const filter = {};
-//     if (type) filter.type = type;
-//     if (location) filter.location = location;
-//     if (area) filter.area = area;
-//     if (number_of_baths) filter.number_of_baths = number_of_baths;
-//     if (number_of_rooms) filter.number_of_rooms = number_of_rooms;
-
-//     try {
-//         // Find properties that match the filter
-//         const properties = await Property.findAll({ where: filter });
-//         res.status(200).json(properties);
-//     } catch (error) {
-//         res.status(500).json({ message: 'Error retrieving properties', error });
-//     }
-// };
-
-
-//Filter Correction
-
-// exports.getFilteredProperties = async (req, res) => {
-//     const { type, location, area, number_of_baths, number_of_rooms, special_features, appliances } = req.query;
-
-//     // Prepare the filter based on the query parameters
-//     const filter = {};
-
-//     // Basic filters for properties
-//     if (type) filter.type = type;
-//     if (location) filter.location = location;
-//     if (area) filter.area = area;
-//     if (number_of_baths) filter.number_of_baths = number_of_baths;
-//     if (number_of_rooms) filter.number_of_rooms = number_of_rooms;
-
-//     // Handle array fields if provided as query parameters (e.g., special_features, appliances)
-//     if (special_features) {
-//         filter.special_features = {
-//             [Op.contains]: JSON.parse(special_features)
-//         };
-//     }
-
-//     if (appliances) {
-//         filter.appliances = {
-//             [Op.contains]: JSON.parse(appliances)
-//         };
-//     }
-
-//     try {
-//         // Find properties that match the filter
-//         const properties = await Property.findAll({ where: filter });
-
-//         // Send the response back with the filtered properties
-//         res.status(200).json(properties);
-//     } catch (error) {
-//         // Log and return the error message
-//         console.error(error);
-//         res.status(500).json({
-//             message: 'Error retrieving properties',
-//             error: error.message
-//         });
-//     }
-// };
-
-// Filter correction for fields
 
 const { Op } = require('sequelize');
 
