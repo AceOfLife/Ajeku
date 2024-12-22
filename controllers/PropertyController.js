@@ -271,8 +271,6 @@ exports.getPropertyById = async (req, res) => {
 
 const { Op } = require('sequelize');
 
-const { Op } = require('sequelize');
-
 exports.getFilteredProperties = async (req, res) => {
     const { name } = req.query;
 
