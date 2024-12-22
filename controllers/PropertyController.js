@@ -349,7 +349,7 @@ exports.getPropertyById = async (req, res) => {
 const { Op } = require('sequelize');
 
 exports.getFilteredProperties = async (req, res) => {
-    const { type, location, area, number_of_baths, number_of_rooms, special_features, appliances } = req.query;
+    const { type, location, area, number_of_baths, number_of_rooms, special_features, appliances, name } = req.query;
 
     // Prepare the filter based on the query parameters
     const filter = {};
@@ -359,12 +359,26 @@ exports.getFilteredProperties = async (req, res) => {
     if (location) filter.location = location;
     if (area) filter.area = area;
 
-    // Check and convert `number_of_baths` and `number_of_rooms` to numbers
+    // Convert number_of_baths and number_of_rooms from string to integer (if they are provided)
     if (number_of_baths) {
-        filter.number_of_baths = Number(number_of_baths);  // Ensure it is an exact match
+        const numBaths = parseInt(number_of_baths, 10);
+        if (!isNaN(numBaths)) {
+            filter.number_of_baths = numBaths;
+        }
     }
+
     if (number_of_rooms) {
-        filter.number_of_rooms = Number(number_of_rooms);  // Ensure it is an exact match
+        const numRooms = parseInt(number_of_rooms, 10);
+        if (!isNaN(numRooms)) {
+            filter.number_of_rooms = numRooms;
+        }
+    }
+
+    // Handle name query for exact or partial matching
+    if (name) {
+        filter.name = {
+            [Op.iLike]: `%${name}%`,  // Case-insensitive partial match
+        };
     }
 
     // Handle array fields if provided as query parameters (e.g., special_features, appliances)
@@ -384,6 +398,11 @@ exports.getFilteredProperties = async (req, res) => {
         // Find properties that match the filter
         const properties = await Property.findAll({ where: filter });
 
+        // If no properties are found, return a 404 response
+        if (properties.length === 0) {
+            return res.status(404).json({ message: 'No properties found matching the criteria' });
+        }
+
         // Send the response back with the filtered properties
         res.status(200).json(properties);
     } catch (error) {
@@ -395,5 +414,3 @@ exports.getFilteredProperties = async (req, res) => {
         });
     }
 };
-
-
