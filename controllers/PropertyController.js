@@ -274,34 +274,27 @@ const { Op } = require('sequelize');
 exports.getFilteredProperties = async (req, res) => {
     const { name } = req.query;
 
-    // Prepare the filter object
-    const filter = {};
-
-    // Apply filter for name if provided
-    if (name) {
-        filter.name = {
-            [Op.iLike]: `%${name}%`, // Case-insensitive partial match
-        };
+    if (!name) {
+        return res.status(400).json({ message: 'The name query parameter is required' });
     }
 
     try {
-        // Log the filter object for debugging
-        console.log("Filter applied:", filter);
+        console.log("Query parameter received:", name);
 
-        // Find properties matching the filter
         const properties = await Property.findAll({
-            where: filter,
+            where: {
+                name: { [Op.iLike]: `%${name}%` },
+            },
         });
 
-        // Return a 404 message if no properties match
+        console.log("Filtered properties:", properties);
+
         if (properties.length === 0) {
             return res.status(404).json({ message: 'No properties found matching the name criteria' });
         }
 
-        // Return the filtered properties
         res.status(200).json(properties);
     } catch (error) {
-        // Handle and log errors
         console.error("Error retrieving properties:", error);
         res.status(500).json({
             message: 'Error retrieving properties',
