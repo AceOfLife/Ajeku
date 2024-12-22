@@ -302,6 +302,52 @@ exports.getPropertyById = async (req, res) => {
 
 //Filter Correction
 
+// exports.getFilteredProperties = async (req, res) => {
+//     const { type, location, area, number_of_baths, number_of_rooms, special_features, appliances } = req.query;
+
+//     // Prepare the filter based on the query parameters
+//     const filter = {};
+
+//     // Basic filters for properties
+//     if (type) filter.type = type;
+//     if (location) filter.location = location;
+//     if (area) filter.area = area;
+//     if (number_of_baths) filter.number_of_baths = number_of_baths;
+//     if (number_of_rooms) filter.number_of_rooms = number_of_rooms;
+
+//     // Handle array fields if provided as query parameters (e.g., special_features, appliances)
+//     if (special_features) {
+//         filter.special_features = {
+//             [Op.contains]: JSON.parse(special_features)
+//         };
+//     }
+
+//     if (appliances) {
+//         filter.appliances = {
+//             [Op.contains]: JSON.parse(appliances)
+//         };
+//     }
+
+//     try {
+//         // Find properties that match the filter
+//         const properties = await Property.findAll({ where: filter });
+
+//         // Send the response back with the filtered properties
+//         res.status(200).json(properties);
+//     } catch (error) {
+//         // Log and return the error message
+//         console.error(error);
+//         res.status(500).json({
+//             message: 'Error retrieving properties',
+//             error: error.message
+//         });
+//     }
+// };
+
+// Filter correction for fields
+
+const { Op } = require('sequelize');
+
 exports.getFilteredProperties = async (req, res) => {
     const { type, location, area, number_of_baths, number_of_rooms, special_features, appliances } = req.query;
 
@@ -312,8 +358,14 @@ exports.getFilteredProperties = async (req, res) => {
     if (type) filter.type = type;
     if (location) filter.location = location;
     if (area) filter.area = area;
-    if (number_of_baths) filter.number_of_baths = number_of_baths;
-    if (number_of_rooms) filter.number_of_rooms = number_of_rooms;
+
+    // Check and convert `number_of_baths` and `number_of_rooms` to numbers
+    if (number_of_baths) {
+        filter.number_of_baths = Number(number_of_baths);  // Ensure it is an exact match
+    }
+    if (number_of_rooms) {
+        filter.number_of_rooms = Number(number_of_rooms);  // Ensure it is an exact match
+    }
 
     // Handle array fields if provided as query parameters (e.g., special_features, appliances)
     if (special_features) {
@@ -343,4 +395,5 @@ exports.getFilteredProperties = async (req, res) => {
         });
     }
 };
+
 
