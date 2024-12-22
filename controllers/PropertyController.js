@@ -272,58 +272,29 @@ exports.getPropertyById = async (req, res) => {
 const { Op } = require('sequelize');
 
 exports.getFilteredProperties = async (req, res) => {
-    const { type, location, area, number_of_baths, number_of_rooms, special_features, appliances, name } = req.query;
+    const { name } = req.query;
 
-    // Prepare the filter based on the query parameters
+    // Prepare the filter object
     const filter = {};
 
-    // Basic filters for properties
-    if (type) filter.type = type;
-    if (location) filter.location = location;
-    if (area) filter.area = area;
-
-    // Convert number_of_baths and number_of_rooms from string to integer (if they are provided)
-    if (number_of_baths) {
-        const numBaths = parseInt(number_of_baths, 10);
-        if (!isNaN(numBaths)) {
-            filter.number_of_baths = numBaths;
-        }
-    }
-
-    if (number_of_rooms) {
-        const numRooms = parseInt(number_of_rooms, 10);
-        if (!isNaN(numRooms)) {
-            filter.number_of_rooms = numRooms;
-        }
-    }
-
-    // Handle name query for exact or partial matching
+    // Check if 'name' is provided in the query parameters
     if (name) {
+        // Use Op.iLike for case-insensitive partial matching
         filter.name = {
             [Op.iLike]: `%${name}%`,  // Case-insensitive partial match
         };
     }
 
-    // Handle array fields if provided as query parameters (e.g., special_features, appliances)
-    if (special_features) {
-        filter.special_features = {
-            [Op.contains]: JSON.parse(special_features)
-        };
-    }
-
-    if (appliances) {
-        filter.appliances = {
-            [Op.contains]: JSON.parse(appliances)
-        };
-    }
-
     try {
+        // Log the filter object for debugging
+        console.log("Filter by name:", filter);
+
         // Find properties that match the filter
         const properties = await Property.findAll({ where: filter });
 
         // If no properties are found, return a 404 response
         if (properties.length === 0) {
-            return res.status(404).json({ message: 'No properties found matching the criteria' });
+            return res.status(404).json({ message: 'No properties found matching the name criteria' });
         }
 
         // Send the response back with the filtered properties
@@ -332,7 +303,7 @@ exports.getFilteredProperties = async (req, res) => {
         // Log and return the error message
         console.error(error);
         res.status(500).json({
-            message: 'Error retrieving properties',
+            message: 'Error retrieving properties by name',
             error: error.message
         });
     }
