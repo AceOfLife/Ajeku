@@ -71,7 +71,9 @@ exports.createProperty = async (req, res) => {
                 heating,
                 cooling,
                 type_and_style,
-                lot
+                lot,
+                percentage,
+                duration
             } = req.body;
 
             // Check if the admin is authenticated and has the correct role
