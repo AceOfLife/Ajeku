@@ -294,6 +294,12 @@ exports.getFilteredProperties = async (req, res) => {
         // Log the filter being applied
         console.log("Filter being applied:", filter);
 
+        // Log the SQL query before execution
+        console.log("SQL Query being executed:", await Property.sequelize.queryInterface.queryGenerator.selectQuery('Property', {
+            where: filter,
+            include: [{ model: PropertyImage, as: 'images' }]
+        }).sql);
+
         // Execute the query with the WHERE clause
         const properties = await Property.findAll({
             where: filter, // Apply the filter
@@ -318,4 +324,3 @@ exports.getFilteredProperties = async (req, res) => {
         });
     }
 };
-
