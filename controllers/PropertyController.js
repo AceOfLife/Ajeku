@@ -274,9 +274,13 @@ const { Op } = require('sequelize');
 exports.getFilteredProperties = async (req, res) => {
     const { name } = req.query;
 
-    // Ensure the name query parameter is provided
+    // Log query parameters
+    console.log("Query received:", req.query);
+
+    // Validate the name parameter
     if (!name || name.trim() === "") {
-        return res.status(400).json({ message: 'The name query parameter is required' });
+        console.log("Name parameter is missing or invalid.");
+        return res.status(400).json({ message: "The name query parameter is required" });
     }
 
     try {
@@ -287,7 +291,7 @@ exports.getFilteredProperties = async (req, res) => {
             },
         };
 
-        // Debugging: Log the applied filter
+        // Log the filter being applied
         console.log("Filter being applied:", filter);
 
         // Execute the query with the WHERE clause
@@ -295,6 +299,9 @@ exports.getFilteredProperties = async (req, res) => {
             where: filter, // Apply the filter
             include: [{ model: PropertyImage, as: 'images' }], // Include associated images
         });
+
+        // Log the result of the query
+        console.log("Query result:", properties);
 
         // Return a 404 if no properties are found
         if (properties.length === 0) {
