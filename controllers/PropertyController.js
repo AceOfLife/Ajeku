@@ -230,13 +230,13 @@ exports.deleteProperty = async (req, res) => {
 exports.getAllProperties = async (req, res) => {
     try {
         const properties = await Property.findAll({
-            // include: [
-            //     {
-            //         model: PropertyImage, // Include the PropertyImage model
-            //         as: 'images',         // Alias for the association
-            //         attributes: ['image_url'] // Specify the image URL field to include
-            //     }
-            // ]
+            include: [
+                {
+                    model: PropertyImage, // Include the PropertyImage model
+                    as: 'images',         // Alias for the association
+                    attributes: ['image_url'] // Specify the image URL field to include
+                }
+            ]
         });
         res.status(200).json(properties);
     } catch (error) {
