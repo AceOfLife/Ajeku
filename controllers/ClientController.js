@@ -14,14 +14,7 @@ exports.getAllClients = async (req, res) => {
   }
 };
 
-// exports.createClient = async (req, res) => {
-//   try {
-//     const newClient = await Client.create(req.body);
-//     res.status(201).json(newClient);
-//   } catch (error) {
-//     res.status(400).json({ message: 'Error creating client', error });
-//   }
-// };
+
 
 // Register a new client
 exports.createClient = async (req, res) => {
@@ -55,26 +48,12 @@ exports.createClient = async (req, res) => {
   }
 };
 
-// exports.updateClient = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const [updated] = await Client.update(req.body, { where: { id } });
-    
-//     if (updated) {
-//       const updatedClient = await Client.findOne({ where: { id } });
-//       res.status(200).json(updatedClient);
-//     } else {
-//       res.status(404).json({ message: 'Client not found' });
-//     }
-//   } catch (error) {
-//     res.status(400).json({ message: 'Error updating client', error });
-//   }
-// };
+
 
 // Update client profile
 exports.updateProfile = async (req, res) => {
   const { userId } = req.body; // Assume userId is passed to identify the client
-  const { name, location, number_of_rooms } = req.body;
+  const { name, address, phone_number, city, state } = req.body;
 
   try {
     // Find the client by userId (assuming userId is available from a JWT token or session)
@@ -87,9 +66,16 @@ exports.updateProfile = async (req, res) => {
       return res.status(404).json({ message: 'Client not found' });
     }
 
-    // Update client and user profile
+    // Update user profile (e.g., update the name)
     const updatedUser = await client.user.update({ name });
-    const updatedClient = await client.update({ location, number_of_rooms });
+
+    // Update client profile with the new fields
+    const updatedClient = await client.update({
+      address,
+      phone_number,
+      city,
+      state,
+    });
 
     res.status(200).json({
       message: 'Profile updated successfully',
@@ -100,6 +86,7 @@ exports.updateProfile = async (req, res) => {
     res.status(500).json({ message: 'Error updating profile', error: error.message });
   }
 };
+
 
 // Change client password
 exports.changePassword = async (req, res) => {
