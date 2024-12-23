@@ -29,7 +29,7 @@
 
 // models/Client.js
 const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const sequelize = require('../config/config');
 const User = require('./User'); // Import the User model
 
 const Client = sequelize.define('Client', {
