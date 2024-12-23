@@ -1,6 +1,6 @@
 // controllers/ClientController.js
 const { Client } = require('../models');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken'); // Assuming you're using JWT for authentication
 
 exports.getAllClients = async (req, res) => {
