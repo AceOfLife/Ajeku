@@ -317,15 +317,6 @@ exports.getFilteredProperties = async (req, res) => {
             };
         }
 
-        // Log the filter being applied
-        console.log("Filter being applied:", JSON.stringify(filter, null, 2));
-
-        // Log relevant models for debugging
-        console.log("Property Model:", Property);
-        console.log("PropertyImage Model:", PropertyImage);
-        console.log("Associations for Property:", Property.associations);
-        console.log("Associations for PropertyImage:", PropertyImage.associations);
-
         // Log the SQL query before execution
         try {
             const sqlQuery = await Property.sequelize.queryInterface.queryGenerator.selectQuery('Property', {
@@ -348,7 +339,7 @@ exports.getFilteredProperties = async (req, res) => {
 
         // Return a 404 if no properties are found
         if (properties.length === 0) {
-            return res.status(404).json({ message: 'No properties found matching the criteria' });
+            return res.status(404).json({ message: 'No properties found' });
         }
 
         // Return the filtered properties
