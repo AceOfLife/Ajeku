@@ -304,17 +304,17 @@ exports.getFilteredProperties = async (req, res) => {
         try {
             const sqlQuery = await Property.sequelize.queryInterface.queryGenerator.selectQuery('Property', {
                 where: filter,
-                include: [{ model: PropertyImage }] // Removed 'as' to simplify, you can add it back if needed
+                include: [{ model: PropertyImage, as: 'images' }]
             });
             console.log("SQL Query being executed:", sqlQuery.sql);
         } catch (queryGenerationError) {
             console.error("Error generating SQL query:", queryGenerationError);
         }
 
-        // Execute the query with the WHERE clause, using a simpler include
+        // Execute the query with the WHERE clause
         const properties = await Property.findAll({
             where: filter, 
-            include: [{ model: PropertyImage }], // Simplified include, check if this resolves the issue
+            include: [{ model: PropertyImage, as: 'images' }], // Include associated images
         });
 
         // Log the result of the query
