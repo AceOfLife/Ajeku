@@ -4,7 +4,7 @@ const ClientController = require('../controllers/ClientController');
 const { authenticate } = require('../middlewares/authMiddleware');
 
 // Client registration (no authentication)
-router.post('/register', ClientController.registerClient); // Register new client
+router.post('/register', ClientController.createClient); // Register new client
 
 // Client profile update (authentication required)
 router.put('/profile', authenticate, ClientController.updateProfile); // Update profile
