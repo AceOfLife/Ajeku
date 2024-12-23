@@ -28,9 +28,9 @@
 
 
 // models/Client.js
-const { DataTypes } = require('./index');
-const sequelize = require('../config/config');
-const User = require('./user'); // Import the User model
+const { DataTypes } = require('sequelize'); // Import DataTypes correctly
+const sequelize = require('../config/config'); // Import sequelize instance
+const User = require('./user'); // Import User model
 
 const Client = sequelize.define('Client', {
   user_id: {
