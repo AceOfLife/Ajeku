@@ -272,24 +272,50 @@ exports.getPropertyById = async (req, res) => {
 const { Op } = require('sequelize');
 
 exports.getFilteredProperties = async (req, res) => {
-    const { name } = req.query;
+    const { name, number_of_baths, number_of_rooms, type } = req.query;
 
     // Log query parameters
     console.log("Query received:", req.query);
 
     // Validate the name parameter
-    if (!name || name.trim() === "") {
-        console.log("Name parameter is missing or invalid.");
-        return res.status(400).json({ message: "The name query parameter is required" });
+    if (!name && !number_of_baths && !number_of_rooms && !type) {
+        console.log("At least one filter parameter is required.");
+        return res.status(400).json({ message: "At least one filter parameter is required" });
     }
 
     try {
         // Prepare the filter for the WHERE clause
-        const filter = {
-            name: {
+        const filter = {};
+
+        if (name && name.trim() !== "") {
+            filter.name = {
                 [Op.iLike]: `%${name.trim()}%`, // Case-insensitive partial match
-            },
-        };
+            };
+        }
+
+        if (number_of_baths) {
+            // Assuming number_of_baths is a string like "2,3,4" for 2 or 3 or 4 bathrooms
+            const bathsArray = number_of_baths.split(',').map(num => parseInt(num.trim(), 10));
+            filter.number_of_baths = {
+                [Op.in]: bathsArray
+            };
+        }
+
+        if (number_of_rooms) {
+            // Similar handling for number_of_rooms
+            const roomsArray = number_of_rooms.split(',').map(num => parseInt(num.trim(), 10));
+            filter.number_of_rooms = {
+                [Op.in]: roomsArray
+            };
+        }
+
+        if (type) {
+            // Assuming type is a string like "Residential,Commercial" for Residential or Commercial
+            const typesArray = type.split(',').map(str => str.trim());
+            filter.type = {
+                [Op.in]: typesArray
+            };
+        }
 
         // Log the filter being applied
         console.log("Filter being applied:", JSON.stringify(filter, null, 2));
@@ -304,14 +330,14 @@ exports.getFilteredProperties = async (req, res) => {
         try {
             const sqlQuery = await Property.sequelize.queryInterface.queryGenerator.selectQuery('Property', {
                 where: filter,
-                include: [{ model: PropertyImage, as: 'images' }] // Re-added 'as' alias
+                include: [{ model: PropertyImage, as: 'images' }]
             });
             console.log("SQL Query being executed:", sqlQuery.sql);
         } catch (queryGenerationError) {
             console.error("Error generating SQL query:", queryGenerationError);
         }
 
-        // Execute the query with the WHERE clause, using the 'as' alias in include
+        // Execute the query with the WHERE clause
         const properties = await Property.findAll({
             where: filter, 
             include: [{ model: PropertyImage, as: 'images' }], // Include associated images with alias
@@ -322,7 +348,7 @@ exports.getFilteredProperties = async (req, res) => {
 
         // Return a 404 if no properties are found
         if (properties.length === 0) {
-            return res.status(404).json({ message: 'No properties found matching the name criteria' });
+            return res.status(404).json({ message: 'No properties found matching the criteria' });
         }
 
         // Return the filtered properties
