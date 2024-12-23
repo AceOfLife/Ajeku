@@ -294,24 +294,26 @@ exports.getFilteredProperties = async (req, res) => {
         // Log the filter being applied
         console.log("Filter being applied:", JSON.stringify(filter, null, 2));
 
-        // Log the SQL query before execution
-        console.log("SQL Query being executed:", await Property.sequelize.queryInterface.queryGenerator.selectQuery('Property', {
-            where: filter,
-            include: [{ model: PropertyImage, as: 'images' }]
-        }).sql);
+        // Log relevant models for debugging
+        console.log("Property Model:", Property);
+        console.log("PropertyImage Model:", PropertyImage);
+        console.log("Associations for Property:", Property.associations);
+        console.log("Associations for PropertyImage:", PropertyImage.associations);
 
-        // Inside the try block, before your findAll query
-        const testQuery = await sequelize.query(`
-          SELECT * FROM "Properties" 
-          WHERE "name" ILIKE :name`, {
-            replacements: { name: `%${name.trim()}%` },
-            type: sequelize.QueryTypes.SELECT
-        });
-        console.log("Manual Query Result:", testQuery);
+        // Log the SQL query before execution
+        try {
+            const sqlQuery = await Property.sequelize.queryInterface.queryGenerator.selectQuery('Property', {
+                where: filter,
+                include: [{ model: PropertyImage, as: 'images' }]
+            });
+            console.log("SQL Query being executed:", sqlQuery.sql);
+        } catch (queryGenerationError) {
+            console.error("Error generating SQL query:", queryGenerationError);
+        }
 
         // Execute the query with the WHERE clause
         const properties = await Property.findAll({
-            where: filter, // Apply the filter
+            where: filter, 
             include: [{ model: PropertyImage, as: 'images' }], // Include associated images
         });
 
