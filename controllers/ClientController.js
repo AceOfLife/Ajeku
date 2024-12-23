@@ -2,6 +2,8 @@
 const { Client } = require('../models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken'); // Assuming you're using JWT for authentication
+const { User } = require('../models'); // Assuming you're using Sequelize
+
 
 exports.getAllClients = async (req, res) => {
   try {
