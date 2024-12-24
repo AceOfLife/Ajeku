@@ -9,7 +9,6 @@ const TransactionController = require('../controllers/TransactionController');
 const MessageController = require('../controllers/MessageController');
 const ReviewController = require('../controllers/ReviewController');
 const UserController = require('../controllers/UserController');
-const clientRoutes = require('./clientRoutes'); // Import the new client routes file
 
 
 // Import the Bank of Heaven Routes
@@ -19,11 +18,10 @@ const bankOfHeavenRoutes = require('./bankOfHeavenRoutes');
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
 
 // Client routes
-// router.get('/clients', authenticate, ClientController.getAllClients);
-// router.post('/clients', authenticate, authorizeAdmin, ClientController.createClient);
-// router.put('/clients/:id', authenticate, authorizeAdmin, ClientController.updateClient);
-// router.delete('/clients/:id', authenticate, authorizeAdmin, ClientController.deleteClient);
-router.use('/clients', clientRoutes);
+router.get('/clients', authenticate, ClientController.getAllClients);
+router.post('/clients', authenticate, authorizeAdmin, ClientController.createClient);
+router.put('/clients/:id', authenticate, authorizeAdmin, ClientController.updateClient);
+router.delete('/clients/:id', authenticate, authorizeAdmin, ClientController.deleteClient);
 
 // Agent routes
 router.get('/agents', authenticate, AgentController.getAllAgents);

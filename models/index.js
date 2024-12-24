@@ -9,7 +9,9 @@ const env = process.env.NODE_ENV || 'development';
 const config = require('../config/config.json')[env]; // Adjust the path as needed
 const db = {};
 
-
+// Debugging: log environment and database URL
+console.log("Environment: ", env);
+console.log("DATABASE_URL: ", process.env.DATABASE_URL);
 
 // Check if DATABASE_URL exists, else use config.json for local development
 let sequelize;
