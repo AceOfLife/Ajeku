@@ -1,6 +1,5 @@
 // models/Client.js
 const { DataTypes } = require('sequelize');
-const { sequelize } = require('./index');  // Correctly import sequelize from index.js
 const User = require('./user');  // Import User model
 
 const Client = sequelize.define('Client', {
