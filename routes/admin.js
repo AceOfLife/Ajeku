@@ -19,7 +19,7 @@ const bankOfHeavenRoutes = require('./bankOfHeavenRoutes');
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
 
 // Client routes
-// router.get('/clients', authenticate, ClientController.getAllClients);
+router.get('/clients', authenticate, authorizeAdmin, ClientController.getAllClients);
 // router.post('/clients', authenticate, authorizeAdmin, ClientController.createClient);
 // router.put('/clients/:id', authenticate, authorizeAdmin, ClientController.updateClient);
 // router.delete('/clients/:id', authenticate, authorizeAdmin, ClientController.deleteClient);
