@@ -13,3 +13,12 @@
 // router.put('/password', authenticate, ClientController.changePassword); // Change password
 
 // module.exports = router;
+
+const express = require('express');
+const router = express.Router();
+const ClientController = require('../controllers/ClientController');
+
+// Client registration (no authentication)
+router.post('/register', ClientController.createClient);
+
+module.exports = router;

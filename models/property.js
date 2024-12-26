@@ -23,19 +23,6 @@ module.exports = (sequelize, DataTypes) => {
     type: { // Property Type (e.g., Rooms, Workspace)
       type: DataTypes.ENUM('Rooms', 'Workspace','Residential', 'Commercial'),
       allowNull: false,
-      validate: {
-        isIn: {
-          args: [['rooms', 'workspace', 'residential', 'commercial']], // Lowercase values for validation
-          msg: 'Invalid type. Must be one of: Rooms, Workspace, Residential, or Commercial.'
-        },
-      },
-      set(value) {
-        this.setDataValue('type', value ? value.toLowerCase() : value); // Store value in lowercase
-      },
-      get() {
-        const value = this.getDataValue('type');
-        return value ? value.toUpperCase() : value; // Normalize value to uppercase when retrieving
-      },
     },
     location: { // Location of the property
       type: DataTypes.STRING,
