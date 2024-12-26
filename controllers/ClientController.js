@@ -3,10 +3,37 @@ const { Client, User } = require('../models');
 const bcrypt = require('bcryptjs');
 const { check, validationResult } = require('express-validator');
 
+// exports.getAllClients = async (req, res) => {
+//   try {
+//     const clients = await Client.findAll();
+//     res.status(200).json(clients);
+//   } catch (error) {
+//     res.status(500).json({ message: 'Error retrieving clients', error });
+//   }
+// };
+
 exports.getAllClients = async (req, res) => {
   try {
-    const clients = await Client.findAll();
-    res.status(200).json(clients);
+    // Include the associated User model to fetch name and email
+    const clients = await Client.findAll({
+      include: [{
+        model: User,
+        as: 'user',  // as defined in the Client.associate method
+        attributes: ['name', 'email'] // Only fetch name and email from User
+      }]
+    });
+
+    // Map over the clients to include user details in the response
+    const clientsWithUserDetails = clients.map(client => ({
+      id: client.id,
+      user_id: client.user_id,
+      name: client.user.name,
+      email: client.user.email,
+      createdAt: client.createdAt,
+      updatedAt: client.updatedAt
+    }));
+
+    res.status(200).json(clientsWithUserDetails);
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving clients', error });
   }
