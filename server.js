@@ -166,7 +166,8 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
 const favicon = require('serve-favicon'); // Import serve-favicon
-const adminRoutes = require('./routes/admin');  // Keep this
+const adminRoutes = require('./routes/admin'); 
+const clientRoutes = require('./routes/clientRoutes');
 const authRoutes = require('./routes/authRoutes'); // Import auth routes if needed
 const { sequelize } = require('./models'); // Import Sequelize connection
 
