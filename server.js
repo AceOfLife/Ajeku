@@ -201,6 +201,9 @@ app.get('/', (req, res) => {
   res.send('Admin backend is running');
 });
 
+// Client Routes
+app.use('/clients', clientRoutes);
+
 // Auth Routes
 app.use('/auth', authRoutes); // Assuming auth routes exist
 
