@@ -194,16 +194,66 @@ exports.updateProperty = async (req, res) => {
 };
 
 // Delete a property
+// exports.deleteProperty = async (req, res) => {
+//     try {
+//         const { id } = req.params;
+
+//         // Delete associated images if any
+//         const images = await PropertyImage.findAll({ where: { property_id: id } });
+//         images.forEach(image => {
+//             const imagePath = path.join(__dirname, '..', image.image_url);
+//             if (fs.existsSync(imagePath)) {
+//                 fs.unlinkSync(imagePath); // Delete the image file from the server
+//             }
+//         });
+
+//         // Delete the property from the database
+//         const deleted = await Property.destroy({
+//             where: { id }
+//         });
+
+//         if (deleted) {
+//             // return res.status(204).send();
+//             // Send a success message
+//             return res.status(200).json({
+//                 message: `Property with ID ${id} has been successfully deleted.`
+//             });
+//         }
+
+//         throw new Error('Property not found');
+//     } catch (error) {
+//         res.status(400).json({ message: 'Error deleting property', error });
+//     }
+// };
+
 exports.deleteProperty = async (req, res) => {
     try {
-        const { id } = req.params;
+        let id = req.params.id;
+
+        // Validate that id is present and is a number
+        if (!id || isNaN(id)) {
+            return res.status(400).json({ message: 'Invalid property ID' });
+        }
+
+        id = parseInt(id, 10); // Ensure id is an integer
 
         // Delete associated images if any
         const images = await PropertyImage.findAll({ where: { property_id: id } });
         images.forEach(image => {
-            const imagePath = path.join(__dirname, '..', image.image_url);
-            if (fs.existsSync(imagePath)) {
-                fs.unlinkSync(imagePath); // Delete the image file from the server
+            if (image.image_url) {
+                // Check if image_url is an array for multiple images per record
+                const image_urls = Array.isArray(image.image_url) ? image.image_url : [image.image_url];
+
+                image_urls.forEach(image_url => {
+                    if (typeof image_url === 'string') { // Ensure it's a string
+                        const imagePath = path.resolve(__dirname, '..', image_url);
+                        if (fs.existsSync(imagePath)) {
+                            fs.unlinkSync(imagePath); // Delete the image file from the server
+                        }
+                    } else {
+                        console.warn(`Unexpected image_url type for PropertyImage ID ${image.id}:`, typeof image_url);
+                    }
+                });
             }
         });
 
@@ -213,8 +263,6 @@ exports.deleteProperty = async (req, res) => {
         });
 
         if (deleted) {
-            // return res.status(204).send();
-            // Send a success message
             return res.status(200).json({
                 message: `Property with ID ${id} has been successfully deleted.`
             });
@@ -222,7 +270,8 @@ exports.deleteProperty = async (req, res) => {
 
         throw new Error('Property not found');
     } catch (error) {
-        res.status(400).json({ message: 'Error deleting property', error });
+        console.error('Detailed Error:', error); // Log the full error for debugging
+        res.status(400).json({ message: 'Error deleting property', error: error.message });
     }
 };
 
