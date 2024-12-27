@@ -3,15 +3,6 @@ const { Client, User } = require('../models');
 const bcrypt = require('bcryptjs');
 const { check, validationResult } = require('express-validator');
 
-// exports.getAllClients = async (req, res) => {
-//   try {
-//     const clients = await Client.findAll();
-//     res.status(200).json(clients);
-//   } catch (error) {
-//     res.status(500).json({ message: 'Error retrieving clients', error });
-//   }
-// };
-
 exports.getAllClients = async (req, res) => {
   try {
     // Include the associated User model to fetch name and email
@@ -38,15 +29,6 @@ exports.getAllClients = async (req, res) => {
     res.status(500).json({ message: 'Error retrieving clients', error });
   }
 };
-
-// exports.createClient = async (req, res) => {
-//   try {
-//     const newClient = await Client.create(req.body);
-//     res.status(201).json(newClient);
-//   } catch (error) {
-//     res.status(400).json({ message: 'Error creating client', error });
-//   }
-// };
 
 exports.createClient = [
   // Validation middleware
