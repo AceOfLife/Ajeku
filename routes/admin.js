@@ -22,6 +22,13 @@ const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware'
 router.get('/clients', authenticate, authorizeAdmin, ClientController.getAllClients);
 // router.post('/clients', authenticate, authorizeAdmin, ClientController.createClient);
 // router.put('/clients/:id', authenticate, authorizeAdmin, ClientController.updateClient);
+router.get('/clients/:id', authenticate, (req, res, next) => {
+    if (req.user.role === 'admin' || req.user.id.toString() === req.params.id) {
+      next(); // Proceed if the user is an admin or the client ID matches the user's ID
+    } else {
+      res.status(403).json({ message: 'Access denied' });
+    }
+  }, ClientController.getClient);
 router.delete('/clients/:id', authenticate, authorizeAdmin, ClientController.deleteClient);
 
 router.use('/clients', clientRoutes);

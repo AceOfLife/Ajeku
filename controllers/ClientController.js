@@ -30,6 +30,40 @@ exports.getAllClients = async (req, res) => {
   }
 };
 
+exports.getClient = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find the client by ID, including the associated user details
+    const client = await Client.findOne({
+      where: { id },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['name', 'email'] // Fetching only name and email from User
+      }]
+    });
+
+    if (!client) {
+      return res.status(404).json({ message: 'Client not found' });
+    }
+
+    // Prepare the response, including the client's user details
+    const clientWithUserDetails = {
+      id: client.id,
+      user_id: client.user_id,
+      name: client.user.name,
+      email: client.user.email,
+      createdAt: client.createdAt,
+      updatedAt: client.updatedAt
+    };
+
+    res.status(200).json(clientWithUserDetails);
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving client', error });
+  }
+};
+
 exports.createClient = [
   // Validation middleware
   check('name').notEmpty().withMessage('Name is required'),
