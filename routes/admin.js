@@ -30,6 +30,7 @@ router.get('/clients/:id', authenticate, (req, res, next) => {
     }
   }, ClientController.getClient);
 router.delete('/clients/:id', authenticate, authorizeAdmin, ClientController.deleteClient);
+router.put('/clients/:id/profile', authenticate, authorizeAdmin, ClientController.updateProfile); // Admin can update client profiles
 
 router.use('/clients', clientRoutes);
 

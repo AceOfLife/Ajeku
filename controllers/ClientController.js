@@ -109,19 +109,69 @@ exports.createClient = [
   },
 ];
 
-exports.updateClient = async (req, res) => {
+// exports.updateClient = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const [updated] = await Client.update(req.body, { where: { id } });
+    
+//     if (updated) {
+//       const updatedClient = await Client.findOne({ where: { id } });
+//       res.status(200).json(updatedClient);
+//     } else {
+//       res.status(404).json({ message: 'Client not found' });
+//     }
+//   } catch (error) {
+//     res.status(400).json({ message: 'Error updating client', error });
+//   }
+// };
+
+// 29/12/2024
+
+exports.updateProfile = async (req, res) => {
   try {
     const { id } = req.params;
-    const [updated] = await Client.update(req.body, { where: { id } });
-    
-    if (updated) {
-      const updatedClient = await Client.findOne({ where: { id } });
-      res.status(200).json(updatedClient);
-    } else {
-      res.status(404).json({ message: 'Client not found' });
+    const { firstName, lastName, email, address, contactNumber, city, state } = req.body;
+
+    // Find the user associated with the client
+    const client = await Client.findOne({
+      where: { id },
+      include: [{
+        model: User,
+        as: 'user',
+      }],
+    });
+
+    if (!client) {
+      return res.status(404).json({ message: 'Client not found' });
     }
+
+    const user = client.user;
+
+    // Update the user's profile
+    user.firstName = firstName || user.firstName;
+    user.lastName = lastName || user.lastName;
+    user.email = email || user.email;
+    user.address = address || user.address;
+    user.contactNumber = contactNumber || user.contactNumber;
+    user.city = city || user.city;
+    user.state = state || user.state;
+
+    await user.save();
+
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      user: {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        address: user.address,
+        contactNumber: user.contactNumber,
+        city: user.city,
+        state: user.state,
+      },
+    });
   } catch (error) {
-    res.status(400).json({ message: 'Error updating client', error });
+    res.status(500).json({ message: 'Error updating profile', error });
   }
 };
 
