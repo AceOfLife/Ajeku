@@ -5,12 +5,12 @@ const { check, validationResult } = require('express-validator');
 
 exports.getAllClients = async (req, res) => {
   try {
-    // Include the associated User model to fetch name and email
+    // Include the associated User model to fetch the user's profile fields
     const clients = await Client.findAll({
       include: [{
         model: User,
         as: 'user',  // as defined in the Client.associate method
-        attributes: ['name', 'email'] // Only fetch name and email from User
+        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state'] // Include all new fields
       }]
     });
 
@@ -18,8 +18,13 @@ exports.getAllClients = async (req, res) => {
     const clientsWithUserDetails = clients.map(client => ({
       id: client.id,
       user_id: client.user_id,
-      name: client.user.name,
+      firstName: client.user.firstName,
+      lastName: client.user.lastName,
       email: client.user.email,
+      address: client.user.address,
+      contactNumber: client.user.contactNumber,
+      city: client.user.city,
+      state: client.user.state,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt
     }));
@@ -29,6 +34,7 @@ exports.getAllClients = async (req, res) => {
     res.status(500).json({ message: 'Error retrieving clients', error });
   }
 };
+
 
 exports.getClient = async (req, res) => {
   try {
@@ -40,7 +46,7 @@ exports.getClient = async (req, res) => {
       include: [{
         model: User,
         as: 'user',
-        attributes: ['name', 'email'] // Fetching only name and email from User
+        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state'] // Fetching all the new fields from User
       }]
     });
 
@@ -52,8 +58,13 @@ exports.getClient = async (req, res) => {
     const clientWithUserDetails = {
       id: client.id,
       user_id: client.user_id,
-      name: client.user.name,
+      firstName: client.user.firstName,
+      lastName: client.user.lastName,
       email: client.user.email,
+      address: client.user.address,
+      contactNumber: client.user.contactNumber,
+      city: client.user.city,
+      state: client.user.state,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt
     };
