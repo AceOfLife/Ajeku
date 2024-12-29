@@ -79,7 +79,9 @@ exports.getClient = async (req, res) => {
 
 exports.createClient = [
   // Validation middleware
-  check('name').notEmpty().withMessage('Name is required'),
+  // check('name').notEmpty().withMessage('Name is required'),
+  check('firstName').notEmpty().withMessage('First name is required'),
+  check('lastName').notEmpty().withMessage('Last name is required'),
   check('email').isEmail().withMessage('Enter a valid email'),
   check('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
 
