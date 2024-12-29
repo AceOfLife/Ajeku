@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const ClientController = require('../controllers/ClientController');
+const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
 
 // Client registration (no authentication)
 router.post('/register', ClientController.createClient);
