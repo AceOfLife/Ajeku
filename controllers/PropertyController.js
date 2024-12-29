@@ -360,7 +360,15 @@ exports.getFilteredProperties = async (req, res) => {
 
         if (type) {
             // Assuming type is a string like "Residential,Commercial" for Residential or Commercial
-            const typesArray = type.split(',').map(str => str.trim());
+            // const typesArray = type.split(',').map(str => str.trim());
+            // filter.type = {
+            //     [Op.in]: typesArray
+            // };
+            const typesArray = type.split(',').map(str => {
+                const trimmed = str.trim();
+                return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+            });
+
             filter.type = {
                 [Op.in]: typesArray
             };
