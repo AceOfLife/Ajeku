@@ -25,6 +25,7 @@ exports.getAllClients = async (req, res) => {
       contactNumber: client.user.contactNumber,
       city: client.user.city,
       state: client.user.state,
+      status: client.status,  // Add the status here
       createdAt: client.createdAt,
       updatedAt: client.updatedAt
     }));
@@ -65,6 +66,7 @@ exports.getClient = async (req, res) => {
       contactNumber: client.user.contactNumber,
       city: client.user.city,
       state: client.user.state,
+      status: client.status,  // Add the status here
       createdAt: client.createdAt,
       updatedAt: client.updatedAt
     };
@@ -185,6 +187,47 @@ exports.updateProfile = async (req, res) => {
     res.status(500).json({ message: 'Error updating profile', error });
   }
 };
+
+// controllers/ClientController.js
+exports.updateClientStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body; // New status value from request body
+
+    // Check if the user is an admin (this should be done in middleware, but also ensure here)
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied, only admins can change the status' });
+    }
+
+    // Validate the status value
+    if (status !== 'Unverified' && status !== 'Verified') {
+      return res.status(400).json({ message: 'Invalid status value' });
+    }
+
+    // Find the client by ID and update the status
+    const client = await Client.findOne({
+      where: { id },
+    });
+
+    if (!client) {
+      return res.status(404).json({ message: 'Client not found' });
+    }
+
+    client.status = status;
+    await client.save();
+
+    res.status(200).json({
+      message: 'Client status updated successfully',
+      client: {
+        id: client.id,
+        status: client.status,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating client status', error });
+  }
+};
+
 
 exports.deleteClient = async (req, res) => {
   try {

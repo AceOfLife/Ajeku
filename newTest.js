@@ -2,7 +2,7 @@
 require('dotenv').config();
 
 // Log DATABASE_URL to check if it's being loaded correctly
-console.log('DATABASE_URL:', process.env.DATABASE_URL);
+// console.log('DATABASE_URL:', process.env.DATABASE_URL);
 
 const { Sequelize } = require('sequelize');
 

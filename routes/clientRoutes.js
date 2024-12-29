@@ -14,5 +14,7 @@ router.put('/:id/profile', authenticate, async (req, res, next) => {
   
     next();  // Proceed to the updateProfile controller if the user owns the profile
   }, ClientController.updateProfile);
+  // Admin route to update client status
+router.put('/:id/status', authenticate, authorizeAdmin, ClientController.updateClientStatus);
 
 module.exports = router;

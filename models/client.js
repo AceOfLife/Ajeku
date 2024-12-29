@@ -13,6 +13,11 @@ module.exports = (sequelize, DataTypes) => {
       onUpdate: 'CASCADE',
       onDelete: 'CASCADE',
     },
+    status: {
+      type: DataTypes.ENUM('Unverified', 'Verified'),
+      defaultValue: 'Unverified',
+      allowNull: false,
+    },
   }, {});
 
   Client.associate = function(models) {
