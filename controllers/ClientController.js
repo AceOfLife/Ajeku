@@ -91,7 +91,7 @@ exports.createClient = [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, email, password } = req.body;
+    const { firstName, lastName, email, password } = req.body;
 
     try {
       // Check if email already exists
@@ -106,7 +106,8 @@ exports.createClient = [
 
       // Create the user
       const newUser = await User.create({
-        name,
+        firstName,
+        lastName,
         email,
         password: hashedPassword,
         role: 'client',
