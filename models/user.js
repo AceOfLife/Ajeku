@@ -48,6 +48,10 @@ module.exports = (sequelize, DataTypes) => {
       autoIncrement: true,
       primaryKey: true,
     },
+    name: { // Keeping the name field
+      type: DataTypes.STRING,
+      allowNull: false, // Ensure it is required
+    },
     firstName: {
       type: DataTypes.STRING,
       allowNull: true,
