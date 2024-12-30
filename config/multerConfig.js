@@ -1,7 +1,7 @@
 const multer = require('multer');
 const cloudinary = require('./cloudinaryConfig'); // Import Cloudinary configuration
 
-console.log('Cloudinary:', cloudinary);  // Log to check if cloudinary is correctly imported
+// console.log('Cloudinary:', cloudinary);  // Log to check if cloudinary is correctly imported
 
 const storage = multer.memoryStorage(); // Store the file in memory instead of disk
 const upload = multer({ storage: storage }).array('images', 15); // Upload up to 15 files with the field name 'images'

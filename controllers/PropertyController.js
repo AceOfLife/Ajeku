@@ -32,6 +32,43 @@ const splitToArray = (field) => {
     return []; // Return empty array if not a string
 };
 
+
+// Document upload 30/12/2024
+
+const uploadDocumentToCloudinary = async (fileBuffer, fileName) => {
+    try {
+        const result = await cloudinary.uploader.upload_stream(
+            { 
+                resource_type: 'raw',  // For raw document types (non-image files)
+                folder: 'property_documents',  // Set a folder for the documents
+                public_id: fileName.replace(/\.[^/.]+$/, "")  // Generate a unique ID for each document
+            },
+            (error, result) => {
+                if (error) {
+                    throw new Error('Error uploading document to Cloudinary');
+                }
+                return result.secure_url;  // Return the URL after the upload is successful
+            }
+        );
+        
+        const stream = cloudinary.uploader.upload_stream(
+            { folder: 'property_documents' },
+            (error, result) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(result.secure_url); // Resolve with the secure URL
+                }
+            }
+        );
+        
+        stream.end(fileBuffer); // Upload the document buffer
+    } catch (error) {
+        console.error('Error uploading document:', error);
+        throw new Error('Document upload failed');
+    }
+};
+
 // Image upload
 
 exports.createProperty = async (req, res) => {
@@ -146,6 +183,12 @@ exports.createProperty = async (req, res) => {
                 await PropertyImage.bulkCreate(imageRecords);
             }
 
+              // Handle document upload to Cloudinary
+              let documentUrl = null;
+              if (req.file) {
+                  documentUrl = await uploadDocumentToCloudinary(req.file.buffer, req.file.originalname);
+              }
+
             // Filter out fields with empty or null values
             const filteredProperty = {};
 
@@ -158,7 +201,8 @@ exports.createProperty = async (req, res) => {
             // Return the filtered property in the response
             res.status(201).json({
                 property: filteredProperty,
-                images: imageUrls || []
+                images: imageUrls || [],
+                documentUrl: documentUrl || null,
             });
         } catch (error) {
             console.error(error);
