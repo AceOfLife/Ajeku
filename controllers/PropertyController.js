@@ -221,14 +221,14 @@ exports.createProperty = async (req, res) => {
     // Handle the image upload using multer (using 'upload' for images)
     upload(req, res, async (err) => {
         if (err) {
-            console.error("Multer error:", err); // Log detailed error for debugging
+            console.error("Multer error (images):", err); // Log detailed error for debugging
             return res.status(400).json({ message: 'Error uploading images', error: err });
         }
 
         // Handle the document upload using multer (using 'uploadDocuments' for documents)
         uploadDocuments(req, res, async (err) => {
             if (err) {
-                console.error("Multer error:", err); // Log detailed error for debugging
+                console.error("Multer error (documents):", err); // Log detailed error for debugging
                 return res.status(400).json({ message: 'Error uploading documents', error: err });
             }
 
