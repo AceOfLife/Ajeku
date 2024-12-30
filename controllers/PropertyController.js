@@ -1,11 +1,10 @@
 // PropertyImage Table Update
 
-const { Property, User, PropertyImage, PropertyDocument } = require('../models');
+const { Property, User, PropertyImage } = require('../models');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
-// const { upload, uploadImagesToCloudinary } = require('../config/multerConfig');
-const { upload, uploadImagesToCloudinary, uploadDocuments, uploadDocumentsToCloudinary } = require('../config/multerConfig'); 
+const { upload, uploadImagesToCloudinary } = require('../config/multerConfig');
 
 
 //Create a new property 20/12
@@ -72,227 +71,147 @@ const uploadDocumentToCloudinary = async (fileBuffer, fileName) => {
 
 // Image upload
 
-// exports.createProperty = async (req, res) => {
-//     upload(req, res, async (err) => {
-//         if (err) {
-//             console.error("Multer error:", err); // Log the detailed error
-//             return res.status(400).json({ message: 'Error uploading images', error: err });
-//         }
+exports.createProperty = async (req, res) => {
+    upload(req, res, async (err) => {
+        if (err) {
+            console.error("Multer error:", err); // Log the detailed error
+            return res.status(400).json({ message: 'Error uploading images', error: err });
+        }
 
         
 
-//         try {
-//             const { 
-//                 name, 
-//                 size, 
-//                 price, 
-//                 agent_id, 
-//                 type, 
-//                 location, 
-//                 area, 
-//                 number_of_baths, 
-//                 number_of_rooms,
-//                 address,
-//                 description,
-//                 payment_plan,
-//                 year_built,
-//                 amount_per_sqft,
-//                 special_features,
-//                 appliances,
-//                 features,
-//                 interior_area,
-//                 parking,
-//                 material,
-//                 annual_tax_amount,
-//                 date_on_market,
-//                 ownership,
-//                 kitchen,
-//                 heating,
-//                 cooling,
-//                 type_and_style,
-//                 lot,
-//                 percentage,
-//                 duration
-//             } = req.body;
+        try {
+            const { 
+                name, 
+                size, 
+                price, 
+                agent_id, 
+                type, 
+                location, 
+                area, 
+                number_of_baths, 
+                number_of_rooms,
+                address,
+                description,
+                payment_plan,
+                year_built,
+                amount_per_sqft,
+                special_features,
+                appliances,
+                features,
+                interior_area,
+                parking,
+                material,
+                annual_tax_amount,
+                date_on_market,
+                ownership,
+                kitchen,
+                heating,
+                cooling,
+                type_and_style,
+                lot,
+                percentage,
+                duration
+            } = req.body;
 
-//             // Check if the admin is authenticated and has the correct role
-//             const admin = req.user; // Assuming req.user is populated with the logged-in admin's data
-//             if (admin.role !== 'admin') {
-//                 return res.status(403).json({ message: 'You are not authorized to create a property' });
-//             }
+            // Check if the admin is authenticated and has the correct role
+            const admin = req.user; // Assuming req.user is populated with the logged-in admin's data
+            if (admin.role !== 'admin') {
+                return res.status(403).json({ message: 'You are not authorized to create a property' });
+            }
 
-//             // Check if the agent exists (the agent_id should refer to a user with role 'agent')
-//             const agent = await User.findByPk(agent_id, { where: { role: 'agent' } });
-//             if (!agent) {
-//                 return res.status(404).json({ message: 'Agent not found' });
-//             }
+            // Check if the agent exists (the agent_id should refer to a user with role 'agent')
+            const agent = await User.findByPk(agent_id, { where: { role: 'agent' } });
+            if (!agent) {
+                return res.status(404).json({ message: 'Agent not found' });
+            }
 
-//             // Handle date_on_market - if it's empty or invalid, set to current date or null
-//             const validDateOnMarket = date_on_market && date_on_market.trim() !== "" ? date_on_market : new Date().toISOString();
+            // Handle date_on_market - if it's empty or invalid, set to current date or null
+            const validDateOnMarket = date_on_market && date_on_market.trim() !== "" ? date_on_market : new Date().toISOString();
 
-//             // Prepare the property data with the required fields, set empty values if missing
-//             const newPropertyData = {
-//                 name,
-//                 size,
-//                 price,
-//                 agent_id, // Associate property with the agent
-//                 type,
-//                 location: location || "", // Empty string for missing location
-//                 area: area || "", // Empty string for missing area
-//                 address: address || "", // Empty string for missing address
-//                 number_of_baths: number_of_baths || "0", // Default to 0 if missing
-//                 number_of_rooms: number_of_rooms || "0", // Default to 0 if missing
-//                 listed_by: req.admin ? req.admin.username : "Admin",
-//                 description: description || "",  // Empty string for missing description
-//                 payment_plan: payment_plan || "", // Empty string for missing payment_plan
-//                 year_built: year_built || 0, // Default to 0 for missing year_built
-//                 amount_per_sqft: amount_per_sqft || "0", // Default to 0 for missing amount_per_sqft
-//                 special_features: special_features || [], // Empty array for missing special_features
-//                 appliances: appliances || [], // Empty array for missing appliances
-//                 features: features || [], // Empty array for missing features
-//                 interior_area: interior_area || 0, // Default to 0 for missing interior_area
-//                 material: material || "", // Empty string for missing material
-//                 annual_tax_amount: annual_tax_amount || 0, // Default to 0 for missing annual_tax_amount
-//                 date_on_market: validDateOnMarket, // Ensure valid date
-//                 ownership: ownership || "", // Empty string for missing ownership
-//                 percentage: percentage || "", // Empty string for missing ownership
-//                 duration: duration || "", // Empty string for missing ownership
-//             };
+            // Prepare the property data with the required fields, set empty values if missing
+            const newPropertyData = {
+                name,
+                size,
+                price,
+                agent_id, // Associate property with the agent
+                type,
+                location: location || "", // Empty string for missing location
+                area: area || "", // Empty string for missing area
+                address: address || "", // Empty string for missing address
+                number_of_baths: number_of_baths || "0", // Default to 0 if missing
+                number_of_rooms: number_of_rooms || "0", // Default to 0 if missing
+                listed_by: req.admin ? req.admin.username : "Admin",
+                description: description || "",  // Empty string for missing description
+                payment_plan: payment_plan || "", // Empty string for missing payment_plan
+                year_built: year_built || 0, // Default to 0 for missing year_built
+                amount_per_sqft: amount_per_sqft || "0", // Default to 0 for missing amount_per_sqft
+                special_features: special_features || [], // Empty array for missing special_features
+                appliances: appliances || [], // Empty array for missing appliances
+                features: features || [], // Empty array for missing features
+                interior_area: interior_area || 0, // Default to 0 for missing interior_area
+                material: material || "", // Empty string for missing material
+                annual_tax_amount: annual_tax_amount || 0, // Default to 0 for missing annual_tax_amount
+                date_on_market: validDateOnMarket, // Ensure valid date
+                ownership: ownership || "", // Empty string for missing ownership
+                percentage: percentage || "", // Empty string for missing ownership
+                duration: duration || "", // Empty string for missing ownership
+            };
 
-//             // Conditionally handle optional fields (convert string input to array if provided)
-//             if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
-//             if (heating) newPropertyData.heating = splitToArray(heating);
-//             if (cooling) newPropertyData.cooling = splitToArray(cooling);
-//             if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
-//             if (lot) newPropertyData.lot = splitToArray(lot);
-//             if (special_features) newPropertyData.special_features = splitToArray(special_features);
-//             if (parking) newPropertyData.parking = splitToArray(parking);
-//             if (appliances) newPropertyData.appliances = splitToArray(appliances);
-//             if (features) newPropertyData.features = splitToArray(features);
+            // Conditionally handle optional fields (convert string input to array if provided)
+            if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
+            if (heating) newPropertyData.heating = splitToArray(heating);
+            if (cooling) newPropertyData.cooling = splitToArray(cooling);
+            if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
+            if (lot) newPropertyData.lot = splitToArray(lot);
+            if (special_features) newPropertyData.special_features = splitToArray(special_features);
+            if (parking) newPropertyData.parking = splitToArray(parking);
+            if (appliances) newPropertyData.appliances = splitToArray(appliances);
+            if (features) newPropertyData.features = splitToArray(features);
 
-//             // Create the property record
-//             const newProperty = await Property.create(newPropertyData);
+            // Create the property record
+            const newProperty = await Property.create(newPropertyData);
 
-//             // Handle image uploads to Cloudinary
-//             let imageUrls = [];
-//             if (req.files && req.files.length > 0) {
-//                 imageUrls = await uploadImagesToCloudinary(req.files);
+            // Handle image uploads to Cloudinary
+            let imageUrls = [];
+            if (req.files && req.files.length > 0) {
+                imageUrls = await uploadImagesToCloudinary(req.files);
 
-//                 const imageRecords = imageUrls.map(url => ({
-//                     property_id: newProperty.id,
-//                     image_url: [url],
-//                 }));
+                const imageRecords = imageUrls.map(url => ({
+                    property_id: newProperty.id,
+                    image_url: [url],
+                }));
 
-//                 await PropertyImage.bulkCreate(imageRecords);
-//             }
+                await PropertyImage.bulkCreate(imageRecords);
+            }
 
-//               // Handle document upload to Cloudinary
-//               let documentUrl = null;
-//               if (req.file) {
-//                   documentUrl = await uploadDocumentToCloudinary(req.file.buffer, req.file.originalname);
-//               }
+              // Handle document upload to Cloudinary
+              let documentUrl = null;
+              if (req.file) {
+                  documentUrl = await uploadDocumentToCloudinary(req.file.buffer, req.file.originalname);
+              }
 
-//             // Filter out fields with empty or null values
-//             const filteredProperty = {};
+            // Filter out fields with empty or null values
+            const filteredProperty = {};
 
-//             Object.keys(newPropertyData).forEach(key => {
-//                 if (newPropertyData[key] && newPropertyData[key] !== "" && newPropertyData[key] !== 0 && newPropertyData[key].length !== 0) {
-//                     filteredProperty[key] = newPropertyData[key];
-//                 }
-//             });
+            Object.keys(newPropertyData).forEach(key => {
+                if (newPropertyData[key] && newPropertyData[key] !== "" && newPropertyData[key] !== 0 && newPropertyData[key].length !== 0) {
+                    filteredProperty[key] = newPropertyData[key];
+                }
+            });
 
-//             // Return the filtered property in the response
-//             res.status(201).json({
-//                 property: filteredProperty,
-//                 images: imageUrls || [],
-//                 documentUrl: documentUrl || null,
-//             });
-//         } catch (error) {
-//             console.error(error);
-//             res.status(400).json({ message: 'Error creating property', error });
-//         }
-//     });
-// };
-
-
-// 30/12/24
-
-
-
-exports.createProperty = async (req, res) => {
-  // First, handle image upload using multer (using 'upload' for images)
-  upload(req, res, async (err) => {
-    if (err) {
-      console.error("Multer error (images):", err); // Log detailed error for debugging
-      return res.status(400).json({ message: 'Error uploading images', error: err });
-    }
-
-    // Now, handle the document upload using multer (using 'uploadDocuments' for documents)
-    uploadDocuments(req, res, async (err) => {
-      if (err) {
-        console.error("Multer error (documents):", err); // Log detailed error for debugging
-        return res.status(400).json({ message: 'Error uploading documents', error: err });
-      }
-
-      try {
-        const {
-          name, size, price, agent_id, type, location, area, number_of_baths,
-          number_of_rooms, address, description, payment_plan, year_built,
-          amount_per_sqft, special_features, appliances, features, interior_area,
-          parking, material, annual_tax_amount, date_on_market, ownership,
-          kitchen, heating, cooling, type_and_style, lot, percentage, duration
-        } = req.body;
-
-        // Create new property entry
-        const newProperty = await Property.create({
-          name, size, price, agent_id, type, location, area, number_of_baths,
-          number_of_rooms, address, description, payment_plan, year_built, 
-          amount_per_sqft, special_features, appliances, features, interior_area,
-          parking, material, annual_tax_amount, date_on_market, ownership, kitchen,
-          heating, cooling, type_and_style, lot, percentage, duration
-        });
-
-        // Upload images to Cloudinary if there are any
-        let imageUrls = [];
-        if (req.files && req.files.length > 0) {
-          imageUrls = await uploadImagesToCloudinary(req.files); // Upload images to Cloudinary
+            // Return the filtered property in the response
+            res.status(201).json({
+                property: filteredProperty,
+                images: imageUrls || [],
+                documentUrl: documentUrl || null,
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(400).json({ message: 'Error creating property', error });
         }
-
-        // Store images in the PropertyImage table (assuming you have a separate table for images)
-        // This should be handled by a separate model like PropertyImage
-        const imageRecords = imageUrls.map(url => ({
-          property_id: newProperty.id,
-          image_url: url
-        }));
-        await PropertyImage.bulkCreate(imageRecords);
-
-        // Handle document uploads to Cloudinary (if any)
-        let documentUrls = [];
-        if (req.files && req.files.length > 0) {
-          documentUrls = await uploadDocumentsToCloudinary(req.files); // Upload documents to Cloudinary
-        }
-
-        // Save document URLs to PropertyDocuments table
-        const documentRecords = documentUrls.map(url => ({
-          property_id: newProperty.id,
-          document_url: url
-        }));
-        await PropertyDocument.bulkCreate(documentRecords); // Save document URLs to database
-
-        // Return success response
-        res.status(201).json({
-          property: newProperty,
-          images: imageUrls,
-          documents: documentUrls
-        });
-      } catch (error) {
-        console.error("Error creating property:", error);
-        res.status(400).json({ message: 'Error creating property', error });
-      }
     });
-  });
 };
-
 
 
 // Update an existing property
