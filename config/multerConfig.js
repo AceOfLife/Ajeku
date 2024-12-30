@@ -6,6 +6,9 @@ const cloudinary = require('./cloudinaryConfig'); // Import Cloudinary configura
 const storage = multer.memoryStorage(); // Store the file in memory instead of disk
 const upload = multer({ storage: storage }).array('images', 15); // Upload up to 15 files with the field name 'images'
 
+// Upload configuration for documents (multiple documents)
+const uploadDocuments = multer({ storage: storage }).array('documents', 10); // Allow up to 10 documents
+
 async function uploadImagesToCloudinary(files) {
     const uploadPromises = files.map(file =>
         new Promise((resolve, reject) => {
@@ -30,4 +33,24 @@ async function uploadImagesToCloudinary(files) {
     return Promise.all(uploadPromises);
 }
 
-module.exports = { upload, uploadImagesToCloudinary };
+async function uploadDocumentsToCloudinary(files) {
+    const uploadPromises = files.map(file =>
+        new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+                { folder: 'property_documents' },
+                (error, result) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(result.secure_url); // Return the document's secure URL
+                    }
+                }
+            );
+            stream.end(file.buffer);
+        })
+    );
+
+    return Promise.all(uploadPromises);
+}
+
+module.exports = { upload, uploadImagesToCloudinary, uploadDocuments, uploadDocumentsToCloudinary };
