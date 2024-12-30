@@ -154,12 +154,7 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'property_id',
       as: 'images',
     });
-
-    // Each property can have many documents
-    Property.hasMany(models.PropertyDocument, {
-      foreignKey: 'property_id',
-      as: 'documents',
-    });
+    
   };
 
   return Property;
