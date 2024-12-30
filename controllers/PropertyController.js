@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
 const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
+const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
 
 
 //Create a new property 20/12
