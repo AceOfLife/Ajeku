@@ -106,15 +106,15 @@ const cloudinary = require('./cloudinaryConfig');  // Cloudinary config
 // Use memory storage to store files in memory before uploading them
 const storage = multer.memoryStorage();
 
-// Handle up to 15 images for 'images' field
+// Handle images (up to 15 files under 'images' field)
 const upload = multer({ 
   storage: storage 
-}).array('images', 15);  // Upload images (up to 15 files)
+}).array('images', 15);  // Field name: 'images', allowing 15 files
 
-// Handle documents with a single or multiple uploads for 'documents' field
+// Handle documents (up to 10 files under 'documents' field)
 const uploadDocuments = multer({ 
   storage: storage 
-}).array('documents', 10);  // Upload documents (up to 10 files)
+}).array('documents', 10);  // Field name: 'documents', allowing 10 files
 
 // Function to upload images to Cloudinary
 async function uploadImagesToCloudinary(files) {

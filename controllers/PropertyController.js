@@ -1,6 +1,6 @@
 // PropertyImage Table Update
 
-const { Property, User, PropertyImage } = require('../models');
+const { Property, User, PropertyImage, PropertyDocument } = require('../models');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
@@ -217,153 +217,82 @@ const uploadDocumentToCloudinary = async (fileBuffer, fileName) => {
 
 // 30/12/24
 
+
+
 exports.createProperty = async (req, res) => {
-    // First, handle image upload using multer (using 'upload' for images)
-    upload(req, res, async (err) => {
-        if (err) {
-            console.error("Multer error (images):", err); // Log detailed error for debugging
-            return res.status(400).json({ message: 'Error uploading images', error: err });
+  // First, handle image upload using multer (using 'upload' for images)
+  upload(req, res, async (err) => {
+    if (err) {
+      console.error("Multer error (images):", err); // Log detailed error for debugging
+      return res.status(400).json({ message: 'Error uploading images', error: err });
+    }
+
+    // Now, handle the document upload using multer (using 'uploadDocuments' for documents)
+    uploadDocuments(req, res, async (err) => {
+      if (err) {
+        console.error("Multer error (documents):", err); // Log detailed error for debugging
+        return res.status(400).json({ message: 'Error uploading documents', error: err });
+      }
+
+      try {
+        const {
+          name, size, price, agent_id, type, location, area, number_of_baths,
+          number_of_rooms, address, description, payment_plan, year_built,
+          amount_per_sqft, special_features, appliances, features, interior_area,
+          parking, material, annual_tax_amount, date_on_market, ownership,
+          kitchen, heating, cooling, type_and_style, lot, percentage, duration
+        } = req.body;
+
+        // Create new property entry
+        const newProperty = await Property.create({
+          name, size, price, agent_id, type, location, area, number_of_baths,
+          number_of_rooms, address, description, payment_plan, year_built, 
+          amount_per_sqft, special_features, appliances, features, interior_area,
+          parking, material, annual_tax_amount, date_on_market, ownership, kitchen,
+          heating, cooling, type_and_style, lot, percentage, duration
+        });
+
+        // Upload images to Cloudinary if there are any
+        let imageUrls = [];
+        if (req.files && req.files.length > 0) {
+          imageUrls = await uploadImagesToCloudinary(req.files); // Upload images to Cloudinary
         }
 
-        // Now, handle the document upload using multer (using 'uploadDocuments' for documents)
-        uploadDocuments(req, res, async (err) => {
-            if (err) {
-                console.error("Multer error (documents):", err); // Log detailed error for debugging
-                return res.status(400).json({ message: 'Error uploading documents', error: err });
-            }
+        // Store images in the PropertyImage table (assuming you have a separate table for images)
+        // This should be handled by a separate model like PropertyImage
+        const imageRecords = imageUrls.map(url => ({
+          property_id: newProperty.id,
+          image_url: url
+        }));
+        await PropertyImage.bulkCreate(imageRecords);
 
-            try {
-                const { 
-                    name, 
-                    size, 
-                    price, 
-                    agent_id, 
-                    type, 
-                    location, 
-                    area, 
-                    number_of_baths, 
-                    number_of_rooms,
-                    address,
-                    description,
-                    payment_plan,
-                    year_built,
-                    amount_per_sqft,
-                    special_features,
-                    appliances,
-                    features,
-                    interior_area,
-                    parking,
-                    material,
-                    annual_tax_amount,
-                    date_on_market,
-                    ownership,
-                    kitchen,
-                    heating,
-                    cooling,
-                    type_and_style,
-                    lot,
-                    percentage,
-                    duration
-                } = req.body;
+        // Handle document uploads to Cloudinary (if any)
+        let documentUrls = [];
+        if (req.files && req.files.length > 0) {
+          documentUrls = await uploadDocumentsToCloudinary(req.files); // Upload documents to Cloudinary
+        }
 
-                // Ensure the admin is authenticated
-                const admin = req.user; // Assuming req.user contains logged-in admin data
-                if (admin.role !== 'admin') {
-                    return res.status(403).json({ message: 'You are not authorized to create a property' });
-                }
+        // Save document URLs to PropertyDocuments table
+        const documentRecords = documentUrls.map(url => ({
+          property_id: newProperty.id,
+          document_url: url
+        }));
+        await PropertyDocument.bulkCreate(documentRecords); // Save document URLs to database
 
-                // Ensure the agent exists and is valid
-                const agent = await User.findByPk(agent_id, { where: { role: 'agent' } });
-                if (!agent) {
-                    return res.status(404).json({ message: 'Agent not found' });
-                }
-
-                // Handle date on market (set to current date if empty or invalid)
-                const validDateOnMarket = date_on_market && date_on_market.trim() !== "" ? date_on_market : new Date().toISOString();
-
-                // Prepare the property data
-                const newPropertyData = {
-                    name,
-                    size,
-                    price,
-                    agent_id, // Associate property with the agent
-                    type,
-                    location: location || "",
-                    area: area || "",
-                    address: address || "",
-                    number_of_baths: number_of_baths || "0",
-                    number_of_rooms: number_of_rooms || "0",
-                    listed_by: req.admin ? req.admin.username : "Admin",
-                    description: description || "",
-                    payment_plan: payment_plan || "",
-                    year_built: year_built || 0,
-                    amount_per_sqft: amount_per_sqft || "0",
-                    special_features: special_features || [],
-                    appliances: appliances || [],
-                    features: features || [],
-                    interior_area: interior_area || 0,
-                    material: material || "",
-                    annual_tax_amount: annual_tax_amount || 0,
-                    date_on_market: validDateOnMarket,
-                    ownership: ownership || "",
-                    percentage: percentage || "",
-                    duration: duration || "",
-                };
-
-                // Handle optional fields (convert string input to array if provided)
-                if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
-                if (heating) newPropertyData.heating = splitToArray(heating);
-                if (cooling) newPropertyData.cooling = splitToArray(cooling);
-                if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
-                if (lot) newPropertyData.lot = splitToArray(lot);
-                if (special_features) newPropertyData.special_features = splitToArray(special_features);
-                if (parking) newPropertyData.parking = splitToArray(parking);
-                if (appliances) newPropertyData.appliances = splitToArray(appliances);
-                if (features) newPropertyData.features = splitToArray(features);
-
-                // Create the property record
-                const newProperty = await Property.create(newPropertyData);
-
-                // Handle image uploads to Cloudinary (if any)
-                let imageUrls = [];
-                if (req.files && req.files.length > 0) {
-                    imageUrls = await uploadImagesToCloudinary(req.files); // Upload images to Cloudinary
-
-                    const imageRecords = imageUrls.map(url => ({
-                        property_id: newProperty.id,
-                        image_url: [url],
-                    }));
-
-                    await PropertyImage.bulkCreate(imageRecords); // Store image records in database
-                }
-
-                // Handle document uploads to Cloudinary (if any)
-                let documentUrls = [];
-                if (req.files && req.files.length > 0) {
-                    documentUrls = await uploadDocumentsToCloudinary(req.files); // Upload documents to Cloudinary
-                }
-
-                // Filter out fields with empty or null values
-                const filteredProperty = {};
-                Object.keys(newPropertyData).forEach(key => {
-                    if (newPropertyData[key] && newPropertyData[key] !== "" && newPropertyData[key] !== 0 && newPropertyData[key].length !== 0) {
-                        filteredProperty[key] = newPropertyData[key];
-                    }
-                });
-
-                // Return the newly created property and related URLs in the response
-                res.status(201).json({
-                    property: filteredProperty,
-                    images: imageUrls || [],
-                    documents: documentUrls || [], // Include document URLs if available
-                });
-            } catch (error) {
-                console.error(error);
-                res.status(400).json({ message: 'Error creating property', error });
-            }
+        // Return success response
+        res.status(201).json({
+          property: newProperty,
+          images: imageUrls,
+          documents: documentUrls
         });
+      } catch (error) {
+        console.error("Error creating property:", error);
+        res.status(400).json({ message: 'Error creating property', error });
+      }
     });
+  });
 };
+
 
 
 // Update an existing property
