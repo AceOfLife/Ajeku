@@ -35,22 +35,86 @@
 
 // 30/12/2024
 
-// config/multerConfig.js
+// // config/multerConfig.js
+// const multer = require('multer');
+// const cloudinary = require('./cloudinaryConfig');  // Cloudinary config
+
+// // Use memory storage to store files in memory before uploading them
+// const storage = multer.memoryStorage();
+
+// // Define upload configurations
+// const upload = multer({ 
+//   storage: storage 
+// }).array('images', 15); // Allow uploading up to 15 images
+
+// // Define upload configuration for documents
+// const uploadDocuments = multer({ 
+//   storage: storage 
+// }).array('documents', 10); // Allow uploading up to 10 documents
+
+// // Function to upload images to Cloudinary
+// async function uploadImagesToCloudinary(files) {
+//   const uploadPromises = files.map(file =>
+//     new Promise((resolve, reject) => {
+//       const stream = cloudinary.uploader.upload_stream(
+//         { folder: 'property_images' }, // Folder in Cloudinary
+//         (error, result) => {
+//           if (error) {
+//             reject(error);
+//           } else {
+//             resolve(result.secure_url); // Return the Cloudinary URL
+//           }
+//         }
+//       );
+//       stream.end(file.buffer); // Upload image buffer to Cloudinary
+//     })
+//   );
+
+//   return Promise.all(uploadPromises);
+// }
+
+// // Function to upload documents to Cloudinary
+// async function uploadDocumentsToCloudinary(files) {
+//   const uploadPromises = files.map(file =>
+//     new Promise((resolve, reject) => {
+//       const stream = cloudinary.uploader.upload_stream(
+//         { folder: 'property_documents' }, // Folder in Cloudinary
+//         (error, result) => {
+//           if (error) {
+//             reject(error);
+//           } else {
+//             resolve(result.secure_url); // Return the Cloudinary URL
+//           }
+//         }
+//       );
+//       stream.end(file.buffer); // Upload document buffer to Cloudinary
+//     })
+//   );
+
+//   return Promise.all(uploadPromises);
+// }
+
+// module.exports = { upload, uploadImagesToCloudinary, uploadDocuments, uploadDocumentsToCloudinary };
+
+
+
+// New one
+
 const multer = require('multer');
 const cloudinary = require('./cloudinaryConfig');  // Cloudinary config
 
 // Use memory storage to store files in memory before uploading them
 const storage = multer.memoryStorage();
 
-// Define upload configurations
+// Handle up to 15 images for 'images' field
 const upload = multer({ 
   storage: storage 
-}).array('images', 15); // Allow uploading up to 15 images
+}).array('images', 15);  // Upload images (up to 15 files)
 
-// Define upload configuration for documents
+// Handle documents with a single or multiple uploads for 'documents' field
 const uploadDocuments = multer({ 
   storage: storage 
-}).array('documents', 10); // Allow uploading up to 10 documents
+}).array('documents', 10);  // Upload documents (up to 10 files)
 
 // Function to upload images to Cloudinary
 async function uploadImagesToCloudinary(files) {
