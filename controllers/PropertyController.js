@@ -218,14 +218,14 @@ const uploadDocumentToCloudinary = async (fileBuffer, fileName) => {
 // 30/12/24
 
 exports.createProperty = async (req, res) => {
-    // Handle the image upload using multer (using 'upload' for images)
+    // First, handle image upload using multer (using 'upload' for images)
     upload(req, res, async (err) => {
         if (err) {
             console.error("Multer error (images):", err); // Log detailed error for debugging
             return res.status(400).json({ message: 'Error uploading images', error: err });
         }
 
-        // Handle the document upload using multer (using 'uploadDocuments' for documents)
+        // Now, handle the document upload using multer (using 'uploadDocuments' for documents)
         uploadDocuments(req, res, async (err) => {
             if (err) {
                 console.error("Multer error (documents):", err); // Log detailed error for debugging
@@ -327,10 +327,6 @@ exports.createProperty = async (req, res) => {
                 // Handle image uploads to Cloudinary (if any)
                 let imageUrls = [];
                 if (req.files && req.files.length > 0) {
-                    // Ensure images are in an array format (even if a single image)
-                    if (!Array.isArray(req.files)) {
-                        req.files = [req.files];
-                    }
                     imageUrls = await uploadImagesToCloudinary(req.files); // Upload images to Cloudinary
 
                     const imageRecords = imageUrls.map(url => ({
@@ -344,10 +340,6 @@ exports.createProperty = async (req, res) => {
                 // Handle document uploads to Cloudinary (if any)
                 let documentUrls = [];
                 if (req.files && req.files.length > 0) {
-                    // Ensure documents are in an array format (even if a single document)
-                    if (!Array.isArray(req.files)) {
-                        req.files = [req.files];
-                    }
                     documentUrls = await uploadDocumentsToCloudinary(req.files); // Upload documents to Cloudinary
                 }
 
