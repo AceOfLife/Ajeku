@@ -2,11 +2,12 @@ const express = require('express');
 const router = express.Router();
 const ClientController = require('../controllers/ClientController');
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
+const { upload } = require('../config/multerConfig');
 
 // Client registration (no authentication)
 router.post('/register', ClientController.createClient);
 // Route to update profile
-router.put('/profile', authenticate, async (req, res, next) => {
+router.put('/profile', authenticate, upload, async (req, res, next) => {
     // Ensure the authenticated user is updating their own profile
     if (req.user.id !== parseInt(req.params.id)) {
       return res.status(403).json({ message: 'You can only update your own profile' });

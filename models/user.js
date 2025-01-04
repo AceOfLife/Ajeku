@@ -89,6 +89,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM('admin', 'agent', 'client'),
       defaultValue: 'client',
     },
+    profileImage: {
+      type: DataTypes.STRING, // Store image URL or path
+      allowNull: true, // Image is optional
+    },
   }, {});
 
   User.associate = function(models) {

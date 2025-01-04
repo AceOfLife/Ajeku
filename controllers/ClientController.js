@@ -211,6 +211,14 @@ exports.updateProfile = async (req, res) => {
 
     const user = client.user;
 
+    // If profile image is uploaded, handle the file and save the URL
+    if (req.files && req.files.length > 0) {
+      // Upload images to Cloudinary and retrieve their secure URLs
+      const uploadedImages = await uploadImagesToCloudinary(req.files);
+      const profileImageUrl = uploadedImages[0]; // Assuming only one image for profile
+      user.profileImage = profileImageUrl;  // Save the Cloudinary URL to the profileImage field
+    }
+
     // Update the user's profile
     user.firstName = firstName || user.firstName;
     user.lastName = lastName || user.lastName;
@@ -232,6 +240,7 @@ exports.updateProfile = async (req, res) => {
         contactNumber: user.contactNumber,
         city: user.city,
         state: user.state,
+        profileImage: user.profileImage,
       },
     });
   } catch (error) {
