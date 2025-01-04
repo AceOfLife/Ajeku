@@ -37,17 +37,67 @@ exports.getAllClients = async (req, res) => {
 };
 
 
+// exports.getClient = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     // Find the client by ID, including the associated user details
+//     const client = await Client.findOne({
+//       where: { id },
+//       include: [{
+//         model: User,
+//         as: 'user',
+//         attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state'] // Fetching all the new fields from User
+//       }]
+//     });
+
+//     if (!client) {
+//       return res.status(404).json({ message: 'Client not found' });
+//     }
+
+//     // Prepare the response, including the client's user details
+//     const clientWithUserDetails = {
+//       id: client.id,
+//       user_id: client.user_id,
+//       firstName: client.user.firstName,
+//       lastName: client.user.lastName,
+//       email: client.user.email,
+//       address: client.user.address,
+//       contactNumber: client.user.contactNumber,
+//       city: client.user.city,
+//       state: client.user.state,
+//       status: client.status,  // Add the status here
+//       createdAt: client.createdAt,
+//       updatedAt: client.updatedAt
+//     };
+
+//     res.status(200).json(clientWithUserDetails);
+//   } catch (error) {
+//     res.status(500).json({ message: 'Error retrieving client', error });
+//   }
+// };
+
+// 04/01/2025
+
 exports.getClient = async (req, res) => {
   try {
-    const { id } = req.params;
+    let clientId = req.params.id; // Extract client ID from URL
+    const userId = req.user.id;   // Assuming you're using a session or token to store the logged-in user's info
+    
+    // If the user is an admin, they can fetch any client's profile by ID
+    // If not, we'll automatically fetch their own profile based on their user ID
+    if (!req.user.isAdmin) {
+      // If the user is not an admin, set clientId to their own user_id (for self-profile)
+      clientId = userId;
+    }
 
     // Find the client by ID, including the associated user details
     const client = await Client.findOne({
-      where: { id },
+      where: { user_id: clientId },
       include: [{
         model: User,
         as: 'user',
-        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state'] // Fetching all the new fields from User
+        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state'] // Fetching user details
       }]
     });
 
@@ -66,7 +116,7 @@ exports.getClient = async (req, res) => {
       contactNumber: client.user.contactNumber,
       city: client.user.city,
       state: client.user.state,
-      status: client.status,  // Add the status here
+      status: client.status,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt
     };
@@ -76,6 +126,7 @@ exports.getClient = async (req, res) => {
     res.status(500).json({ message: 'Error retrieving client', error });
   }
 };
+
 
 exports.createClient = [
   // Validation middleware
