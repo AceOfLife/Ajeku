@@ -294,3 +294,51 @@ exports.deleteClient = async (req, res) => {
     res.status(500).json({ message: 'Error deleting client', error });
   }
 };
+
+
+// Change password
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword, confirmNewPassword } = req.body;
+
+    // Check if both current and new passwords are provided
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      return res.status(400).json({ message: 'Current password, new password, and confirm new password are required' });
+    }
+
+    // Ensure the new password and confirm new password match
+    if (newPassword !== confirmNewPassword) {
+      return res.status(400).json({ message: 'New password and confirm new password must match' });
+    }
+
+    // Validate the new password (you can add more complex validations here if needed)
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+
+    // Find the user by their ID (authenticated user)
+    const user = await User.findByPk(req.user.id);  // Assuming req.user contains the authenticated user's ID
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if the current password is correct
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);  // Assuming password is stored in hashed form
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    // Hash the new password before saving it
+    const hashedPassword = await bcrypt.hash(newPassword, 10);  // Salt rounds: 10 is commonly used
+
+    // Update the user's password in the database
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({ message: 'Password changed successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error changing password', error });
+  }
+};

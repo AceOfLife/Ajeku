@@ -20,4 +20,7 @@ router.put('/:id/status', authenticate, authorizeAdmin, ClientController.updateC
 // Route for logged-in client to get their own profile (authentication required)
 router.get('/profile', authenticate, ClientController.getClient);
 
+// Route for users to change their password
+router.put('/change-password', authenticate, ClientController.changePassword);
+
 module.exports = router;
