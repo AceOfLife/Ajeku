@@ -6,7 +6,7 @@ const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware'
 // Client registration (no authentication)
 router.post('/register', ClientController.createClient);
 // Route to update profile
-router.put('/:id/profile', authenticate, async (req, res, next) => {
+router.put('/profile', authenticate, async (req, res, next) => {
     // Ensure the authenticated user is updating their own profile
     if (req.user.id !== parseInt(req.params.id)) {
       return res.status(403).json({ message: 'You can only update your own profile' });
@@ -16,5 +16,8 @@ router.put('/:id/profile', authenticate, async (req, res, next) => {
   }, ClientController.updateProfile);
   // Admin route to update client status
 router.put('/:id/status', authenticate, authorizeAdmin, ClientController.updateClientStatus);
+
+// Route for logged-in client to get their own profile (authentication required)
+router.get('/profile', authenticate, ClientController.getClient);
 
 module.exports = router;
