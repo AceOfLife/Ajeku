@@ -123,7 +123,7 @@
 // 06/01/2025
 
 'use strict';
-const bcrypt = require('bcrypt'); // Add bcrypt for password hashing
+const bcryptjs = require('bcryptjs'); // Add bcrypt for password hashing
 
 module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define('User', {
@@ -195,12 +195,12 @@ module.exports = (sequelize, DataTypes) => {
       // Hash password before creating or updating the user
       beforeCreate: async (user, options) => {
         if (user.password) {
-          user.password = await bcrypt.hash(user.password, 10); // Hash password before saving
+          user.password = await bcryptjs.hash(user.password, 10); // Hash password before saving
         }
       },
       beforeUpdate: async (user, options) => {
         if (user.password) {
-          user.password = await bcrypt.hash(user.password, 10); // Hash password before saving
+          user.password = await bcryptjs.hash(user.password, 10); // Hash password before saving
         }
       },
     },
