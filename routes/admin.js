@@ -21,9 +21,6 @@ const bankOfHeavenRoutes = require('./bankOfHeavenRoutes');
 // Admin route to update profile (admin can update their own profile)
 router.put('/profile', authenticate, authorizeAdmin, upload, AdminController.updateProfile);
 
-// Import middleware for authentication and authorization
-const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
-
 // Client routes
 router.get('/clients', authenticate, authorizeAdmin, ClientController.getAllClients);
 // router.post('/clients', authenticate, authorizeAdmin, ClientController.createClient);
