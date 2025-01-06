@@ -1,4 +1,4 @@
-const bcrypt = require('bcrypt');
+const bcryptjs = require('bcryptjs');
 const { User } = require('../models'); // Assuming Sequelize is being used
 
 exports.updateProfile = async (req, res) => {
@@ -50,7 +50,7 @@ exports.updateProfile = async (req, res) => {
 };
 
 
-const bcrypt = require('bcrypt');
+const bcryptjs = require('bcryptjs');
 const { User } = require('../models');
 
 module.exports = {
@@ -75,13 +75,13 @@ module.exports = {
       }
 
       // Check if the old password matches
-      const isMatch = await bcrypt.compare(oldPassword, user.password);
+      const isMatch = await bcryptjs.compare(oldPassword, user.password);
       if (!isMatch) {
         return res.status(400).json({ message: 'Old password is incorrect.' });
       }
 
       // Hash the new password before saving it
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      const hashedPassword = await bcryptjs.hash(newPassword, 10);
 
       // Update the password
       user.password = hashedPassword;
