@@ -50,7 +50,7 @@ exports.updateProfile = async (req, res) => {
 };
 
 
-const bcryptjs = require('bcryptjs');
+
 const { User } = require('../models');
 
 module.exports = {
