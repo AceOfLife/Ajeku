@@ -79,13 +79,13 @@ exports.changePassword = async (req, res) => {
       }
   
       // Check if the old password matches the stored hashed password in the database
-      const isPasswordValid = await bcrypt.compare(oldPassword, admin.password); // Assuming password is hashed in the DB
+      const isPasswordValid = await bcryptjs.compare(oldPassword, admin.password); // Assuming password is hashed in the DB
       if (!isPasswordValid) {
         return res.status(400).json({ message: 'Old password is incorrect.' });
       }
   
       // Hash the new password before saving it
-      const hashedPassword = await bcrypt.hash(newPassword, 10); // Salt rounds: 10 is commonly used
+      const hashedPassword = await bcryptjs.hash(newPassword, 10); // Salt rounds: 10 is commonly used
   
       // Update the admin's password in the database
       admin.password = hashedPassword;
