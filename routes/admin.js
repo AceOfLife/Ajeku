@@ -13,6 +13,7 @@ const UserController = require('../controllers/UserController');
 const AdminController = require('../controllers/AdminController');
 // Import middleware for authentication and authorization
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
+const { upload } = require('../config/multerConfig'); 
 
 
 // Import the Bank of Heaven Routes
