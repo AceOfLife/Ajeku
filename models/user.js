@@ -93,6 +93,13 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING, // Store image URL or path
       allowNull: true, // Image is optional
     },
+    gender: {
+      type: DataTypes.STRING, 
+      allowNull: true, 
+      validate: {
+        isIn: [['male', 'female', 'other']], // Optional restriction to these values
+      },
+    },
   }, {});
 
   User.associate = function(models) {

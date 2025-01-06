@@ -252,7 +252,7 @@ exports.createClient = [
 
 exports.updateProfile = async (req, res) => {
   try {
-    const { firstName, lastName, email, address, contactNumber, city, state } = req.body;
+    const { firstName, lastName, email, address, contactNumber, city, state, gender } = req.body;
 
     // Find the client associated with the authenticated user (using req.user.id)
     const client = await Client.findOne({
@@ -284,6 +284,7 @@ exports.updateProfile = async (req, res) => {
     user.contactNumber = contactNumber || user.contactNumber;
     user.city = city || user.city;
     user.state = state || user.state;
+    user.gender = gender || user.gender;
 
     await user.save(); // Save the updated user details
 
@@ -297,6 +298,7 @@ exports.updateProfile = async (req, res) => {
         contactNumber: user.contactNumber,
         city: user.city,
         state: user.state,
+        gender: user.gender,
         profileImage: user.profileImage, // Return the Cloudinary image URL
       },
     });
