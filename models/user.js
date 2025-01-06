@@ -100,7 +100,20 @@ module.exports = (sequelize, DataTypes) => {
         isIn: [['male', 'female', 'other']], // Optional restriction to these values
       },
     },
-  }, {});
+  }, {
+    hooks: {
+      beforeCreate: (user, options) => {
+        if (user.gender) {
+          user.gender = user.gender.toLowerCase(); // Convert to lowercase before saving
+        }
+      },
+      beforeUpdate: (user, options) => {
+        if (user.gender) {
+          user.gender = user.gender.toLowerCase(); // Convert to lowercase before updating
+        }
+      },
+    },
+  });
 
   User.associate = function(models) {
     User.hasMany(models.Transaction, { foreignKey: 'client_id', as: 'transactions' });
