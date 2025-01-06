@@ -191,14 +191,72 @@ exports.createClient = [
 
 // 29/12/2024
 
+// exports.updateProfile = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { firstName, lastName, email, address, contactNumber, city, state } = req.body;
+
+//     // Find the user associated with the client
+//     const client = await Client.findOne({
+//       where: { id },
+//       include: [{
+//         model: User,
+//         as: 'user',
+//       }],
+//     });
+
+//     if (!client) {
+//       return res.status(404).json({ message: 'Client not found' });
+//     }
+
+//     const user = client.user;
+
+//     // If profile image is uploaded, handle the file and save the URL
+//     if (req.files && req.files.length > 0) {
+//       // Upload images to Cloudinary and retrieve their secure URLs
+//       const uploadedImages = await uploadImagesToCloudinary(req.files);
+//       const profileImageUrl = uploadedImages[0]; // Assuming only one image for profile
+//       user.profileImage = profileImageUrl;  // Save the Cloudinary URL to the profileImage field
+//     }
+
+//     // Update the user's profile
+//     user.firstName = firstName || user.firstName;
+//     user.lastName = lastName || user.lastName;
+//     user.email = email || user.email;
+//     user.address = address || user.address;
+//     user.contactNumber = contactNumber || user.contactNumber;
+//     user.city = city || user.city;
+//     user.state = state || user.state;
+
+//     await user.save();
+
+//     res.status(200).json({
+//       message: 'Profile updated successfully',
+//       user: {
+//         firstName: user.firstName,
+//         lastName: user.lastName,
+//         email: user.email,
+//         address: user.address,
+//         contactNumber: user.contactNumber,
+//         city: user.city,
+//         state: user.state,
+//         profileImage: user.profileImage,
+//       },
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Error updating profile', error });
+//   }
+// };
+
+// 06/01/2025
+
 exports.updateProfile = async (req, res) => {
   try {
-    const { id } = req.params;
     const { firstName, lastName, email, address, contactNumber, city, state } = req.body;
 
-    // Find the user associated with the client
+    // Find the client associated with the authenticated user (using req.user.id)
     const client = await Client.findOne({
-      where: { id },
+      where: { user_id: req.user.id },
       include: [{
         model: User,
         as: 'user',
@@ -213,13 +271,12 @@ exports.updateProfile = async (req, res) => {
 
     // If profile image is uploaded, handle the file and save the URL
     if (req.files && req.files.length > 0) {
-      // Upload images to Cloudinary and retrieve their secure URLs
       const uploadedImages = await uploadImagesToCloudinary(req.files);
       const profileImageUrl = uploadedImages[0]; // Assuming only one image for profile
-      user.profileImage = profileImageUrl;  // Save the Cloudinary URL to the profileImage field
+      user.profileImage = profileImageUrl; // Save the Cloudinary URL to the profileImage field
     }
 
-    // Update the user's profile
+    // Update the user's profile fields
     user.firstName = firstName || user.firstName;
     user.lastName = lastName || user.lastName;
     user.email = email || user.email;
@@ -228,7 +285,7 @@ exports.updateProfile = async (req, res) => {
     user.city = city || user.city;
     user.state = state || user.state;
 
-    await user.save();
+    await user.save(); // Save the updated user details
 
     res.status(200).json({
       message: 'Profile updated successfully',
@@ -240,13 +297,15 @@ exports.updateProfile = async (req, res) => {
         contactNumber: user.contactNumber,
         city: user.city,
         state: user.state,
-        profileImage: user.profileImage,
+        profileImage: user.profileImage, // Return the Cloudinary image URL
       },
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error updating profile', error });
+    console.error('Error updating profile:', error); 
+    res.status(500).json({ message: 'Error updating profile', error: error.message });
   }
 };
+
 
 // controllers/ClientController.js
 exports.updateClientStatus = async (req, res) => {
