@@ -11,8 +11,8 @@ const MessageController = require('../controllers/MessageController');
 const ReviewController = require('../controllers/ReviewController');
 const UserController = require('../controllers/UserController');
 const AdminController = require('../controllers/AdminController');
+// Import middleware for authentication and authorization
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
-const { upload } = require('../config/multerConfig'); //
 
 
 // Import the Bank of Heaven Routes
@@ -23,7 +23,6 @@ router.put('/profile', authenticate, authorizeAdmin, upload, AdminController.upd
 
 // Admin route to change password
 router.put('/change-password', authenticate, authorizeAdmin, AdminController.changePassword);
-
 
 // Client routes
 router.get('/clients', authenticate, authorizeAdmin, ClientController.getAllClients);
