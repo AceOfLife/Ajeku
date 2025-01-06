@@ -51,8 +51,6 @@ exports.updateProfile = async (req, res) => {
 
 
 
-const { User } = require('../models');
-
 module.exports = {
   changePassword: async (req, res) => {
     const { oldPassword, newPassword, confirmPassword } = req.body;
