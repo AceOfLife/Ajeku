@@ -10,10 +10,14 @@ const TransactionController = require('../controllers/TransactionController');
 const MessageController = require('../controllers/MessageController');
 const ReviewController = require('../controllers/ReviewController');
 const UserController = require('../controllers/UserController');
+const AdminController = require('../controllers/AdminController');
 
 
 // Import the Bank of Heaven Routes
 const bankOfHeavenRoutes = require('./bankOfHeavenRoutes');
+
+// Admin route to update profile (admin can update their own profile)
+router.put('/profile', authenticate, authorizeAdmin, upload, AdminController.updateProfile);
 
 // Import middleware for authentication and authorization
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
