@@ -102,18 +102,10 @@ module.exports = (sequelize, DataTypes) => {
     },
   }, {
     hooks: {
-      beforeCreate: (user, options) => {
+      // Convert gender to lowercase before validation
+      beforeValidate: (user, options) => {
         if (user.gender) {
-          console.log('Before Create Gender:', user.gender); // Debugging log
-          user.gender = user.gender.toLowerCase(); // Convert to lowercase before saving
-          console.log('After Convert Gender:', user.gender); // Debugging log
-        }
-      },
-      beforeUpdate: (user, options) => {
-        if (user.gender) {
-          console.log('Before Update Gender:', user.gender); // Debugging log
-          user.gender = user.gender.toLowerCase(); // Convert to lowercase before saving
-          console.log('After Convert Gender:', user.gender); // Debugging log
+          user.gender = user.gender.toLowerCase(); // Convert gender to lowercase
         }
       },
     },
