@@ -99,3 +99,41 @@ exports.changePassword = async (req, res) => {
       res.status(500).json({ message: 'Server error while changing password.' });
     }
   };
+
+
+// Get admin profile 
+
+exports.getProfile = async (req, res) => {
+    try {
+      // Get the logged-in user's ID from the request
+      const adminId = req.user.id;
+  
+      // Fetch the admin's profile information from the database
+      const admin = await User.findByPk(adminId);
+  
+      // If no admin is found, return a 404 error
+      if (!admin) {
+        return res.status(404).json({ message: 'Admin not found' });
+      }
+  
+      // Return the admin profile information (excluding sensitive information like password)
+      const adminProfile = {
+        id: admin.id,
+        name: admin.name,
+        firstName: admin.firstName,
+        lastName: admin.lastName,
+        email: admin.email,
+        address: admin.address,
+        contactNumber: admin.contactNumber,
+        city: admin.city,
+        state: admin.state,
+        gender: admin.gender,
+        profileImage: admin.profileImage,
+      };
+  
+      res.status(200).json({ admin: adminProfile });
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      res.status(500).json({ message: 'Error fetching profile', error });
+    }
+  };

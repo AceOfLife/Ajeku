@@ -22,6 +22,9 @@ const bankOfHeavenRoutes = require('./bankOfHeavenRoutes');
 // Admin route to update profile (admin can update their own profile)
 router.put('/profile', authenticate, authorizeAdmin, upload, AdminController.updateProfile);
 
+// Admin route to get profile info
+router.get('/profile', authenticate, authorizeAdmin, AdminController.getProfile);
+
 // Admin route to change password
 router.put('/change-password', authenticate, authorizeAdmin, AdminController.changePassword);
 
