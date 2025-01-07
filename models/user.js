@@ -40,6 +40,7 @@
 
 // models/user.js
 'use strict';
+const bcrypt = require('bcryptjs');
 
 module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define('User', {
@@ -106,6 +107,19 @@ module.exports = (sequelize, DataTypes) => {
       beforeValidate: (user, options) => {
         if (user.gender) {
           user.gender = user.gender.toLowerCase(); // Convert gender to lowercase
+        }
+      },
+    },
+    hooks: {
+      // Hash the password before creating or updating the user
+      beforeCreate: async (user, options) => {
+        if (user.password) {
+          user.password = await bcrypt.hash(user.password, 10); // Salt rounds: 10 is commonly used
+        }
+      },
+      beforeUpdate: async (user, options) => {
+        if (user.password) {
+          user.password = await bcrypt.hash(user.password, 10);
         }
       },
     },

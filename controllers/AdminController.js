@@ -1,5 +1,5 @@
 const { User } = require('../models'); 
-const bcryptjs = require('bcryptjs');
+const bcrypt = require('bcryptjs');
 
 
 exports.updateProfile = async (req, res) => {
@@ -73,19 +73,19 @@ exports.changePassword = async (req, res) => {
   
       // Get the admin user from the database (assuming `req.user.id` holds the logged-in admin's ID)
       const admin = await User.findByPk(req.user.id);
-  
       if (!admin) {
         return res.status(404).json({ message: 'Admin not found.' });
       }
   
       // Check if the old password matches the stored hashed password in the database
-      const isPasswordValid = await bcryptjs.compare(oldPassword, admin.password); // Assuming password is hashed in the DB
+      const isPasswordValid = await admin.comparePassword(oldPassword);
+  
       if (!isPasswordValid) {
         return res.status(400).json({ message: 'Old password is incorrect.' });
       }
   
       // Hash the new password before saving it
-      const hashedPassword = await bcryptjs.hash(newPassword, 10); // Salt rounds: 10 is commonly used
+      const hashedPassword = await bcrypt.hash(newPassword, 10); // Salt rounds: 10 is commonly used
   
       // Update the admin's password in the database
       admin.password = hashedPassword;
