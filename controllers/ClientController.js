@@ -10,7 +10,7 @@ exports.getAllClients = async (req, res) => {
       include: [{
         model: User,
         as: 'user',  // as defined in the Client.associate method
-        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender'] // Include all new fields
+        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage' ] // Include all new fields
       }]
     });
 
@@ -26,6 +26,7 @@ exports.getAllClients = async (req, res) => {
       city: client.user.city,
       state: client.user.state,
       gender: client.user.gender,
+      profileImage: client.user.profileImage,
       status: client.status,  // Add the status here
       createdAt: client.createdAt,
       updatedAt: client.updatedAt
@@ -98,7 +99,7 @@ exports.getClient = async (req, res) => {
       include: [{
         model: User,
         as: 'user',
-        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender'] // Fetching user details
+        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage'] // Fetching user details
       }]
     });
 
@@ -118,6 +119,7 @@ exports.getClient = async (req, res) => {
       city: client.user.city,
       state: client.user.state,
       gender: client.user.gender,
+      profileImage: client.user.profileImage,
       status: client.status,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt
