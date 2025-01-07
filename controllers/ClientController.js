@@ -2,6 +2,7 @@
 const { Client, User } = require('../models');
 const bcrypt = require('bcryptjs');
 const { check, validationResult } = require('express-validator');
+const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
 
 exports.getAllClients = async (req, res) => {
   try {
