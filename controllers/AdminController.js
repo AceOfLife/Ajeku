@@ -1,5 +1,6 @@
 const { User } = require('../models'); 
 const bcryptjs = require('bcryptjs');
+const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
 
 
 exports.updateProfile = async (req, res) => {
@@ -24,9 +25,16 @@ exports.updateProfile = async (req, res) => {
     admin.gender = gender ? gender.toLowerCase() : admin.gender; // Ensure gender is lowercase
 
     // If there is a new profile image uploaded, update it
+    // if (req.files && req.files.length > 0) {
+    //   admin.profileImage = req.files[0].secure_url; // Assuming the image URL is returned by Cloudinary
+    // }
+
+    // If profile image is uploaded, handle the file and save the URL
     if (req.files && req.files.length > 0) {
-      admin.profileImage = req.files[0].secure_url; // Assuming the image URL is returned by Cloudinary
-    }
+        const uploadedImages = await uploadImagesToCloudinary(req.files);
+        const profileImageUrl = uploadedImages[0]; // Assuming only one image for profile
+        admin.profileImage = profileImageUrl; // Save the Cloudinary URL to the profileImage field
+      }
 
     await admin.save(); // Save the updated admin record
 
