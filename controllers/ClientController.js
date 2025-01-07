@@ -273,6 +273,8 @@ exports.updateProfile = async (req, res) => {
 
     const user = client.user;
 
+    console.log('Uploaded files:', req.files);
+
     // If profile image is uploaded, handle the file and save the URL
     if (req.files && req.files.length > 0) {
       const uploadedImages = await uploadImagesToCloudinary(req.files);
