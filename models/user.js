@@ -49,9 +49,9 @@ module.exports = (sequelize, DataTypes) => {
       autoIncrement: true,
       primaryKey: true,
     },
-    name: {
+    name: { // Keeping the name field
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: false, // Ensure it is required
     },
     firstName: {
       type: DataTypes.STRING,
@@ -91,36 +91,26 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 'client',
     },
     profileImage: {
-      type: DataTypes.STRING, 
-      allowNull: true,
+      type: DataTypes.STRING, // Store image URL or path
+      allowNull: true, // Image is optional
     },
     gender: {
       type: DataTypes.STRING, 
-      allowNull: true,
+      allowNull: true, 
       validate: {
-        isIn: [['male', 'female', 'other']],
+        isIn: [['male', 'female', 'other']], // Optional restriction to these values
       },
     },
   }, {
     hooks: {
-      // Hash the password before creating or updating the user
-      beforeCreate: async (user, options) => {
-        if (user.password) {
-          user.password = await bcrypt.hash(user.password, 10); // Salt rounds: 10 is commonly used
-        }
-      },
-      beforeUpdate: async (user, options) => {
-        if (user.password) {
-          user.password = await bcrypt.hash(user.password, 10);
+      // Convert gender to lowercase before validation
+      beforeValidate: (user, options) => {
+        if (user.gender) {
+          user.gender = user.gender.toLowerCase(); // Convert gender to lowercase
         }
       },
     },
   });
-
-  // Adding instance method to the model
-  User.prototype.comparePassword = async function(candidatePassword) {
-    return bcrypt.compare(candidatePassword, this.password);  // Compare the candidate password with stored password
-  };
 
   User.associate = function(models) {
     User.hasMany(models.Transaction, { foreignKey: 'client_id', as: 'transactions' });
