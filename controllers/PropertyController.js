@@ -266,8 +266,7 @@ exports.createProperty = async (req, res) => {
                 percentage,
                 duration,
                 is_fractional, // New property indicating if fractional
-                amount_paid, // New property for the amount paid by buyer
-                fractional_slots // New property for the number of slots (only if fractional)
+                fractional_slots // New field to specify number of slots
             } = req.body;
 
             // Check if the admin is authenticated and has the correct role
@@ -282,21 +281,10 @@ exports.createProperty = async (req, res) => {
                 return res.status(404).json({ message: 'Agent not found' });
             }
 
-            // Handle fractional property logic
-            let share_percentage = 0;
-            let price_per_slot = 0;
-            if (is_fractional) {
-                if (!fractional_slots || fractional_slots <= 0) {
-                    return res.status(400).json({ message: 'Number of fractional slots is required and must be greater than 0.' });
-                }
-
-                // Calculate the price per slot
+            // Handle price_per_slot calculation if fractional
+            let price_per_slot = null;
+            if (is_fractional && fractional_slots > 0 && price) {
                 price_per_slot = price / fractional_slots;
-
-                // Calculate share percentage if the amount paid is provided
-                if (amount_paid && price) {
-                    share_percentage = (amount_paid / price) * 100;
-                }
             }
 
             // Handle date_on_market - if it's empty or invalid, set to current date or null
@@ -330,9 +318,8 @@ exports.createProperty = async (req, res) => {
                 percentage: percentage || "", // Empty string for missing ownership
                 duration: duration || "", // Empty string for missing ownership
                 is_fractional: is_fractional || false,
-                fractional_slots: fractional_slots || 0, // Save the number of slots if fractional
-                price_per_slot: price_per_slot || 0, // Save the price per slot
-                share_percentage: share_percentage || 0, // Add the calculated share percentage
+                fractional_slots: is_fractional ? fractional_slots : null, // Only set if fractional
+                price_per_slot: price_per_slot || null, // Only set if fractional
             };
 
             // Conditionally handle optional fields (convert string input to array if provided)
