@@ -143,6 +143,26 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
+    is_fractional: { // New column: Whether the property is fractional
+      type: DataTypes.BOOLEAN,
+      defaultValue: false, // Default is 'false'
+      allowNull: false, // Cannot be null
+    },
+    share_percentage: { // New column: Share percentage for fractional properties
+      type: DataTypes.FLOAT,
+      defaultValue: 0, // Default is '0' (not fractional)
+      allowNull: false, // Cannot be null
+    },
+    fractional_slots: { // Number of fractional slots
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0, // Default value for non-fractional properties
+    },
+    price_per_slot: { // Price per slot for fractional properties
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      defaultValue: 0, // Default value for non-fractional properties
+    }
   });
 
   Property.associate = function(models) {
