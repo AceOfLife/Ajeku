@@ -50,7 +50,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     sqft: { // Square footage
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
       defaultValue: 0,
     },
     payment_plan: { // Payment Plan
