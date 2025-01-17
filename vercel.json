@@ -13,7 +13,7 @@
     }
   ],
   "env": {
-    "DATABASE_URL": "postgresql://ajeku_db_ekps_user:SQEdY3KMDRZ5Xmo4Dwqr1JUlRrrqbrqO@dpg-cthfpktds78s73f90l2g-a.ohio-postgres.render.com/ajeku_db_ekps",
+    "DATABASE_URL": "postgresql://ajeku_realty_3_user:NNRiCcvmKXkG8IXDPpklMhRSY7tbcKta@dpg-cu59v3qj1k6c73dlu02g-a.ohio-postgres.render.com/ajeku_realty_3",
     "NODE_ENV": "production",
     "EMAIL_USER": "teddyogbonnaya@gmail.com",
     "EMAIL_PASS": "&Dreamcodev1",
