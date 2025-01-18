@@ -264,9 +264,9 @@ exports.createProperty = async (req, res) => {
                 type_and_style,
                 lot,
                 percentage,
-                duration,
-                is_fractional, // New property indicating if fractional
-                fractional_slots // New field to specify number of slots
+                // duration,
+                // is_fractional, // New property indicating if fractional
+                // fractional_slots // New field to specify number of slots
             } = req.body;
 
             // Check if the admin is authenticated and has the correct role
@@ -282,10 +282,10 @@ exports.createProperty = async (req, res) => {
             }
 
             // Handle price_per_slot calculation if fractional
-            let price_per_slot = null;
-            if (is_fractional && fractional_slots > 0 && price) {
-                price_per_slot = price / fractional_slots;
-            }
+            // let price_per_slot = null;
+            // if (is_fractional && fractional_slots > 0 && price) {
+            //     price_per_slot = price / fractional_slots;
+            // }
 
             // Handle date_on_market - if it's empty or invalid, set to current date or null
             const validDateOnMarket = date_on_market && date_on_market.trim() !== "" ? date_on_market : new Date().toISOString();
@@ -317,9 +317,9 @@ exports.createProperty = async (req, res) => {
                 ownership: ownership || "", // Empty string for missing ownership
                 percentage: percentage || "", // Empty string for missing ownership
                 duration: duration || "", // Empty string for missing ownership
-                is_fractional: is_fractional || false,
-                fractional_slots: is_fractional ? fractional_slots : null, // Only set if fractional
-                price_per_slot: price_per_slot || null, // Only set if fractional
+                // is_fractional: is_fractional || false,
+                // fractional_slots: is_fractional ? fractional_slots : null, // Only set if fractional
+                // price_per_slot: price_per_slot || null, // Only set if fractional
             };
 
             // Conditionally handle optional fields (convert string input to array if provided)

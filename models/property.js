@@ -48,6 +48,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
+    sqft: { // Square footage
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 0,
+    },
     payment_plan: { // Payment Plan
       type: DataTypes.STRING,
       allowNull: true,
@@ -148,16 +153,16 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 0, // Default is '0' (not fractional)
       allowNull: false, // Cannot be null
     },
-    fractional_slots: { // Number of fractional slots
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      defaultValue: 0, // Default value for non-fractional properties
-    },
-    price_per_slot: { // Price per slot for fractional properties
-      type: DataTypes.FLOAT,
-      allowNull: true,
-      defaultValue: 0, // Default value for non-fractional properties
-    }
+    // fractional_slots: { // Number of fractional slots
+    //   type: DataTypes.INTEGER,
+    //   allowNull: true,
+    //   defaultValue: 0, // Default value for non-fractional properties
+    // },
+    // price_per_slot: { // Price per slot for fractional properties
+    //   type: DataTypes.FLOAT,
+    //   allowNull: true,
+    //   defaultValue: 0, // Default value for non-fractional properties
+    // }
   });
 
   Property.associate = function(models) {
