@@ -48,11 +48,6 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    sqft: { // Square footage
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: "0",
-    },
     payment_plan: { // Payment Plan
       type: DataTypes.STRING,
       allowNull: true,
