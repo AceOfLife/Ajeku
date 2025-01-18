@@ -259,6 +259,7 @@ exports.createProperty = async (req, res) => {
                 date_on_market,
                 ownership,
                 kitchen,
+                sqft,
                 heating,
                 cooling,
                 type_and_style,
@@ -298,6 +299,7 @@ exports.createProperty = async (req, res) => {
                 agent_id, // Associate property with the agent
                 type,
                 location: location || "", // Empty string for missing location
+                sqft: sqft || "", 
                 area: area || "", // Empty string for missing area
                 address: address || "", // Empty string for missing address
                 number_of_baths: number_of_baths || "0", // Default to 0 if missing
