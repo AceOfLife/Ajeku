@@ -264,7 +264,7 @@ exports.createProperty = async (req, res) => {
                 type_and_style,
                 lot,
                 percentage,
-                // duration,
+                duration,
                 // is_fractional, // New property indicating if fractional
                 // fractional_slots // New field to specify number of slots
             } = req.body;
