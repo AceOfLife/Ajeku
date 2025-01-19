@@ -125,8 +125,8 @@ module.exports = {
     if (!columns.sqft) {
       await queryInterface.addColumn('Properties', 'sqft', {
         type: Sequelize.STRING,
-        allowNull: false,
-        defaultValue: 0,
+        allowNull: true,
+        defaultValue: "",
       });
     }
 
