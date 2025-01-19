@@ -335,10 +335,12 @@ exports.createProperty = async (req, res) => {
             if (appliances) newPropertyData.appliances = splitToArray(appliances);
             if (features) newPropertyData.features = splitToArray(features);
 
+            console.log('New Property Data:', newPropertyData);
+
             // Create the property record
             const newProperty = await Property.create(newPropertyData);
 
-            console.log('New Property Data:', newPropertyData);
+            
 
             // Handle image uploads to Cloudinary
             let imageUrls = [];
