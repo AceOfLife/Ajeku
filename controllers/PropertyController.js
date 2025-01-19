@@ -321,7 +321,7 @@ exports.createProperty = async (req, res) => {
                 duration: duration || "", // Empty string for missing ownership
                 is_fractional: is_fractional || false,
                 fractional_slots: is_fractional ? fractional_slots : null, // Only set if fractional
-                price_per_slot: price_per_slot || null, // Only set if fractional
+                price_per_slot: is_fractional ? price_per_slot : null, // Only set if fractional
             };
 
             // Conditionally handle optional fields (convert string input to array if provided)
