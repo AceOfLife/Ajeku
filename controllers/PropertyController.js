@@ -269,6 +269,8 @@ exports.createProperty = async (req, res) => {
                 fractional_slots // New field to specify number of slots
             } = req.body;
 
+            console.log(req.body);
+
             // Check if the admin is authenticated and has the correct role
             const admin = req.user; // Assuming req.user is populated with the logged-in admin's data
             if (admin.role !== 'admin') {
@@ -335,6 +337,8 @@ exports.createProperty = async (req, res) => {
 
             // Create the property record
             const newProperty = await Property.create(newPropertyData);
+
+            console.log('New Property Data:', newPropertyData);
 
             // Handle image uploads to Cloudinary
             let imageUrls = [];
