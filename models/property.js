@@ -151,12 +151,12 @@ module.exports = (sequelize, DataTypes) => {
     fractional_slots: { // Number of fractional slots
       type: DataTypes.INTEGER,
       allowNull: true,
-      defaultValue: 0, // Default value for non-fractional properties
+      defaultValue: null, // Default value for non-fractional properties
     },
     price_per_slot: { // Price per slot for fractional properties
       type: DataTypes.FLOAT,
       allowNull: true,
-      defaultValue: 0, // Default value for non-fractional properties
+      defaultValue: null, // Default value for non-fractional properties
     }
   });
 
