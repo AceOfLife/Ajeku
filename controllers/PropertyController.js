@@ -234,6 +234,9 @@ exports.createProperty = async (req, res) => {
         }
 
         try {
+
+            console.log(req.body);
+
             const { 
                 name, 
                 size, 
@@ -269,7 +272,7 @@ exports.createProperty = async (req, res) => {
                 fractional_slots // New field to specify number of slots
             } = req.body;
 
-            console.log(req.body);
+            
 
             // Check if the admin is authenticated and has the correct role
             const admin = req.user; // Assuming req.user is populated with the logged-in admin's data
@@ -324,6 +327,13 @@ exports.createProperty = async (req, res) => {
                 price_per_slot: is_fractional ? price_per_slot : null, // Only set if fractional
             };
 
+            console.log("New Property Data:", newPropertyData);
+
+            // Conditionally handle optional fields (convert string input to array if provided)
+            console.log("kitchen:", kitchen);
+            console.log("heating:", heating);
+            console.log("special_features:", special_features);
+
             // Conditionally handle optional fields (convert string input to array if provided)
             if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
             if (heating) newPropertyData.heating = splitToArray(heating);
@@ -335,7 +345,7 @@ exports.createProperty = async (req, res) => {
             if (appliances) newPropertyData.appliances = splitToArray(appliances);
             if (features) newPropertyData.features = splitToArray(features);
 
-            console.log('New Property Data:', newPropertyData);
+            console.log("Creating property with data:", newPropertyData);
 
             // Create the property record
             const newProperty = await Property.create(newPropertyData);
