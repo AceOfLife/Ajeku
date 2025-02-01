@@ -353,8 +353,8 @@ exports.createProperty = async (req, res) => {
             if (parking) newPropertyData.parking = JSON.stringify(parking);
             if (lot) newPropertyData.lot = JSON.stringify(lot);
             if (type_and_style) newPropertyData.type_and_style = JSON.stringify(type_and_style);
-            if (special_features) newProperty.special_features = JSON.stringify(special_features);
-            
+            if (special_features) newPropertyData.special_features = JSON.stringify(special_features);
+
 
             console.log("Creating property with data:", newPropertyData);
 
