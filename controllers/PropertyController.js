@@ -308,8 +308,8 @@ exports.createProperty = async (req, res) => {
                 number_of_baths: number_of_baths || "0", // Default to 0 if missing
                 number_of_rooms: number_of_rooms || "0", // Default to 0 if missing
                 listed_by: req.admin ? req.admin.username : "Admin",
-                description: description || "",  // Empty string for missing description
-                payment_plan: payment_plan || "", // Empty string for missing payment_plan
+                description: description || null,  // Empty string for missing description
+                payment_plan: payment_plan || null, // Empty string for missing payment_plan
                 year_built: year_built || 0, // Default to 0 for missing year_built
                 amount_per_sqft: amount_per_sqft || "0", // Default to 0 for missing amount_per_sqft
                 special_features: special_features || [], // Empty array for missing special_features
@@ -335,15 +335,26 @@ exports.createProperty = async (req, res) => {
             console.log("special_features:", special_features);
 
             // Conditionally handle optional fields (convert string input to array if provided)
-            if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
-            if (heating) newPropertyData.heating = splitToArray(heating);
-            if (cooling) newPropertyData.cooling = splitToArray(cooling);
-            if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
-            if (lot) newPropertyData.lot = splitToArray(lot);
-            if (special_features) newPropertyData.special_features = splitToArray(special_features);
-            if (parking) newPropertyData.parking = splitToArray(parking);
-            if (appliances) newPropertyData.appliances = splitToArray(appliances);
-            if (features) newPropertyData.features = splitToArray(features);
+            // if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
+            // if (heating) newPropertyData.heating = splitToArray(heating);
+            // if (cooling) newPropertyData.cooling = splitToArray(cooling);
+            // if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
+            // if (lot) newPropertyData.lot = splitToArray(lot);
+            // if (special_features) newPropertyData.special_features = splitToArray(special_features);
+            // if (parking) newPropertyData.parking = splitToArray(parking);
+            // if (appliances) newPropertyData.appliances = splitToArray(appliances);
+            // if (features) newPropertyData.features = splitToArray(features);
+
+            if (kitchen) newPropertyData.kitchen = JSON.stringify(kitchen);
+            if (heating) newPropertyData.heating = JSON.stringify(heating);
+            if (cooling) newPropertyData.cooling = JSON.stringify(cooling);
+            if (appliances) newPropertyData.appliances = JSON.stringify(appliances);
+            if (features) newPropertyData.features = JSON.stringify(features);
+            if (parking) newPropertyData.parking = JSON.stringify(parking);
+            if (lot) newPropertyData.lot = JSON.stringify(lot);
+            if (type_and_style) newPropertyData.type_and_style = JSON.stringify(type_and_style);
+            if (special_features) newProperty.special_features = JSON.stringify(special_features);
+            
 
             console.log("Creating property with data:", newPropertyData);
 
