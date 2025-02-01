@@ -345,15 +345,25 @@ exports.createProperty = async (req, res) => {
             // if (appliances) newPropertyData.appliances = splitToArray(appliances);
             // if (features) newPropertyData.features = splitToArray(features);
 
-            if (kitchen) newPropertyData.kitchen = JSON.stringify(kitchen);
-            if (heating) newPropertyData.heating = JSON.stringify(heating);
-            if (cooling) newPropertyData.cooling = JSON.stringify(cooling);
-            if (appliances) newPropertyData.appliances = JSON.stringify(appliances);
-            if (features) newPropertyData.features = JSON.stringify(features);
-            if (parking) newPropertyData.parking = JSON.stringify(parking);
-            if (lot) newPropertyData.lot = JSON.stringify(lot);
-            if (type_and_style) newPropertyData.type_and_style = JSON.stringify(type_and_style);
-            if (special_features) newPropertyData.special_features = JSON.stringify(special_features);
+            // if (kitchen) newPropertyData.kitchen = JSON.stringify(kitchen);
+            // if (heating) newPropertyData.heating = JSON.stringify(heating);
+            // if (cooling) newPropertyData.cooling = JSON.stringify(cooling);
+            // if (appliances) newPropertyData.appliances = JSON.stringify(appliances);
+            // if (features) newPropertyData.features = JSON.stringify(features);
+            // if (parking) newPropertyData.parking = JSON.stringify(parking);
+            // if (lot) newPropertyData.lot = JSON.stringify(lot);
+            // if (type_and_style) newPropertyData.type_and_style = JSON.stringify(type_and_style);
+            // if (special_features) newPropertyData.special_features = JSON.stringify(special_features);
+
+            if (kitchen) newPropertyData.kitchen = kitchen.split(','); // split by commas to make an array
+            if (heating) newPropertyData.heating = heating.split(',');
+            if (cooling) newPropertyData.cooling = cooling.split(',');
+            if (appliances) newPropertyData.appliances = appliances.split(',');
+            if (features) newPropertyData.features = features.split(',');
+            if (parking) newPropertyData.parking = parking.split(',');
+            if (lot) newPropertyData.lot = lot.split(',');
+            if (type_and_style) newPropertyData.type_and_style = type_and_style.split(',');
+            if (special_features) newPropertyData.special_features = special_features.split(',');
 
 
             console.log("Creating property with data:", newPropertyData);
