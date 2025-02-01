@@ -357,7 +357,7 @@ exports.createProperty = async (req, res) => {
 
             if (kitchen) newPropertyData.kitchen = kitchen.split(','); // split by commas to make an array
             if (heating) newPropertyData.heating = heating.split(',');
-            if (cooling) newPropertyData.cooling = cooling.split(',');
+            if (cooling && Array.isArray(cooling)) newPropertyData.cooling = cooling; 
             if (appliances) newPropertyData.appliances = appliances.split(',');
             if (features) newPropertyData.features = features.split(',');
             if (parking) newPropertyData.parking = parking.split(',');
