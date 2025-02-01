@@ -226,6 +226,176 @@ const uploadDocumentToCloudinary = async (fileBuffer, fileName) => {
 
 // Slots 
 
+// exports.createProperty = async (req, res) => {
+//     upload(req, res, async (err) => {
+//         if (err) {
+//             console.error("Multer error:", err); // Log the detailed error
+//             return res.status(400).json({ message: 'Error uploading images', error: err });
+//         }
+
+//         try {
+
+//             console.log(req.body);
+
+//             const { 
+//                 name, 
+//                 size, 
+//                 price, 
+//                 agent_id, 
+//                 type, 
+//                 location, 
+//                 area, 
+//                 number_of_baths, 
+//                 number_of_rooms,
+//                 address,
+//                 description,
+//                 payment_plan,
+//                 year_built,
+//                 amount_per_sqft,
+//                 special_features,
+//                 appliances,
+//                 features,
+//                 interior_area,
+//                 parking,
+//                 material,
+//                 annual_tax_amount,
+//                 date_on_market,
+//                 ownership,
+//                 kitchen,
+//                 heating,
+//                 cooling,
+//                 type_and_style,
+//                 lot,
+//                 percentage,
+//                 duration,
+//                 is_fractional, // New property indicating if fractional
+//                 fractional_slots // New field to specify number of slots
+//             } = req.body;
+
+            
+
+//             // Check if the admin is authenticated and has the correct role
+//             const admin = req.user; // Assuming req.user is populated with the logged-in admin's data
+//             if (admin.role !== 'admin') {
+//                 return res.status(403).json({ message: 'You are not authorized to create a property' });
+//             }
+
+//             // Check if the agent exists (the agent_id should refer to a user with role 'agent')
+//             const agent = await User.findByPk(agent_id, { where: { role: 'agent' } });
+//             if (!agent) {
+//                 return res.status(404).json({ message: 'Agent not found' });
+//             }
+
+//             // Handle price_per_slot calculation if fractional
+//             let price_per_slot = null;
+//             if (is_fractional && fractional_slots > 0 && price) {
+//                 price_per_slot = price / fractional_slots;
+//             }
+
+//             // Handle date_on_market - if it's empty or invalid, set to current date or null
+//             const validDateOnMarket = date_on_market && date_on_market.trim() !== "" ? date_on_market : new Date().toISOString();
+
+//             // Prepare the property data with the required fields, set empty values if missing
+//             const newPropertyData = {
+//                 name,
+//                 size,
+//                 price,
+//                 agent_id, // Associate property with the agent
+//                 type,
+//                 location: location || "", // Empty string for missing location
+//                 area: area || "", // Empty string for missing area
+//                 address: address || "", // Empty string for missing address
+//                 number_of_baths: number_of_baths || "0", // Default to 0 if missing
+//                 number_of_rooms: number_of_rooms || "0", // Default to 0 if missing
+//                 listed_by: req.admin ? req.admin.username : "Admin",
+//                 description: description || "",  // Empty string for missing description
+//                 payment_plan: payment_plan || "", // Empty string for missing payment_plan
+//                 year_built: year_built || 0, // Default to 0 for missing year_built
+//                 amount_per_sqft: amount_per_sqft || "0", // Default to 0 for missing amount_per_sqft
+//                 special_features: special_features || [], // Empty array for missing special_features
+//                 appliances: appliances || [], // Empty array for missing appliances
+//                 features: features || [], // Empty array for missing features
+//                 interior_area: interior_area || 0, // Default to 0 for missing interior_area
+//                 material: material || "", // Empty string for missing material
+//                 annual_tax_amount: annual_tax_amount || 0, // Default to 0 for missing annual_tax_amount
+//                 date_on_market: validDateOnMarket, // Ensure valid date
+//                 ownership: ownership || "", // Empty string for missing ownership
+//                 percentage: percentage || "", // Empty string for missing ownership
+//                 duration: duration || "", // Empty string for missing ownership
+//                 is_fractional: is_fractional || false,
+//                 fractional_slots: is_fractional ? fractional_slots : null, // Only set if fractional
+//                 price_per_slot: is_fractional ? price_per_slot : null, // Only set if fractional
+//             };
+
+//             console.log("New Property Data:", newPropertyData);
+
+//             // Conditionally handle optional fields (convert string input to array if provided)
+//             console.log("kitchen:", kitchen);
+//             console.log("heating:", heating);
+//             console.log("special_features:", special_features);
+
+//             // Conditionally handle optional fields (convert string input to array if provided)
+//             if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
+//             if (heating) newPropertyData.heating = splitToArray(heating);
+//             if (cooling) newPropertyData.cooling = splitToArray(cooling);
+//             if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
+//             if (lot) newPropertyData.lot = splitToArray(lot);
+//             if (special_features) newPropertyData.special_features = splitToArray(special_features);
+//             if (parking) newPropertyData.parking = splitToArray(parking);
+//             if (appliances) newPropertyData.appliances = splitToArray(appliances);
+//             if (features) newPropertyData.features = splitToArray(features);
+
+//             console.log("Creating property with data:", newPropertyData);
+
+//             // Create the property record
+//             const newProperty = await Property.create(newPropertyData);
+
+            
+
+//             // Handle image uploads to Cloudinary
+//             let imageUrls = [];
+//             if (req.files && req.files.length > 0) {
+//                 imageUrls = await uploadImagesToCloudinary(req.files);
+
+//                 const imageRecords = imageUrls.map(url => ({
+//                     property_id: newProperty.id,
+//                     image_url: [url],
+//                 }));
+
+//                 await PropertyImage.bulkCreate(imageRecords);
+//             }
+
+//             // Handle document upload to Cloudinary
+//             let documentUrl = null;
+//             if (req.file) {
+//                 documentUrl = await uploadDocumentToCloudinary(req.file.buffer, req.file.originalname);
+//             }
+
+//             // Filter out fields with empty or null values
+//             const filteredProperty = {};
+
+//             Object.keys(newPropertyData).forEach(key => {
+//                 if (newPropertyData[key] && newPropertyData[key] !== "" && newPropertyData[key] !== 0 && newPropertyData[key].length !== 0) {
+//                     filteredProperty[key] = newPropertyData[key];
+//                 }
+//             });
+
+//             // Return the filtered property in the response
+//             res.status(201).json({
+//                 property: filteredProperty,
+//                 images: imageUrls || [],
+//                 documentUrl: documentUrl || null,
+//             });
+//         } catch (error) {
+//             console.error(error);
+//             res.status(400).json({ message: 'Error creating property', error });
+//         }
+//     });
+// };
+
+
+// Feb 01/ 2025 createProperty
+
 exports.createProperty = async (req, res) => {
     upload(req, res, async (err) => {
         if (err) {
@@ -234,7 +404,6 @@ exports.createProperty = async (req, res) => {
         }
 
         try {
-
             console.log(req.body);
 
             const { 
@@ -272,8 +441,6 @@ exports.createProperty = async (req, res) => {
                 fractional_slots // New field to specify number of slots
             } = req.body;
 
-            
-
             // Check if the admin is authenticated and has the correct role
             const admin = req.user; // Assuming req.user is populated with the logged-in admin's data
             if (admin.role !== 'admin') {
@@ -308,8 +475,8 @@ exports.createProperty = async (req, res) => {
                 number_of_baths: number_of_baths || "0", // Default to 0 if missing
                 number_of_rooms: number_of_rooms || "0", // Default to 0 if missing
                 listed_by: req.admin ? req.admin.username : "Admin",
-                description: description || null,  // Empty string for missing description
-                payment_plan: payment_plan || null, // Empty string for missing payment_plan
+                description: description || "",  // Empty string for missing description
+                payment_plan: payment_plan || "", // Empty string for missing payment_plan
                 year_built: year_built || 0, // Default to 0 for missing year_built
                 amount_per_sqft: amount_per_sqft || "0", // Default to 0 for missing amount_per_sqft
                 special_features: special_features || [], // Empty array for missing special_features
@@ -317,11 +484,11 @@ exports.createProperty = async (req, res) => {
                 features: features || [], // Empty array for missing features
                 interior_area: interior_area || 0, // Default to 0 for missing interior_area
                 material: material || "", // Empty string for missing material
-                annual_tax_amount: annual_tax_amount || 0, // Default to 0 for missing annual_tax_amount
+                annual_tax_amount: annual_tax_amount || "0", // Default to "0" for missing annual_tax_amount
                 date_on_market: validDateOnMarket, // Ensure valid date
                 ownership: ownership || "", // Empty string for missing ownership
-                percentage: percentage || "", // Empty string for missing ownership
-                duration: duration || "", // Empty string for missing ownership
+                percentage: percentage || "", // Empty string for missing percentage
+                duration: duration || "", // Empty string for missing duration
                 is_fractional: is_fractional || false,
                 fractional_slots: is_fractional ? fractional_slots : null, // Only set if fractional
                 price_per_slot: is_fractional ? price_per_slot : null, // Only set if fractional
@@ -330,48 +497,30 @@ exports.createProperty = async (req, res) => {
             console.log("New Property Data:", newPropertyData);
 
             // Conditionally handle optional fields (convert string input to array if provided)
-            console.log("kitchen:", kitchen);
-            console.log("heating:", heating);
-            console.log("special_features:", special_features);
+            const splitToArray = (input) => {
+                if (input && typeof input === 'string') {
+                    return input.split(',').map(item => item.trim()); // Split by comma and remove extra spaces
+                }
+                return []; // Return empty array if input is empty or not a string
+            };
 
             // Conditionally handle optional fields (convert string input to array if provided)
-            // if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
-            // if (heating) newPropertyData.heating = splitToArray(heating);
-            // if (cooling) newPropertyData.cooling = splitToArray(cooling);
-            // if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
-            // if (lot) newPropertyData.lot = splitToArray(lot);
-            // if (special_features) newPropertyData.special_features = splitToArray(special_features);
-            // if (parking) newPropertyData.parking = splitToArray(parking);
-            // if (appliances) newPropertyData.appliances = splitToArray(appliances);
-            // if (features) newPropertyData.features = splitToArray(features);
+            if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
+            if (heating) newPropertyData.heating = splitToArray(heating);
+            if (cooling) newPropertyData.cooling = splitToArray(cooling);
+            if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
+            if (lot) newPropertyData.lot = splitToArray(lot);
 
-            // if (kitchen) newPropertyData.kitchen = JSON.stringify(kitchen);
-            // if (heating) newPropertyData.heating = JSON.stringify(heating);
-            // if (cooling) newPropertyData.cooling = JSON.stringify(cooling);
-            // if (appliances) newPropertyData.appliances = JSON.stringify(appliances);
-            // if (features) newPropertyData.features = JSON.stringify(features);
-            // if (parking) newPropertyData.parking = JSON.stringify(parking);
-            // if (lot) newPropertyData.lot = JSON.stringify(lot);
-            // if (type_and_style) newPropertyData.type_and_style = JSON.stringify(type_and_style);
-            // if (special_features) newPropertyData.special_features = JSON.stringify(special_features);
-
-            if (kitchen) newPropertyData.kitchen = kitchen.split(','); // split by commas to make an array
-            if (heating) newPropertyData.heating = heating.split(',');
-            if (cooling && Array.isArray(cooling)) newPropertyData.cooling = cooling; 
-            if (appliances) newPropertyData.appliances = appliances.split(',');
-            if (features) newPropertyData.features = features.split(',');
-            if (parking) newPropertyData.parking = parking.split(',');
-            if (lot) newPropertyData.lot = lot.split(',');
-            if (type_and_style) newPropertyData.type_and_style = type_and_style.split(',');
-            if (special_features) newPropertyData.special_features = special_features.split(',');
-
+            // For JSONB fields (special_features, appliances, features, parking), handle as arrays of objects
+            if (special_features) newPropertyData.special_features = JSON.parse(special_features);
+            if (appliances) newPropertyData.appliances = JSON.parse(appliances);
+            if (features) newPropertyData.features = JSON.parse(features);
+            if (parking) newPropertyData.parking = JSON.parse(parking);
 
             console.log("Creating property with data:", newPropertyData);
 
             // Create the property record
             const newProperty = await Property.create(newPropertyData);
-
-            
 
             // Handle image uploads to Cloudinary
             let imageUrls = [];
