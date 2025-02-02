@@ -513,6 +513,17 @@ exports.createProperty = async (req, res) => {
                 parking: parseJsonArray(parking)
             };
 
+            // Ensure that all array fields are stringified before inserting into the database
+            newPropertyData.special_features = JSON.stringify(newPropertyData.special_features);
+            newPropertyData.appliances = JSON.stringify(newPropertyData.appliances);
+            newPropertyData.features = JSON.stringify(newPropertyData.features);
+            newPropertyData.kitchen = JSON.stringify(newPropertyData.kitchen);
+            newPropertyData.heating = JSON.stringify(newPropertyData.heating);
+            newPropertyData.cooling = JSON.stringify(newPropertyData.cooling);
+            newPropertyData.type_and_style = JSON.stringify(newPropertyData.type_and_style);
+            newPropertyData.lot = JSON.stringify(newPropertyData.lot);
+            newPropertyData.parking = JSON.stringify(newPropertyData.parking);
+
             console.log("New Property Data:", newPropertyData);
 
             // Create the property record
@@ -558,6 +569,7 @@ exports.createProperty = async (req, res) => {
         }
     });
 };
+
 
 
 
