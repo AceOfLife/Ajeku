@@ -441,6 +441,19 @@ exports.createProperty = async (req, res) => {
                 fractional_slots
             } = req.body;
 
+            // Helper function to parse JSON strings to arrays
+            const parseJsonArray = (value) => {
+                if (value && typeof value === "string") {
+                    try {
+                        return JSON.parse(value); // Try to parse it as JSON
+                    } catch (e) {
+                        console.error("Error parsing JSON:", e);
+                        return value.split(",").map(item => item.trim()); // Fallback: split by commas if it's not valid JSON
+                    }
+                }
+                return value || [];
+            };
+
             // Check if the admin is authenticated and has the correct role
             const admin = req.user;
             if (admin.role !== 'admin') {
@@ -462,14 +475,6 @@ exports.createProperty = async (req, res) => {
             // Handle date_on_market - if it's empty or invalid, set to current date or null
             const validDateOnMarket = date_on_market && date_on_market.trim() !== "" ? date_on_market : new Date().toISOString();
 
-            // Helper function to convert a comma-separated string to an array
-            const convertToArray = (str) => {
-                if (str && typeof str === "string") {
-                    return str.split(",").map(item => item.trim());
-                }
-                return [];
-            };
-
             // Prepare the property data
             const newPropertyData = {
                 name,
@@ -487,9 +492,9 @@ exports.createProperty = async (req, res) => {
                 payment_plan: payment_plan || "",
                 year_built: year_built || 0,
                 amount_per_sqft: amount_per_sqft || "0",
-                special_features: convertToArray(special_features).length > 0 ? convertToArray(special_features) : [],
-                appliances: convertToArray(appliances).length > 0 ? convertToArray(appliances) : [],
-                features: convertToArray(features).length > 0 ? convertToArray(features) : [],
+                special_features: parseJsonArray(special_features),
+                appliances: parseJsonArray(appliances),
+                features: parseJsonArray(features),
                 interior_area: interior_area || 0,
                 material: material || "",
                 annual_tax_amount: annual_tax_amount || 0,
@@ -500,12 +505,12 @@ exports.createProperty = async (req, res) => {
                 is_fractional: is_fractional || false,
                 fractional_slots: is_fractional ? fractional_slots : null,
                 price_per_slot: is_fractional ? price_per_slot : null,
-                kitchen: convertToArray(kitchen),
-                heating: convertToArray(heating),
-                cooling: convertToArray(cooling),
-                type_and_style: convertToArray(type_and_style),
-                lot: convertToArray(lot),
-                parking: convertToArray(parking)
+                kitchen: parseJsonArray(kitchen),
+                heating: parseJsonArray(heating),
+                cooling: parseJsonArray(cooling),
+                type_and_style: parseJsonArray(type_and_style),
+                lot: parseJsonArray(lot),
+                parking: parseJsonArray(parking)
             };
 
             console.log("New Property Data:", newPropertyData);
@@ -553,6 +558,7 @@ exports.createProperty = async (req, res) => {
         }
     });
 };
+
 
 
 // Update an existing property
