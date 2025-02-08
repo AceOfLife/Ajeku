@@ -393,8 +393,7 @@ const uploadDocumentToCloudinary = async (fileBuffer, fileName) => {
 //     });
 // };
 
-
-// Feb 01/ 2025 createProperty
+// February 8th, 2025
 
 exports.createProperty = async (req, res) => {
     upload(req, res, async (err) => {
@@ -438,81 +437,86 @@ exports.createProperty = async (req, res) => {
                 percentage,
                 duration,
                 is_fractional,
-                fractional_slots,
-                share_percentage
+                fractional_slots
             } = req.body;
 
-            const parseJsonArray = (value) => {
-                if (value && typeof value === "string") {
-                    try {
-                        return JSON.parse(value);
-                    } catch (e) {
-                        console.error("Error parsing JSON:", e);
-                        return value.split(",").map(item => item.trim());
-                    }
-                }
-                return value || [];
-            };
-
+            // Verify the admin role
             const admin = req.user;
             if (admin.role !== 'admin') {
                 return res.status(403).json({ message: 'You are not authorized to create a property' });
             }
 
+            // Ensure the agent exists
             const agent = await User.findByPk(agent_id, { where: { role: 'agent' } });
             if (!agent) {
                 return res.status(404).json({ message: 'Agent not found' });
             }
 
-            let price_per_slot = null;
-            if (is_fractional === 'true' && fractional_slots > 0 && price) {
-                price_per_slot = (parseFloat(price) / parseInt(fractional_slots)).toString();
+            // Convert data types from string to appropriate formats
+            const parsedPrice = parseFloat(price) || 0;
+            const parsedFractionalSlots = parseInt(fractional_slots, 10) || 0;
+            const parsedIsFractional = is_fractional === "true" || is_fractional === true; // Convert to boolean
+            const parsedAnnualTaxAmount = parseFloat(annual_tax_amount) || 0;
+            const parsedAmountPerSqft = parseFloat(amount_per_sqft) || 0;
+            const parsedNumberOfBaths = parseInt(number_of_baths, 10) || 0;
+            const parsedNumberOfRooms = parseInt(number_of_rooms, 10) || 0;
+
+            // Handle fractional logic
+            let calculatedPricePerSlot = null;
+            if (parsedIsFractional) {
+                if (parsedFractionalSlots > 0) {
+                    calculatedPricePerSlot = parsedPrice / parsedFractionalSlots;
+                } else {
+                    return res.status(400).json({ message: "fractional_slots must be greater than 0 when is_fractional is true" });
+                }
             }
 
+            // Ensure valid date_on_market or default to current date
             const validDateOnMarket = date_on_market && date_on_market.trim() !== "" ? date_on_market : new Date().toISOString();
 
+            // Prepare the property data object
             const newPropertyData = {
                 name,
                 size,
-                price: price.toString(),
+                price: parsedPrice,
                 agent_id,
                 type,
                 location: location || "",
                 area: area || "",
                 address: address || "",
-                number_of_baths: number_of_baths ? number_of_baths.toString() : "0",
-                number_of_rooms: number_of_rooms ? number_of_rooms.toString() : "0",
+                number_of_baths: parsedNumberOfBaths,
+                number_of_rooms: parsedNumberOfRooms,
                 listed_by: req.admin ? req.admin.username : "Admin",
                 description: description || "",
                 payment_plan: payment_plan || "",
-                year_built: year_built ? parseInt(year_built) : null,
-                amount_per_sqft: amount_per_sqft ? amount_per_sqft.toString() : "0",
-                special_features: parseJsonArray(special_features),
-                appliances: parseJsonArray(appliances),
-                features: parseJsonArray(features),
-                interior_area: interior_area ? parseInt(interior_area) : null,
+                year_built: year_built || "",
+                amount_per_sqft: parsedAmountPerSqft,
+                special_features: special_features ? JSON.parse(special_features) : [],
+                appliances: appliances ? JSON.parse(appliances) : [],
+                features: features ? JSON.parse(features) : [],
+                parking: parking ? JSON.parse(parking) : [],
+                interior_area: parseInt(interior_area, 10) || 0,
                 material: material || "",
-                annual_tax_amount: annual_tax_amount ? annual_tax_amount.toString() : "0",
+                annual_tax_amount: parsedAnnualTaxAmount,
                 date_on_market: validDateOnMarket,
                 ownership: ownership || "",
                 percentage: percentage || "",
                 duration: duration || "",
-                is_fractional: is_fractional === 'true',
-                fractional_slots: is_fractional === 'true' ? parseInt(fractional_slots) : null,
-                price_per_slot: is_fractional === 'true' ? price_per_slot : null,
-                share_percentage: share_percentage ? parseFloat(share_percentage) : 0,
-                kitchen: parseJsonArray(kitchen),
-                heating: parseJsonArray(heating),
-                cooling: parseJsonArray(cooling),
-                type_and_style: parseJsonArray(type_and_style),
-                lot: parseJsonArray(lot),
-                parking: parseJsonArray(parking)
+                is_fractional: parsedIsFractional
             };
 
-            console.log("New Property Data:", newPropertyData);
+            // Only add fractional fields if the property is fractional
+            if (parsedIsFractional) {
+                newPropertyData.fractional_slots = parsedFractionalSlots;
+                newPropertyData.price_per_slot = calculatedPricePerSlot;
+            }
 
+            console.log("Creating property with data:", newPropertyData);
+
+            // Create property in the database
             const newProperty = await Property.create(newPropertyData);
 
+            // Handle image uploads to Cloudinary
             let imageUrls = [];
             if (req.files && req.files.length > 0) {
                 imageUrls = await uploadImagesToCloudinary(req.files);
@@ -525,13 +529,28 @@ exports.createProperty = async (req, res) => {
                 await PropertyImage.bulkCreate(imageRecords);
             }
 
+            // Handle document upload to Cloudinary
             let documentUrl = null;
             if (req.file) {
                 documentUrl = await uploadDocumentToCloudinary(req.file.buffer, req.file.originalname);
             }
 
+            // Filter out fields with empty or null values
+            const filteredProperty = {};
+            Object.keys(newPropertyData).forEach(key => {
+                if (
+                    newPropertyData[key] &&
+                    newPropertyData[key] !== "" &&
+                    newPropertyData[key] !== 0 &&
+                    newPropertyData[key].length !== 0
+                ) {
+                    filteredProperty[key] = newPropertyData[key];
+                }
+            });
+
+            // Return the created property with images and document link
             res.status(201).json({
-                property: newProperty,
+                property: filteredProperty,
                 images: imageUrls || [],
                 documentUrl: documentUrl || null,
             });
@@ -541,7 +560,6 @@ exports.createProperty = async (req, res) => {
         }
     });
 };
-
 
 
 
