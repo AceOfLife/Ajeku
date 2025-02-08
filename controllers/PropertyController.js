@@ -406,15 +406,15 @@ exports.createProperty = async (req, res) => {
         try {
             console.log(req.body);
 
-            const { 
-                name, 
-                size, 
-                price, 
-                agent_id, 
-                type, 
-                location, 
-                area, 
-                number_of_baths, 
+            const {
+                name,
+                size,
+                price,
+                agent_id,
+                type,
+                location,
+                area,
+                number_of_baths,
                 number_of_rooms,
                 address,
                 description,
@@ -437,74 +437,70 @@ exports.createProperty = async (req, res) => {
                 lot,
                 percentage,
                 duration,
-                is_fractional, 
-                fractional_slots
+                is_fractional,
+                fractional_slots,
+                share_percentage
             } = req.body;
 
-            // Helper function to parse JSON strings to arrays
             const parseJsonArray = (value) => {
                 if (value && typeof value === "string") {
                     try {
-                        return JSON.parse(value); // Try to parse it as JSON
+                        return JSON.parse(value);
                     } catch (e) {
                         console.error("Error parsing JSON:", e);
-                        return value.split(",").map(item => item.trim()); // Fallback: split by commas if it's not valid JSON
+                        return value.split(",").map(item => item.trim());
                     }
                 }
                 return value || [];
             };
 
-            // Check if the admin is authenticated and has the correct role
             const admin = req.user;
             if (admin.role !== 'admin') {
                 return res.status(403).json({ message: 'You are not authorized to create a property' });
             }
 
-            // Check if the agent exists (the agent_id should refer to a user with role 'agent')
             const agent = await User.findByPk(agent_id, { where: { role: 'agent' } });
             if (!agent) {
                 return res.status(404).json({ message: 'Agent not found' });
             }
 
-            // Handle price_per_slot calculation if fractional
             let price_per_slot = null;
-            if (is_fractional && fractional_slots > 0 && price) {
-                price_per_slot = price / fractional_slots;
+            if (is_fractional === 'true' && fractional_slots > 0 && price) {
+                price_per_slot = (parseFloat(price) / parseInt(fractional_slots)).toString();
             }
 
-            // Handle date_on_market - if it's empty or invalid, set to current date or null
             const validDateOnMarket = date_on_market && date_on_market.trim() !== "" ? date_on_market : new Date().toISOString();
 
-            // Prepare the property data
             const newPropertyData = {
                 name,
                 size,
-                price,
+                price: price.toString(),
                 agent_id,
                 type,
                 location: location || "",
                 area: area || "",
                 address: address || "",
-                number_of_baths: number_of_baths || "0",
-                number_of_rooms: number_of_rooms || "0",
+                number_of_baths: number_of_baths ? number_of_baths.toString() : "0",
+                number_of_rooms: number_of_rooms ? number_of_rooms.toString() : "0",
                 listed_by: req.admin ? req.admin.username : "Admin",
                 description: description || "",
                 payment_plan: payment_plan || "",
-                year_built: year_built || 0,
-                amount_per_sqft: amount_per_sqft || "0",
+                year_built: year_built ? parseInt(year_built) : null,
+                amount_per_sqft: amount_per_sqft ? amount_per_sqft.toString() : "0",
                 special_features: parseJsonArray(special_features),
                 appliances: parseJsonArray(appliances),
                 features: parseJsonArray(features),
-                interior_area: interior_area || 0,
+                interior_area: interior_area ? parseInt(interior_area) : null,
                 material: material || "",
-                annual_tax_amount: annual_tax_amount || 0,
+                annual_tax_amount: annual_tax_amount ? annual_tax_amount.toString() : "0",
                 date_on_market: validDateOnMarket,
                 ownership: ownership || "",
                 percentage: percentage || "",
                 duration: duration || "",
-                is_fractional: is_fractional || false,
-                fractional_slots: is_fractional ? fractional_slots : null,
-                price_per_slot: is_fractional ? price_per_slot : null,
+                is_fractional: is_fractional === 'true',
+                fractional_slots: is_fractional === 'true' ? parseInt(fractional_slots) : null,
+                price_per_slot: is_fractional === 'true' ? price_per_slot : null,
+                share_percentage: share_percentage ? parseFloat(share_percentage) : 0,
                 kitchen: parseJsonArray(kitchen),
                 heating: parseJsonArray(heating),
                 cooling: parseJsonArray(cooling),
@@ -515,10 +511,8 @@ exports.createProperty = async (req, res) => {
 
             console.log("New Property Data:", newPropertyData);
 
-            // Create the property record
             const newProperty = await Property.create(newPropertyData);
 
-            // Handle image uploads to Cloudinary
             let imageUrls = [];
             if (req.files && req.files.length > 0) {
                 imageUrls = await uploadImagesToCloudinary(req.files);
@@ -531,13 +525,11 @@ exports.createProperty = async (req, res) => {
                 await PropertyImage.bulkCreate(imageRecords);
             }
 
-            // Handle document upload to Cloudinary
             let documentUrl = null;
             if (req.file) {
                 documentUrl = await uploadDocumentToCloudinary(req.file.buffer, req.file.originalname);
             }
 
-            // Return the filtered property in the response
             res.status(201).json({
                 property: newProperty,
                 images: imageUrls || [],
@@ -549,6 +541,7 @@ exports.createProperty = async (req, res) => {
         }
     });
 };
+
 
 
 
