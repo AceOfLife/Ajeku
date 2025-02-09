@@ -64,16 +64,16 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.JSONB, // JSONB is used to store multiple items (array of strings)
       allowNull: true,
     },
-    last_checked: { // Last checked date
-      type: DataTypes.DATE,
-      allowNull: true,
-      defaultValue: DataTypes.NOW, // Automatically set to current timestamp
-    },
-    listing_updated: { // Date the listing was last updated
-      type: DataTypes.DATE,
-      allowNull: true,
-      defaultValue: DataTypes.NOW, // Automatically set to current timestamp on create
-    },
+    // last_checked: { // Last checked date
+    //   type: DataTypes.DATE,
+    //   allowNull: true,
+    //   defaultValue: DataTypes.NOW, // Automatically set to current timestamp
+    // },
+    // listing_updated: { // Date the listing was last updated
+    //   type: DataTypes.DATE,
+    //   allowNull: true,
+    //   defaultValue: DataTypes.NOW, // Automatically set to current timestamp on create
+    // },
     listed_by: { // The agent or entity who listed the property
       type: DataTypes.STRING,
       allowNull: true,
@@ -143,11 +143,11 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: false, // Default is 'false'
       allowNull: false, // Cannot be null
     },
-    share_percentage: { // New column: Share percentage for fractional properties
-      type: DataTypes.FLOAT,
-      defaultValue: 0, // Default is '0' (not fractional)
-      allowNull: false, // Cannot be null
-    },
+    // share_percentage: { // New column: Share percentage for fractional properties
+    //   type: DataTypes.FLOAT,
+    //   defaultValue: 0, // Default is '0' (not fractional)
+    //   allowNull: false, // Cannot be null
+    // },
     fractional_slots: { // Number of fractional slots
       type: DataTypes.INTEGER,
       allowNull: true,
