@@ -56,10 +56,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: true,
     },
-    amount_per_sqft: { // Price per square foot
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
+    // amount_per_sqft: { // Price per square foot
+    //   type: DataTypes.STRING,
+    //   allowNull: true,
+    // },
     special_features: { // Special Features (multiple possible values)
       type: DataTypes.JSONB, // JSONB is used to store multiple items (array of strings)
       allowNull: true,
