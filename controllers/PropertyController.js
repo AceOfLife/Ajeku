@@ -472,9 +472,9 @@ exports.createProperty = async (req, res) => {
                 payment_plan: payment_plan || "",
                 year_built: year_built || 0,
                 amount_per_sqft: amount_per_sqft || "0",
-                special_features: [],
-                appliances: [],
-                features: [],
+                special_features: splitToArray(special_features),
+                appliances: splitToArray(appliances),
+                features: splitToArray(features),
                 interior_area: interior_area || 0,
                 material: material || "",
                 annual_tax_amount: annual_tax_amount || 0,
@@ -485,32 +485,13 @@ exports.createProperty = async (req, res) => {
                 is_fractional: is_fractional || false,
                 fractional_slots: is_fractional ? fractional_slots : null,
                 price_per_slot: is_fractional ? price_per_slot : null,
-                kitchen: [],
-                heating: [],
-                cooling: [],
-                type_and_style: [],
-                lot: [],
-                parking: []
+                kitchen: splitToArray(kitchen),
+                heating: splitToArray(heating),
+                cooling: splitToArray(cooling),
+                type_and_style: splitToArray(type_and_style),
+                lot: splitToArray(lot),
+                parking: splitToArray(parking)
             };
-
-            // Log raw incoming fields
-            console.log("Raw kitchen:", kitchen);
-            console.log("Raw heating:", heating);
-            console.log("Raw special_features:", special_features);
-            console.log("Raw appliances:", appliances);
-            console.log("Raw features:", features);
-            console.log("Raw cooling:", cooling);
-
-            // Convert string fields to arrays
-            if (special_features) newPropertyData.special_features = splitToArray(special_features);
-            if (appliances) newPropertyData.appliances = splitToArray(appliances);
-            if (features) newPropertyData.features = splitToArray(features);
-            if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
-            if (heating) newPropertyData.heating = splitToArray(heating);
-            if (cooling) newPropertyData.cooling = splitToArray(cooling);
-            if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
-            if (lot) newPropertyData.lot = splitToArray(lot);
-            if (parking) newPropertyData.parking = splitToArray(parking);
 
             console.log("Final Processed Property Data:", newPropertyData);
 
