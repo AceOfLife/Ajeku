@@ -534,6 +534,166 @@ const uploadDocumentToCloudinary = async (fileBuffer, fileName) => {
 
 // 09/02/2025
 
+// exports.createProperty = async (req, res) => {
+//     upload(req, res, async (err) => {
+//         if (err) {
+//             console.error("Multer error:", err);
+//             return res.status(400).json({ message: 'Error uploading images', error: err });
+//         }
+
+//         try {
+//             console.log(req.body);
+
+//             const { 
+//                 name, 
+//                 size, 
+//                 price, 
+//                 agent_id, 
+//                 type, 
+//                 location, 
+//                 area, 
+//                 number_of_baths, 
+//                 number_of_rooms,
+//                 address,
+//                 description,
+//                 payment_plan,
+//                 year_built,
+//                 special_features,
+//                 appliances,
+//                 features,
+//                 interior_area,
+//                 parking,
+//                 material,
+//                 annual_tax_amount,
+//                 date_on_market,
+//                 ownership,
+//                 kitchen,
+//                 heating,
+//                 cooling,
+//                 type_and_style,
+//                 lot,
+//                 percentage,
+//                 duration,
+//                 is_fractional,
+//                 fractional_slots,
+//                 isRental
+//             } = req.body;
+
+//             // Check if the admin is authenticated and has the correct role
+//             const admin = req.user;
+//             if (admin.role !== 'admin') {
+//                 return res.status(403).json({ message: 'You are not authorized to create a property' });
+//             }
+
+//             // Check if the agent exists
+//             const agent = await User.findByPk(agent_id, { where: { role: 'agent' } });
+//             if (!agent) {
+//                 return res.status(404).json({ message: 'Agent not found' });
+//             }
+
+//             // Handle price_per_slot calculation if fractional
+//             let price_per_slot = null;
+//             if (is_fractional && fractional_slots > 0 && price) {
+//                 price_per_slot = price / fractional_slots;
+//             }
+
+//             // Ensure valid date for date_on_market
+//             const validDateOnMarket = date_on_market && date_on_market.trim() !== "" ? date_on_market : new Date().toISOString();
+
+//             // Prepare property data
+//             const newPropertyData = {
+//                 name,
+//                 size,
+//                 price,
+//                 agent_id,
+//                 type,
+//                 location: location || "",
+//                 area: area || "",
+//                 address: address || "",
+//                 number_of_baths: number_of_baths || "0",
+//                 number_of_rooms: number_of_rooms || "0",
+//                 listed_by: req.admin ? req.admin.username : "Admin",
+//                 description: description || "",
+//                 payment_plan: payment_plan || "",
+//                 year_built: year_built || 0,
+//                 special_features: special_features || [],
+//                 appliances: appliances || [],
+//                 features: features || [],
+//                 interior_area: interior_area || 0,
+//                 material: material || "",
+//                 annual_tax_amount: annual_tax_amount || 0,
+//                 date_on_market: validDateOnMarket,
+//                 ownership: ownership || "",
+//                 percentage: percentage || "",
+//                 duration: duration || "",
+//                 is_fractional: is_fractional || false,
+//                 fractional_slots: is_fractional ? fractional_slots : null,
+//                 price_per_slot: is_fractional ? price_per_slot : null,
+//                 isRental: isRental || false,
+//             };
+
+//             console.log("New Property Data:", newPropertyData);
+
+//             // Convert comma-separated values to arrays
+//             if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
+//             if (heating) newPropertyData.heating = splitToArray(heating);
+//             if (cooling) newPropertyData.cooling = splitToArray(cooling);
+//             if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
+//             if (lot) newPropertyData.lot = splitToArray(lot);
+//             if (special_features) newPropertyData.special_features = splitToArray(special_features);
+//             if (parking) newPropertyData.parking = splitToArray(parking);
+//             if (appliances) newPropertyData.appliances = splitToArray(appliances);
+//             if (features) newPropertyData.features = splitToArray(features);
+
+//             console.log("Creating property with data:", newPropertyData);
+
+//             // Create the property record
+//             const newProperty = await Property.create(newPropertyData);
+
+//             // Handle image uploads to Cloudinary
+//             let imageUrls = [];
+//             if (req.files && req.files.length > 0) {
+//                 imageUrls = await uploadImagesToCloudinary(req.files);
+
+//                 const imageRecords = imageUrls.map(url => ({
+//                     property_id: newProperty.id,
+//                     image_url: [url],
+//                 }));
+
+//                 await PropertyImage.bulkCreate(imageRecords);
+//             }
+
+//             // Handle document upload to Cloudinary
+//             let documentUrl = null;
+//             if (req.file) {
+//                 documentUrl = await uploadDocumentToCloudinary(req.file.buffer, req.file.originalname);
+//             }
+
+//             // Filter out fields with empty or null values
+//             const filteredProperty = {};
+//             Object.keys(newPropertyData).forEach(key => {
+//                 if (newPropertyData[key] && newPropertyData[key] !== "" && newPropertyData[key] !== 0 && newPropertyData[key].length !== 0) {
+//                     filteredProperty[key] = newPropertyData[key];
+//                 }
+//             });
+
+//             res.status(201).json({
+//                 property: filteredProperty,
+//                 images: imageUrls || [],
+//                 documentUrl: documentUrl || null,
+//             });
+//         } catch (error) {
+//             console.error(error);
+//             res.status(400).json({ message: 'Error creating property', error });
+//         }
+//     });
+// };
+
+
+// PayStack Payment Gateway
+
+const axios = require("axios");
+
 exports.createProperty = async (req, res) => {
     upload(req, res, async (err) => {
         if (err) {
@@ -575,7 +735,8 @@ exports.createProperty = async (req, res) => {
                 percentage,
                 duration,
                 is_fractional,
-                fractional_slots
+                fractional_slots,
+                isRental
             } = req.body;
 
             // Check if the admin is authenticated and has the correct role
@@ -628,6 +789,7 @@ exports.createProperty = async (req, res) => {
                 is_fractional: is_fractional || false,
                 fractional_slots: is_fractional ? fractional_slots : null,
                 price_per_slot: is_fractional ? price_per_slot : null,
+                isRental: isRental || false
             };
 
             console.log("New Property Data:", newPropertyData);
@@ -667,6 +829,37 @@ exports.createProperty = async (req, res) => {
                 documentUrl = await uploadDocumentToCloudinary(req.file.buffer, req.file.originalname);
             }
 
+            // Initialize PayStack payment if the property is a rental
+            let paystackPaymentUrl = null;
+            if (isRental) {
+                try {
+                    const user = await User.findByPk(req.user.id);
+                    if (!user) {
+                        return res.status(404).json({ message: "User not found" });
+                    }
+
+                    const response = await axios.post(
+                        "https://api.paystack.co/transaction/initialize",
+                        {
+                            email: user.email,
+                            amount: price * 100, // Convert to kobo
+                            currency: "NGN",
+                            callback_url: `${process.env.FRONTEND_URL}/payment-success?propertyId=${newProperty.id}`
+                        },
+                        {
+                            headers: {
+                                Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+                                "Content-Type": "application/json"
+                            }
+                        }
+                    );
+
+                    paystackPaymentUrl = response.data.data.authorization_url;
+                } catch (error) {
+                    console.error("PayStack Error:", error.response ? error.response.data : error.message);
+                }
+            }
+
             // Filter out fields with empty or null values
             const filteredProperty = {};
             Object.keys(newPropertyData).forEach(key => {
@@ -679,6 +872,7 @@ exports.createProperty = async (req, res) => {
                 property: filteredProperty,
                 images: imageUrls || [],
                 documentUrl: documentUrl || null,
+                paystackPaymentUrl: paystackPaymentUrl || null // Include PayStack payment URL
             });
         } catch (error) {
             console.error(error);
@@ -686,8 +880,6 @@ exports.createProperty = async (req, res) => {
         }
     });
 };
-
-
 
 
 // Update an existing property

@@ -20,6 +20,7 @@
     "FRONTEND_URL": "https://ajeku-mu.vercel.app",
     "CLOUDINARY_CLOUD_NAME": "dqqxes1xo",
     "CLOUDINARY_API_KEY": "942322874736725",
-    "CLOUDINARY_API_SECRET": "7uvqpKsfR2luTaJw3TarDc9lYyU"
+    "CLOUDINARY_API_SECRET": "7uvqpKsfR2luTaJw3TarDc9lYyU",
+    "PAYSTACK_SECRET_KEY": "sk_test_8d46a0967b5c661345ff1cc0d24aa3f70aa624fb"
   }
 }

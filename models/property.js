@@ -64,6 +64,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.JSONB, // JSONB is used to store multiple items (array of strings)
       allowNull: true,
     },
+    isRental: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },  
     // last_checked: { // Last checked date
     //   type: DataTypes.DATE,
     //   allowNull: true,
