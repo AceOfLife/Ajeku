@@ -844,10 +844,6 @@ exports.createProperty = async (req, res) => {
                             email: user.email,
                             amount: price * 100, // Convert to kobo
                             currency: "NGN",
-                            metadata: {
-                                property_id: propertyId,
-                                payment_type: "rental", // or "outright" or "fractional"
-                            },
                             callback_url: `${process.env.FRONTEND_URL}/payment-success?propertyId=${newProperty.id}`
                         },
                         {
