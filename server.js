@@ -27,7 +27,7 @@ app.use(favicon(path.join(__dirname, 'favicon.png'))); // Adjust path if needed
 app.use(express.static(path.join(__dirname))); 
 
 // Payment route
-app.use("/api/payment", paymentRoutes);
+app.use("/api", paymentRoutes);
 
 app.get('/favicon.png', (req, res) => {
   res.sendFile(path.join(__dirname, 'favicon.png')); // Serve favicon.png directly from root
