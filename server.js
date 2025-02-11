@@ -9,6 +9,7 @@ const adminRoutes = require('./routes/admin');
 const clientRoutes = require('./routes/clientRoutes');
 const authRoutes = require('./routes/authRoutes'); // Import auth routes if needed
 const { sequelize } = require('./models'); // Import Sequelize connection
+const paymentRoutes = require("./routes/paymentRoutes");
 
 const app = express();
 
@@ -24,6 +25,9 @@ sequelize.authenticate()
 // Serve favicon from the root directory
 app.use(favicon(path.join(__dirname, 'favicon.png'))); // Adjust path if needed
 app.use(express.static(path.join(__dirname))); 
+
+// Payment route
+app.use("/api", paymentRoutes);
 
 app.get('/favicon.png', (req, res) => {
   res.sendFile(path.join(__dirname, 'favicon.png')); // Serve favicon.png directly from root
