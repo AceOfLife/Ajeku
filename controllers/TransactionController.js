@@ -49,3 +49,47 @@ exports.deleteTransaction = async (req, res) => {
     res.status(500).json({ message: 'Error deleting transaction', error });
   }
 };
+
+
+exports.verifyPayment = async (req, res) => {
+  try {
+      const { reference } = req.query;
+
+      if (!reference) {
+          return res.status(400).json({ message: "Transaction reference is required" });
+      }
+
+      // Verify transaction from PayStack
+      const response = await axios.get(
+          `https://api.paystack.co/transaction/verify/${reference}`,
+          {
+              headers: {
+                  Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+              }
+          }
+      );
+
+      const paymentData = response.data.data;
+
+      if (paymentData.status !== "success") {
+          return res.status(400).json({ message: "Payment verification failed" });
+      }
+
+      // Extract metadata
+      const { user_id, property_id, payment_type } = paymentData.metadata;
+
+      // Create transaction in database
+      const transaction = await Transaction.create({
+          client_id: user_id,
+          property_id: property_id,
+          price: paymentData.amount / 100, // Convert from kobo
+          status: "successful",
+          transaction_date: new Date(),
+      });
+
+      res.status(200).json({ message: "Payment verified and transaction recorded", transaction });
+  } catch (error) {
+      console.error("Payment Verification Error:", error.response ? error.response.data : error.message);
+      res.status(500).json({ message: 'Error verifying payment', error });
+  }
+};

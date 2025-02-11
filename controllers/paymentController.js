@@ -1,60 +1,57 @@
-const axios = require("axios");
-const { Transaction, Property, Client } = require("../models");
+const axios = require('axios');
+const { Transaction, Property, User } = require('../models');
 
-exports.verifyPayment = async (req, res) => {
-    const { reference } = req.query;
-
-    if (!reference) {
-        return res.status(400).json({ message: "Payment reference is required" });
-    }
-
+exports.initializePayment = async (req, res) => {
     try {
-        // Verify payment with Paystack
-        const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
-            headers: {
-                Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+        const { user_id, property_id, payment_type } = req.body;
+
+        // Validate user
+        const user = await User.findByPk(user_id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Validate property
+        const property = await Property.findByPk(property_id);
+        if (!property) {
+            return res.status(404).json({ message: 'Property not found' });
+        }
+
+        let amount = property.price; // Default to full price
+
+        // Adjust price if fractional
+        if (payment_type === "fractional" && property.is_fractional) {
+            amount = property.price_per_slot;
+        }
+
+        // Convert amount to kobo (PayStack requires amount in kobo)
+        const amountInKobo = amount * 100;
+
+        // Initialize payment with PayStack
+        const response = await axios.post(
+            "https://api.paystack.co/transaction/initialize",
+            {
+                email: user.email, // Fetch from user data
+                amount: amountInKobo,
+                currency: "NGN",
+                callback_url: `https://ajeku-mu.vercel.app/payment-success?propertyId=${property.id}`,
+                metadata: {
+                    user_id: user.id,
+                    property_id: property.id,
+                    payment_type: payment_type,
+                }
             },
-        });
+            {
+                headers: {
+                    Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+                    "Content-Type": "application/json"
+                }
+            }
+        );
 
-        const paymentData = response.data.data;
-
-        if (paymentData.status !== "success") {
-            return res.status(400).json({ message: "Payment verification failed" });
-        }
-
-        // Extract details from Paystack response
-        const clientEmail = paymentData.customer.email; // Assuming email is used to identify clients
-        const amountPaid = paymentData.amount / 100; // Convert from kobo to NGN
-        const propertyId = paymentData.metadata.property_id; // Ensure metadata contains property_id
-        const paymentType = paymentData.metadata.payment_type; // rental, outright, fractional
-
-        // Find the client using their email
-        const client = await Client.findOne({ where: { email: clientEmail } });
-        if (!client) {
-            return res.status(404).json({ message: "Client not found" });
-        }
-
-        // Check if the transaction already exists
-        let existingTransaction = await Transaction.findOne({ where: { id: reference } });
-
-        if (!existingTransaction) {
-            // Create new transaction entry
-            existingTransaction = await Transaction.create({
-                id: reference, // Use Paystack transaction reference as ID
-                client_id: client.id,
-                property_id: propertyId,
-                price: amountPaid,
-                status: "successful",
-                transaction_date: new Date(),
-            });
-
-            // Optionally update the property status
-            await Property.update({ status: "rented" }, { where: { id: propertyId } });
-        }
-
-        return res.status(200).json({ message: "Payment verified", transaction: existingTransaction });
+        res.status(200).json({ paymentUrl: response.data.data.authorization_url });
     } catch (error) {
-        console.error("Error verifying payment:", error.response ? error.response.data : error.message);
-        return res.status(500).json({ message: "Internal server error" });
+        console.error("Payment Initialization Error:", error.response ? error.response.data : error.message);
+        res.status(500).json({ message: 'Error initializing payment', error });
     }
 };

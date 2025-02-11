@@ -10,6 +10,7 @@ const clientRoutes = require('./routes/clientRoutes');
 const authRoutes = require('./routes/authRoutes'); // Import auth routes if needed
 const { sequelize } = require('./models'); // Import Sequelize connection
 const paymentRoutes = require("./routes/paymentRoutes");
+const transactionRoutes = require('./routes/transactionRoutes');
 
 const app = express();
 
@@ -28,6 +29,9 @@ app.use(express.static(path.join(__dirname)));
 
 // Payment route
 app.use("/api", paymentRoutes);
+
+// Transaction route
+app.use('/transactions', transactionRoutes);
 
 app.get('/favicon.png', (req, res) => {
   res.sendFile(path.join(__dirname, 'favicon.png')); // Serve favicon.png directly from root
