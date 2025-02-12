@@ -109,15 +109,21 @@ exports.verifyPayment = async (req, res) => {
 
         // Extract important details
         const { user_id, property_id, payment_type } = paymentData.metadata;
+        const client = await Client.findOne({ where: { user_id } });
+
+        if (!client) {
+            return res.status(404).json({ message: "Client not found" });
+        }
 
         // Save the transaction in your database
         await Transaction.create({
-            user_id,
+            client_id: client.id,  // Ensure client_id is saved
             property_id,
             reference,
-            amount: paymentData.amount / 100, // Convert back from kobo to Naira
+            price: paymentData.amount / 100, // Convert from kobo to Naira
             currency: paymentData.currency,
             status: paymentData.status,
+            transaction_date: new Date(paymentData.transaction_date), // Ensure transaction_date is set
             payment_type
         });
 
@@ -125,9 +131,10 @@ exports.verifyPayment = async (req, res) => {
             message: "Payment verified successfully",
             transaction: {
                 reference,
-                amount: paymentData.amount / 100,
+                price: paymentData.amount / 100,
                 currency: paymentData.currency,
-                status: paymentData.status
+                status: paymentData.status,
+                transaction_date: paymentData.transaction_date
             }
         });
 
