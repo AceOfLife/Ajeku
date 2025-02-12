@@ -16,7 +16,7 @@
 
 const express = require("express");
 const router = express.Router();
-const { authenticate } = require("../middleware/authMiddleware"); 
+const { authenticate } = require("../middlewares/authMiddleware"); 
 
 const { initializePayment, verifyPayment } = require("../controllers/paymentController"); // Correct import
 
