@@ -109,15 +109,16 @@ exports.verifyPayment = async (req, res) => {
 
         // Extract important details
         const { user_id, property_id, payment_type } = paymentData.metadata;
-        const client = await Client.findOne({ where: { user_id } });
+        const user = await User.findOne({ where: { user_id } });
 
-        if (!client) {
+        if (!user) {
             return res.status(404).json({ message: "Client not found" });
         }
 
         // Save the transaction in your database
         await Transaction.create({
-            client_id: client.id,  // Ensure client_id is saved
+            // client_id: client.id,  // Ensure client_id is saved
+            user_id,
             property_id,
             reference,
             price: paymentData.amount / 100, // Convert from kobo to Naira
