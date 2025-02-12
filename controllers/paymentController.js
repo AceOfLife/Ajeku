@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { Transaction, Property, User} = require('../models');
+const { Transaction, Property, User, Client } = require('../models');
 
 exports.initializePayment = async (req, res) => {
     try {
@@ -109,7 +109,7 @@ exports.verifyPayment = async (req, res) => {
 
         // Extract important details
         const { user_id, property_id, payment_type } = paymentData.metadata;
-        const user = await User.findOne({ where: { id: user_id } });
+        const user = await User.findOne({ where: { user_id } });
 
         if (!user) {
             return res.status(404).json({ message: "Client not found" });
@@ -117,8 +117,7 @@ exports.verifyPayment = async (req, res) => {
 
         // Save the transaction in your database
         await Transaction.create({
-            // client_id: client.id,  // Ensure client_id is saved
-            user_id,
+            client_id: client.id,  // Ensure client_id is saved
             property_id,
             reference,
             price: paymentData.amount / 100, // Convert from kobo to Naira
