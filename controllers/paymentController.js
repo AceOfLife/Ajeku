@@ -50,7 +50,7 @@ exports.initializePayment = async (req, res) => {
             }
         );
 
-        res.status(200).json({ paymentUrl: response.data.data.authorization_url });
+        res.status(200).json({ paymentUrl: response.data.data.authorization_url, reference: response.data.data.reference });
     } catch (error) {
         console.error("Payment Initialization Error:", error.response ? error.response.data : error.message);
         res.status(500).json({ message: 'Error initializing payment', error });
