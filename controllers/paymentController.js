@@ -109,7 +109,7 @@ exports.verifyPayment = async (req, res) => {
 
         // Extract important details
         const { user_id, property_id, payment_type } = paymentData.metadata;
-        const user = await User.findOne({ where: { user_id } });
+        const user = await User.findOne({ where: { id : user_id } });
 
         if (!user) {
             return res.status(404).json({ message: "Client not found" });
