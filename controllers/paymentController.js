@@ -3,6 +3,7 @@ const { Transaction, Property, User } = require('../models');
 
 exports.initializePayment = async (req, res) => {
     try {
+        console.log("Request Body:", req.body);
         const { user_id, property_id, payment_type } = req.body;
 
         // Validate user

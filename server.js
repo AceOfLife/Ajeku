@@ -13,6 +13,8 @@ const paymentRoutes = require("./routes/paymentRoutes");
 const transactionRoutes = require('./routes/transactionRoutes');
 
 const app = express();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Database connection check (important for debugging)
 sequelize.authenticate()
