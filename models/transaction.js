@@ -44,7 +44,7 @@
 
 module.exports = (sequelize, DataTypes) => {
   const Transaction = sequelize.define('Transaction', {
-    user_id: {  // ✅ Changed from client_id to user_id
+    id: {  // ✅ Changed from client_id to user_id
       type: DataTypes.INTEGER,
       allowNull: false,
     },
