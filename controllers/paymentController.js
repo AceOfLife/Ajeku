@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { Transaction, Property, User } = require('../models');
+const { Transaction, Property, User, Client } = require('../models');
 
 exports.initializePayment = async (req, res) => {
     try {
