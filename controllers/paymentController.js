@@ -57,26 +57,82 @@ exports.initializePayment = async (req, res) => {
     }
 };
 
+// exports.verifyPayment = async (req, res) => {
+//     try {
+//         const { reference } = req.query;
+//         if (!reference) {
+//             return res.status(400).json({ message: "Payment reference is required" });
+//         }
+
+//         const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+//             headers: {
+//                 Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+//             },
+//         });
+
+//         if (response.data.status) {
+//             return res.status(200).json({ message: "Payment verified successfully", data: response.data.data });
+//         } else {
+//             return res.status(400).json({ message: "Payment verification failed", data: response.data });
+//         }
+//     } catch (error) {
+//         console.error("Payment Verification Error:", error.response ? error.response.data : error.message);
+//         res.status(500).json({ message: "Error verifying payment", error });
+//     }
+// };
+
+
 exports.verifyPayment = async (req, res) => {
     try {
         const { reference } = req.query;
         if (!reference) {
-            return res.status(400).json({ message: "Payment reference is required" });
+            return res.status(400).json({ message: "Transaction reference is required" });
         }
 
         const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
             headers: {
                 Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-            },
+                "Content-Type": "application/json"
+            }
         });
 
-        if (response.data.status) {
-            return res.status(200).json({ message: "Payment verified successfully", data: response.data.data });
-        } else {
-            return res.status(400).json({ message: "Payment verification failed", data: response.data });
+        const paymentData = response.data.data;
+
+        // Check if payment was successful
+        if (paymentData.status !== "success") {
+            return res.status(400).json({
+                message: "Payment not successful",
+                status: paymentData.status,
+                gateway_response: paymentData.gateway_response
+            });
         }
+
+        // Extract important details
+        const { user_id, property_id, payment_type } = paymentData.metadata;
+
+        // Save the transaction in your database
+        await Transaction.create({
+            user_id,
+            property_id,
+            reference,
+            amount: paymentData.amount / 100, // Convert back from kobo to Naira
+            currency: paymentData.currency,
+            status: paymentData.status,
+            payment_type
+        });
+
+        return res.status(200).json({
+            message: "Payment verified successfully",
+            transaction: {
+                reference,
+                amount: paymentData.amount / 100,
+                currency: paymentData.currency,
+                status: paymentData.status
+            }
+        });
+
     } catch (error) {
         console.error("Payment Verification Error:", error.response ? error.response.data : error.message);
-        res.status(500).json({ message: "Error verifying payment", error });
+        return res.status(500).json({ message: "Error verifying payment", error });
     }
 };
