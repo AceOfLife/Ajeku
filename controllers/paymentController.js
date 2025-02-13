@@ -82,19 +82,98 @@ exports.initializePayment = async (req, res) => {
 // };
 
 
+// exports.verifyPayment = async (req, res) => {
+//     try {
+//         const { reference } = req.query;
+//         if (!reference) {
+//             return res.status(400).json({ message: "Transaction reference is required" });
+//         }
+
+//         const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+//             headers: {
+//                 Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+//                 "Content-Type": "application/json"
+//             }
+//         });
+
+//         const paymentData = response.data.data;
+
+//         // Check if payment was successful
+//         if (paymentData.status !== "success") {
+//             return res.status(400).json({
+//                 message: "Payment not successful",
+//                 status: paymentData.status,
+//                 gateway_response: paymentData.gateway_response
+//             });
+//         }
+
+//         // Debug metadata
+//         console.log("Payment Metadata:", paymentData.metadata);
+
+//         // Use user_id instead of client_id
+//         const { user_id, property_id, payment_type } = paymentData.metadata || {}; 
+
+//         if (!user_id) {
+//             return res.status(400).json({ message: "User ID is missing in payment metadata" });
+//         }
+
+//         // Fetch the user
+//         const user = await User.findOne({ where: { id: user_id } });
+
+//         if (!user) {
+//             return res.status(404).json({ message: "User not found" });
+//         }
+
+//         // Save the transaction in your database
+//         await Transaction.create({
+//             user_id,  // ✅ Corrected field name
+//             property_id,
+//             reference,
+//             price: paymentData.amount / 100, // Convert from kobo to Naira
+//             currency: paymentData.currency,
+//             status: paymentData.status,
+//             transaction_date: new Date(paymentData.transaction_date),
+//             payment_type
+//         });
+
+//         return res.status(200).json({
+//             message: "Payment verified successfully",
+//             transaction: {
+//                 reference,
+//                 price: paymentData.amount / 100,
+//                 currency: paymentData.currency,
+//                 status: paymentData.status,
+//                 transaction_date: paymentData.transaction_date
+//             }
+//         });
+
+//     } catch (error) {
+//         console.error("Payment Verification Error:", error.response ? error.response.data : error.message);
+//         return res.status(500).json({ message: "Error verifying payment", error });
+//     }
+// };
+
+
 exports.verifyPayment = async (req, res) => {
     try {
         const { reference } = req.query;
+
         if (!reference) {
             return res.status(400).json({ message: "Transaction reference is required" });
         }
 
+        // Verify payment with Paystack
         const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
             headers: {
                 Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
                 "Content-Type": "application/json"
             }
         });
+
+        // Ensure Paystack's response is valid
+        if (!response.data || !response.data.data) {
+            return res.status(500).json({ message: "Invalid response from payment gateway" });
+        }
 
         const paymentData = response.data.data;
 
@@ -110,11 +189,18 @@ exports.verifyPayment = async (req, res) => {
         // Debug metadata
         console.log("Payment Metadata:", paymentData.metadata);
 
-        // Use user_id instead of client_id
-        const { user_id, property_id, payment_type } = paymentData.metadata || {}; 
+        // Ensure metadata exists before extracting values
+        const metadata = paymentData.metadata || {};
+        const { user_id, property_id, payment_type } = metadata;
 
         if (!user_id) {
             return res.status(400).json({ message: "User ID is missing in payment metadata" });
+        }
+        if (!property_id) {
+            return res.status(400).json({ message: "Property ID is missing in payment metadata" });
+        }
+        if (!payment_type) {
+            return res.status(400).json({ message: "Payment type is missing in payment metadata" });
         }
 
         // Fetch the user
@@ -125,8 +211,8 @@ exports.verifyPayment = async (req, res) => {
         }
 
         // Save the transaction in your database
-        await Transaction.create({
-            user_id,  // ✅ Corrected field name
+        const transaction = await Transaction.create({
+            user_id,
             property_id,
             reference,
             price: paymentData.amount / 100, // Convert from kobo to Naira
@@ -138,17 +224,11 @@ exports.verifyPayment = async (req, res) => {
 
         return res.status(200).json({
             message: "Payment verified successfully",
-            transaction: {
-                reference,
-                price: paymentData.amount / 100,
-                currency: paymentData.currency,
-                status: paymentData.status,
-                transaction_date: paymentData.transaction_date
-            }
+            transaction
         });
 
     } catch (error) {
         console.error("Payment Verification Error:", error.response ? error.response.data : error.message);
-        return res.status(500).json({ message: "Error verifying payment", error });
+        return res.status(500).json({ message: "Error verifying payment", error: error.message });
     }
 };
