@@ -155,21 +155,40 @@ exports.getAllTransactions = async (req, res) => {
   }
 };
 
+// Fetch a single transaction by ID
 exports.getTransactionById = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const transaction = await Transaction.findByPk(id, {
-            include: [{ model: Property }, { model: User }]
-        });
+  try {
+      const { id } = req.params; // Get the transaction ID from request parameters
 
-        if (!transaction) {
-            return res.status(404).json({ message: "Transaction not found" });
-        }
+      if (!id) {
+          return res.status(400).json({ message: "Transaction ID is required" });
+      }
 
-        res.status(200).json({ transaction });
-    } catch (error) {
-        console.error("Error fetching transaction:", error);
-        res.status(500).json({ message: "Error fetching transaction", error });
-    }
+      const transaction = await Transaction.findOne({
+          where: { id },
+          include: [
+              {
+                  model: User,
+                  as: "user",
+                  attributes: ["id", "name", "email"],
+              },
+              {
+                  model: Property,
+                  as: "property",
+                  attributes: ["id", "name", "location", "price"],
+              },
+          ],
+      });
+
+      if (!transaction) {
+          return res.status(404).json({ message: "Transaction not found" });
+      }
+
+      return res.status(200).json({ transaction });
+  } catch (error) {
+      console.error("Error fetching transaction by ID:", error);
+      return res.status(500).json({ message: "Error fetching transaction", error });
+  }
 };
+
 
