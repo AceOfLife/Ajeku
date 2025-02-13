@@ -142,7 +142,7 @@ exports.getAllTransactions = async (req, res) => {
               {
                   model: Property,
                   as: 'property',  // ✅ Use the correct alias
-                  attributes: ['id', 'title', 'location', 'price'], // Fetch only relevant fields
+                  attributes: ['id', 'name', 'location', 'price'], // Fetch only relevant fields
               }
           ],
           order: [['createdAt', 'DESC']], // Order by latest transactions
