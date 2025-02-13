@@ -131,15 +131,28 @@ exports.createTransaction = async (req, res) => {
 };
 
 exports.getAllTransactions = async (req, res) => {
-    try {
-        const transactions = await Transaction.findAll({
-            include: [{ model: Property }, { model: User }]
-        });
-        res.status(200).json({ transactions });
-    } catch (error) {
-        console.error("Error fetching transactions:", error);
-        res.status(500).json({ message: "Error fetching transactions", error });
-    }
+  try {
+      const transactions = await Transaction.findAll({
+          include: [
+              {
+                  model: User,
+                  as: 'user',  // ✅ Use the correct alias
+                  attributes: ['id', 'name', 'email'], // Fetch only relevant fields
+              },
+              {
+                  model: Property,
+                  as: 'property',  // ✅ Use the correct alias
+                  attributes: ['id', 'title', 'location', 'price'], // Fetch only relevant fields
+              }
+          ],
+          order: [['createdAt', 'DESC']], // Order by latest transactions
+      });
+
+      return res.status(200).json({ transactions });
+  } catch (error) {
+      console.error("Error fetching transactions:", error);
+      return res.status(500).json({ message: "Error fetching transactions", error });
+  }
 };
 
 exports.getTransactionById = async (req, res) => {
@@ -159,3 +172,4 @@ exports.getTransactionById = async (req, res) => {
         res.status(500).json({ message: "Error fetching transaction", error });
     }
 };
+
