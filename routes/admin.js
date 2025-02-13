@@ -58,6 +58,7 @@ router.get('/properties/:id', PropertyController.getPropertyById);
 
 // Transaction routes
 router.get('/transactions', authenticate, TransactionController.getAllTransactions);
+router.get("/transactions/:id", authenticate, authorizeAdmin, TransactionController.getTransactionById);
 router.post('/transactions', authenticate, authorizeAdmin, TransactionController.createTransaction);
 router.put('/transactions/:id', authenticate, authorizeAdmin, TransactionController.updateTransaction);
 router.delete('/transactions/:id', authenticate, authorizeAdmin, TransactionController.deleteTransaction);
