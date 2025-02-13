@@ -107,23 +107,32 @@ exports.verifyPayment = async (req, res) => {
             });
         }
 
-        // Extract important details
-        const { user_id, property_id, payment_type } = paymentData.metadata;
+        // Debug metadata
+        console.log("Payment Metadata:", paymentData.metadata);
+
+        // Use user_id instead of client_id
+        const { user_id, property_id, payment_type } = paymentData.metadata || {}; 
+
+        if (!user_id) {
+            return res.status(400).json({ message: "User ID is missing in payment metadata" });
+        }
+
+        // Fetch the user
         const user = await User.findOne({ where: { id: user_id } });
 
         if (!user) {
-            return res.status(404).json({ message: "Client not found" });
+            return res.status(404).json({ message: "User not found" });
         }
 
         // Save the transaction in your database
         await Transaction.create({
-            user_id,  // Ensure client_id is saved
+            user_id,  // ✅ Corrected field name
             property_id,
             reference,
             price: paymentData.amount / 100, // Convert from kobo to Naira
             currency: paymentData.currency,
             status: paymentData.status,
-            transaction_date: new Date(paymentData.transaction_date), // Ensure transaction_date is set
+            transaction_date: new Date(paymentData.transaction_date),
             payment_type
         });
 
