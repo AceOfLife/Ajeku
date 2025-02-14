@@ -212,7 +212,6 @@ exports.getRevenueStats = async (req, res) => {
 exports.getCustomerMap = async (req, res) => {
   try {
     const { Op, fn, col } = require("sequelize");
-    const Transaction = require("../models/Transaction"); // Ensure correct path
 
     const getCustomerCount = async (interval) => {
       return await Transaction.count({
