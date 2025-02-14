@@ -291,6 +291,32 @@ exports.getTransactionHistory = async (req, res) => {
   }
 };
 
+// exports.getTransactionHistory = async (req, res) => {
+//   try {
+//     const transactions = await Transaction.findAll({
+//       include: [
+//         {
+//           model: User,
+//           as: "user",
+//           attributes: ["id", "name", "email"], // Customer details
+//         },
+//         {
+//           model: Property,
+//           as: "property",
+//           attributes: ["id", "name", "location", "price"], // Property details
+//         },
+//       ],
+//       order: [["createdAt", "DESC"]], // Sort by latest transactions
+//     });
+
+//     return res.status(200).json({ success: true, transactions });
+//   } catch (error) {
+//     console.error("Error fetching transaction history:", error);
+//     return res.status(500).json({ message: "Error fetching transaction history", error });
+//   }
+// };
+
+
 exports.getTransactionHistory = async (req, res) => {
   try {
     const transactions = await Transaction.findAll({
@@ -298,18 +324,30 @@ exports.getTransactionHistory = async (req, res) => {
         {
           model: User,
           as: "user",
-          attributes: ["id", "name", "email"], // Customer details
+          attributes: ["id", "name"], // Only customer name
         },
         {
           model: Property,
           as: "property",
-          attributes: ["id", "name", "location", "price"], // Property details
+          attributes: ["id", "name"], // Only property name
         },
       ],
-      order: [["createdAt", "DESC"]], // Sort by latest transactions
+      attributes: ["id", "amount", "payment_type", "status", "createdAt"], // Required fields
+      order: [["createdAt", "DESC"]], // Order by latest transactions
     });
 
-    return res.status(200).json({ success: true, transactions });
+    // Format response for frontend
+    const formattedTransactions = transactions.map((transaction) => ({
+      transactionId: transaction.id,
+      customerName: transaction.user?.name || "Unknown",
+      propertyName: transaction.property?.name || "Unknown",
+      amountPaid: transaction.amount,
+      paymentType: transaction.payment_type,
+      status: transaction.status,
+      date: transaction.createdAt.toISOString().split("T")[0], // Format as YYYY-MM-DD
+    }));
+
+    return res.status(200).json({ success: true, transactions: formattedTransactions });
   } catch (error) {
     console.error("Error fetching transaction history:", error);
     return res.status(500).json({ message: "Error fetching transaction history", error });
