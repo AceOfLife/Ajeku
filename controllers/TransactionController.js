@@ -238,3 +238,30 @@ exports.getCustomerMap = async (req, res) => {
     res.status(500).json({ message: "Error fetching customer map", error });
   }
 };
+
+exports.getRecentCustomers = async (req, res) => {
+  try {
+      const transactions = await Transaction.findAll({
+          where: { status: "success" },
+          include: [
+              {
+                  model: User,
+                  as: "user",
+                  attributes: ["id", "name", "email"],
+              },
+              {
+                  model: Property,
+                  as: "property",
+                  attributes: ["id", "name", "location"],
+              },
+          ],
+          order: [["createdAt", "DESC"]],
+          limit: 5,
+      });
+
+      return res.status(200).json({ success: true, data: transactions });
+  } catch (error) {
+      console.error("Error fetching recent customers:", error);
+      return res.status(500).json({ message: "Error fetching recent customers", error });
+  }
+};
