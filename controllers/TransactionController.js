@@ -197,7 +197,7 @@ exports.getRevenueStats = async (req, res) => {
         [sequelize.fn("DATE_TRUNC", dateTrunc, sequelize.col("transaction_date")), "date"],
         [sequelize.fn("SUM", sequelize.col("price")), "total_revenue"],
       ],
-      where: { status: "successful" },
+      where: { status: "success" },
       group: [sequelize.fn("DATE_TRUNC", dateTrunc, sequelize.col("transaction_date"))],
       order: [[sequelize.fn("DATE_TRUNC", dateTrunc, sequelize.col("transaction_date")), "ASC"]],
     });
