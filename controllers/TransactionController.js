@@ -20,7 +20,7 @@
 // };
 
 const { Transaction, Property, User, sequelize } = require('../models');
-const { Op, fn, col, literal } = require("sequelize");
+const { Op } = require("sequelize");
 
 
 exports.updateTransaction = async (req, res) => {
