@@ -208,3 +208,34 @@ exports.getRevenueStats = async (req, res) => {
     res.status(500).json({ message: "Error fetching transaction", error });
   }
 };
+
+exports.getCustomerMap = async (req, res) => {
+  try {
+    const { Op, fn, col } = require("sequelize");
+    const Transaction = require("../models/Transaction"); // Ensure correct path
+
+    const getCustomerCount = async (interval) => {
+      return await Transaction.count({
+        where: {
+          status: "success",
+          transaction_date: {
+            [Op.gte]: fn("date_trunc", interval, col("transaction_date")),
+          },
+        },
+        distinct: true,
+        col: "user_id",
+      });
+    };
+
+    const data = {
+      daily: await getCustomerCount("day"),
+      weekly: await getCustomerCount("week"),
+      monthly: await getCustomerCount("month"),
+    };
+
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.error("Error fetching customer map:", error);
+    res.status(500).json({ message: "Error fetching customer map", error });
+  }
+};

@@ -58,6 +58,7 @@ router.get('/properties/:id', PropertyController.getPropertyById);
 
 // Transaction routes
 router.get("/transactions/revenue", authenticate, authorizeAdmin, TransactionController.getRevenueStats);
+router.get("/customer-map", authenticate, authorizeAdmin, TransactionController.getCustomerMap);
 router.get('/transactions', authenticate, TransactionController.getAllTransactions);
 router.get("/transactions/:id", authenticate, authorizeAdmin, TransactionController.getTransactionById);
 router.post('/transactions', authenticate, authorizeAdmin, TransactionController.createTransaction);
