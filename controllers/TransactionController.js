@@ -265,3 +265,28 @@ exports.getRecentCustomers = async (req, res) => {
       return res.status(500).json({ message: "Error fetching recent customers", error });
   }
 };
+
+exports.getTransactionHistory = async (req, res) => {
+  try {
+    const transactions = await Transaction.findAll({
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: ["id", "name", "email"], // Customer details
+        },
+        {
+          model: Property,
+          as: "property",
+          attributes: ["id", "name", "location", "price"], // Property details
+        },
+      ],
+      order: [["createdAt", "DESC"]], // Sort by latest transactions
+    });
+
+    return res.status(200).json({ success: true, transactions });
+  } catch (error) {
+    console.error("Error fetching transaction history:", error);
+    return res.status(500).json({ message: "Error fetching transaction history", error });
+  }
+};

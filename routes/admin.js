@@ -60,6 +60,7 @@ router.get('/properties/:id', PropertyController.getPropertyById);
 router.get("/transactions/revenue", authenticate, authorizeAdmin, TransactionController.getRevenueStats);
 router.get("/customer-map", authenticate, authorizeAdmin, TransactionController.getCustomerMap);
 router.get("/transactions/recent-customers", authenticate, authorizeAdmin, TransactionController.getRecentCustomers);
+router.get("/transactions/history", authenticate, authorizeAdmin, TransactionController.getTransactionHistory);
 router.get('/transactions', authenticate, TransactionController.getAllTransactions);
 router.get("/transactions/:id", authenticate, authorizeAdmin, TransactionController.getTransactionById);
 router.post('/transactions', authenticate, authorizeAdmin, TransactionController.createTransaction);
