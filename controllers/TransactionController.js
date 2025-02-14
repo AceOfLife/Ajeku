@@ -19,8 +19,9 @@
 //   }
 // };
 
-const { Transaction, Property, User } = require('../models');
+const { Transaction, Property, User, sequelize } = require('../models');
 const { Op } = require("sequelize");
+
 
 exports.updateTransaction = async (req, res) => {
   try {
@@ -151,30 +152,26 @@ exports.getTransactionById = async (req, res) => {
 
 exports.getRevenueStats = async (req, res) => {
   try {
-    const { period } = req.query;
-
-    if (!["daily", "weekly", "monthly"].includes(period)) {
-      return res.status(400).json({ message: "Invalid period. Use daily, weekly, or monthly." });
-    }
-
-    let dateTrunc;
-    if (period === "daily") dateTrunc = "day";
-    else if (period === "weekly") dateTrunc = "week";
-    else dateTrunc = "month"; // Default to monthly
+    const { period } = req.query; // "daily", "weekly", or "monthly"
+    
+    let groupByFormat;
+    if (period === "daily") groupByFormat = "YYYY-MM-DD";
+    else if (period === "weekly") groupByFormat = "YYYY-WW"; // Year + Week number
+    else groupByFormat = "YYYY-MM"; // Default to monthly (YYYY-MM)
 
     const revenueData = await Transaction.findAll({
       attributes: [
-        [sequelize.fn("DATE_TRUNC", dateTrunc, sequelize.col("transaction_date")), "date"],
+        [sequelize.fn("DATE_TRUNC", period, sequelize.col("transaction_date")), "date"],
         [sequelize.fn("SUM", sequelize.col("price")), "total_revenue"],
       ],
       where: { status: "successful" },
-      group: [sequelize.fn("DATE_TRUNC", dateTrunc, sequelize.col("transaction_date"))],
-      order: [[sequelize.fn("DATE_TRUNC", dateTrunc, sequelize.col("transaction_date")), "ASC"]],
+      group: [sequelize.fn("DATE_TRUNC", period, sequelize.col("transaction_date"))],
+      order: [["date", "ASC"]],
     });
 
     return res.json({ success: true, data: revenueData });
   } catch (error) {
     console.error("Error fetching revenue stats:", error);
-    res.status(500).json({ message: "Error fetching transaction", error });
+    res.status(500).json({ message: "Error fetching revenue stats", error });
   }
 };
