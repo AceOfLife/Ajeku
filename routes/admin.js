@@ -61,8 +61,9 @@ router.get('/transactions', authenticate, TransactionController.getAllTransactio
 router.get("/transactions/:id", authenticate, authorizeAdmin, TransactionController.getTransactionById);
 router.post('/transactions', authenticate, authorizeAdmin, TransactionController.createTransaction);
 router.put('/transactions/:id', authenticate, authorizeAdmin, TransactionController.updateTransaction);
-router.delete('/transactions/:id', authenticate, authorizeAdmin, TransactionController.deleteTransaction);
 router.get("/transactions/revenue", authenticate, authorizeAdmin, TransactionController.getRevenueStats);
+router.delete('/transactions/:id', authenticate, authorizeAdmin, TransactionController.deleteTransaction);
+
 
 // Message routes
 router.get('/messages', authenticate, MessageController.getAllMessages);
