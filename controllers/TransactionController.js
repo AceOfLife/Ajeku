@@ -20,7 +20,7 @@
 // };
 
 const { Transaction, Property, User, sequelize } = require('../models');
-const { Op } = require("sequelize");
+const { Op, fn, col, literal } = require("sequelize");
 
 
 exports.updateTransaction = async (req, res) => {
@@ -206,5 +206,58 @@ exports.getRevenueStats = async (req, res) => {
   } catch (error) {
     console.error("Error fetching revenue stats:", error);
     res.status(500).json({ message: "Error fetching transaction", error });
+  }
+};
+
+
+exports.getCustomerMap = async (req, res) => {
+  try {
+    const today = new Date();
+    
+    // Define date ranges
+    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+    const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
+    const startOfMonth = new Date(today.setDate(1));
+
+    // Get unique users for each period
+    const dailyCount = await Transaction.count({
+      where: {
+        status: "success",
+        transaction_date: { [Op.gte]: startOfDay }
+      },
+      distinct: true,
+      col: "user_id"
+    });
+
+    const weeklyCount = await Transaction.count({
+      where: {
+        status: "success",
+        transaction_date: { [Op.gte]: startOfWeek }
+      },
+      distinct: true,
+      col: "user_id"
+    });
+
+    const monthlyCount = await Transaction.count({
+      where: {
+        status: "success",
+        transaction_date: { [Op.gte]: startOfMonth }
+      },
+      distinct: true,
+      col: "user_id"
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        daily: dailyCount,
+        weekly: weeklyCount,
+        monthly: monthlyCount
+      }
+    });
+
+  } catch (error) {
+    console.error("Error fetching customer map data:", error);
+    res.status(500).json({ message: "Error fetching customer map data", error });
   }
 };
