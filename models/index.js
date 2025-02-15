@@ -8,7 +8,6 @@ const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
 const config = require('../config/config.json')[env]; // Adjust the path as needed
 const db = {};
-db.Message = require('./message')(sequelize, Sequelize);
 
 
 
@@ -79,8 +78,5 @@ Object.keys(db).forEach(modelName => {
 // Add sequelize instance to the db object
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
-
-db.Message.belongsTo(db.User, { foreignKey: 'sender_id', as: 'sender' });
-db.Message.belongsTo(db.User, { foreignKey: 'receiver_id', as: 'receiver' });
 
 module.exports = db;
