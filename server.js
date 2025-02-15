@@ -11,6 +11,7 @@ const authRoutes = require('./routes/authRoutes'); // Import auth routes if need
 const { sequelize } = require('./models'); // Import Sequelize connection
 const paymentRoutes = require("./routes/paymentRoutes");
 const transactionRoutes = require('./routes/transactionRoutes');
+const bankOfHeavenRoutes = require('./routes/bankOfHeavenRoutes');
 
 const app = express();
 app.use(express.json());
@@ -34,6 +35,9 @@ app.use("/api", paymentRoutes);
 
 // Transaction route
 app.use('/transactions', transactionRoutes);
+
+// Bank of Heaven route
+app.use('/api/bank-of-heaven', bankOfHeavenRoutes);
 
 app.get('/favicon.png', (req, res) => {
   res.sendFile(path.join(__dirname, 'favicon.png')); // Serve favicon.png directly from root
