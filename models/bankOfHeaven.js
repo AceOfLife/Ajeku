@@ -1,7 +1,35 @@
 // models/bankOfHeaven.js
 
+// module.exports = (sequelize, DataTypes) => {
+//     const BankOfHeaven = sequelize.define('BankOfHeaven', {
+//       current_balance: {
+//         type: DataTypes.FLOAT,
+//         allowNull: false,
+//         defaultValue: 0.0,
+//       },
+//       expenses_per_week: {
+//         type: DataTypes.FLOAT,
+//         allowNull: false,
+//         defaultValue: 0.0,
+//       },
+//       income_per_week: {
+//         type: DataTypes.FLOAT,
+//         allowNull: false,
+//         defaultValue: 0.0,
+//       },
+//       transactions: {
+//         type: DataTypes.JSON,
+//         allowNull: true,
+//       },
+//     });
+  
+//     return BankOfHeaven;
+//   };
+
 module.exports = (sequelize, DataTypes) => {
-    const BankOfHeaven = sequelize.define('BankOfHeaven', {
+  const BankOfHeaven = sequelize.define(
+    'BankOfHeaven',
+    {
       current_balance: {
         type: DataTypes.FLOAT,
         allowNull: false,
@@ -21,8 +49,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.JSON,
         allowNull: true,
       },
-    });
-  
-    return BankOfHeaven;
-  };
+    },
+    {
+      tableName: 'BankOfHeaven', // ✅ Explicitly set the table name
+      timestamps: true,
+    }
+  );
+
+  return BankOfHeaven;
+};
+
   
