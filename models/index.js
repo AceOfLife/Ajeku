@@ -8,10 +8,9 @@ const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
 const config = require('../config/config.json')[env]; // Adjust the path as needed
 const db = {};
+db.Message = require('./message')(sequelize, Sequelize);
 
-// Debugging: log environment and database URL
-console.log("Environment: ", env);
-console.log("DATABASE_URL: ", process.env.DATABASE_URL);
+
 
 // Check if DATABASE_URL exists, else use config.json for local development
 let sequelize;
@@ -80,5 +79,8 @@ Object.keys(db).forEach(modelName => {
 // Add sequelize instance to the db object
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
+
+db.Message.belongsTo(db.User, { foreignKey: 'sender_id', as: 'sender' });
+db.Message.belongsTo(db.User, { foreignKey: 'receiver_id', as: 'receiver' });
 
 module.exports = db;

@@ -15,6 +15,10 @@ const AdminController = require('../controllers/AdminController');
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
 const { upload } = require('../config/multerConfig'); 
 
+// Import Message Routes
+
+const messageRoutes = require('./messageRoutes');
+
 
 // Import the Bank of Heaven Routes
 const bankOfHeavenRoutes = require('./bankOfHeavenRoutes');
@@ -69,6 +73,7 @@ router.delete('/transactions/:id', authenticate, authorizeAdmin, TransactionCont
 
 
 // Message routes
+app.use('/api/messages', messageRoutes);
 router.get('/messages', authenticate, MessageController.getAllMessages);
 router.post('/messages', authenticate, MessageController.createMessage);
 router.put('/messages/:id', authenticate, MessageController.updateMessage);
