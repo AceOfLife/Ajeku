@@ -12,4 +12,6 @@ router.get('/', BankOfHeavenController.getBankSummary);
 // Update Bank of Heaven data (current_balance, expenses_per_week, income_per_week, transactions)
 router.put('/', BankOfHeavenController.updateBankSummary);
 
+router.put('/update', BankOfHeavenController.updateBankSummary);
+
 module.exports = router;

@@ -51,7 +51,7 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
     {
-      tableName: 'BankOfHeaven', // ✅ Explicitly set the table name
+      tableName: 'BankOfHeaven', // 
       timestamps: true,
     }
   );
