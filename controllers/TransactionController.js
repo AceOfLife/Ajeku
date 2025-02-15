@@ -332,7 +332,7 @@ exports.getTransactionHistory = async (req, res) => {
           attributes: ["id", "name"], // Only property name
         },
       ],
-      attributes: ["id", "amount", "payment_type", "status", "createdAt"], // Required fields
+      attributes: ["id", "price", "status", "createdAt"], // Required fields
       order: [["createdAt", "DESC"]], // Order by latest transactions
     });
 
