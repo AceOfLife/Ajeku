@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const MessageController = require('../controllers/MessageController');
-const { authenticate } = require('../middlewares/authenticate'); // JWT middleware
+const { authenticate } = require('../middlewares/authMiddleware'); // JWT middleware
 
 // Send a message
 router.post('/send', authenticate, MessageController.sendMessage);
