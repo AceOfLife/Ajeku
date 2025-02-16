@@ -142,12 +142,27 @@ exports.getMessages = async (req, res) => {
 // Mark messages as read
 exports.markAsRead = async (req, res) => {
   try {
-    const { messageId } = req.params;
+    const { messageId } = req.params; // Get message ID from request params
+    const userId = req.user.id; // Extract user ID from JWT token
 
-    await Message.update({ status: 'read' }, { where: { id: messageId } });
+    // Find the message
+    const message = await Message.findOne({ where: { id: messageId } });
+
+    // Check if message exists
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found' });
+    }
+
+    // Ensure only the recipient can mark the message as read
+    if (message.recipient_id !== userId) {
+      return res.status(403).json({ message: 'Unauthorized to mark this message as read' });
+    }
+
+    // Update the message status
+    await message.update({ status: 'read' });
 
     res.status(200).json({ message: 'Message marked as read' });
   } catch (error) {
-    res.status(500).json({ message: 'Error updating message status', error: error.message });
+    res.status(500).json({ message: 'Error marking message as read', error: error.message });
   }
 };
