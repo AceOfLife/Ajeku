@@ -52,14 +52,31 @@ exports.deleteMessage = async (req, res) => {
 
 
 // Send a message
+// exports.sendMessage = async (req, res) => {
+//   try {
+//     const { recipient_id, content } = req.body;
+//     const sender_id = req.user.id; // Extracted from JWT token
+
+//     const message = await Message.create({ sender_id, recipient_id, content });
+
+//     res.status(201).json({ message: 'Message sent successfully', data: message });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Error sending message', error: error.message });
+//   }
+// };
+
 exports.sendMessage = async (req, res) => {
   try {
-    const { recipient_id, content } = req.body;
+    const { recipient_id, message } = req.body; // ✅ Fix: Use `message`, not `content`
     const sender_id = req.user.id; // Extracted from JWT token
 
-    const message = await Message.create({ sender_id, recipient_id, content });
+    if (!recipient_id || !message) {
+      return res.status(400).json({ message: "Recipient ID and message are required." });
+    }
 
-    res.status(201).json({ message: 'Message sent successfully', data: message });
+    const newMessage = await Message.create({ sender_id, recipient_id, message });
+
+    res.status(201).json({ message: 'Message sent successfully', data: newMessage });
   } catch (error) {
     res.status(500).json({ message: 'Error sending message', error: error.message });
   }
