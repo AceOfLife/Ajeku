@@ -54,10 +54,10 @@ exports.deleteMessage = async (req, res) => {
 // Send a message
 exports.sendMessage = async (req, res) => {
   try {
-    const { receiver_id, content } = req.body;
+    const { recipient_id, content } = req.body;
     const sender_id = req.user.id; // Extracted from JWT token
 
-    const message = await Message.create({ sender_id, receiver_id, content });
+    const message = await Message.create({ sender_id, recipient_id, content });
 
     res.status(201).json({ message: 'Message sent successfully', data: message });
   } catch (error) {
@@ -74,8 +74,8 @@ exports.getMessages = async (req, res) => {
     const messages = await Message.findAll({
       where: {
         [Op.or]: [
-          { sender_id: currentUserId, receiver_id: userId },
-          { sender_id: userId, receiver_id: currentUserId },
+          { sender_id: currentUserId, recipient_id: userId },
+          { sender_id: userId, recipient_id: currentUserId },
         ],
       },
       order: [['createdAt', 'ASC']],
