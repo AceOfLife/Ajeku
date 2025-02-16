@@ -39,11 +39,11 @@ module.exports = (sequelize, DataTypes) => {
   }, {});
 
   Message.associate = function(models) {
-    Message.belongsTo(models.Client, {
+    Message.belongsTo(models.User, {
       foreignKey: 'sender_id',
       as: 'sender', // This will allow you to access the sender details
     });
-    Message.belongsTo(models.Agent, {
+    Message.belongsTo(models.User, {
       foreignKey: 'recipient_id',
       as: 'recipient', // This will allow you to access the recipient details
     });
