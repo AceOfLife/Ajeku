@@ -84,29 +84,60 @@ exports.sendMessage = async (req, res) => {
 };
 
 // Get all messages between two users
+// exports.getMessages = async (req, res) => {
+//   try {
+//     const { userId } = req.params; // Other user ID
+//     const currentUserId = req.user.id;
+
+//     console.log('Recipient ID:', recipientId); // Debugging
+//     console.log('Sender ID:', senderId); // Debugging
+
+//     const messages = await Message.findAll({
+//       where: {
+//         [Op.or]: [
+//           { sender_id: currentUserId, recipient_id: userId },
+//           { sender_id: userId, recipient_id: currentUserId },
+//         ],
+//       },
+//       order: [['createdAt', 'ASC']],
+//     });
+
+//     res.status(200).json(messages);
+//   } catch (error) {
+//     res.status(500).json({ message: 'Error fetching messages', error: error.message });
+//   }
+// };
+
+
 exports.getMessages = async (req, res) => {
   try {
-    const { userId } = req.params; // Other user ID
-    const currentUserId = req.user.id;
+    const { recipientId } = req.params; // Extract from URL
+    const currentUserId = req.user.id; // Get from authenticated user
 
-    console.log('Recipient ID:', recipientId); // Debugging
-    console.log('Sender ID:', senderId); // Debugging
+    console.log('Current User ID:', currentUserId);
+    console.log('Recipient ID:', recipientId);
+
+    if (!recipientId) {
+      return res.status(400).json({ message: 'Recipient ID is required' });
+    }
 
     const messages = await Message.findAll({
       where: {
         [Op.or]: [
-          { sender_id: currentUserId, recipient_id: userId },
-          { sender_id: userId, recipient_id: currentUserId },
+          { sender_id: currentUserId, recipient_id: recipientId },
+          { sender_id: recipientId, recipient_id: currentUserId },
         ],
       },
       order: [['createdAt', 'ASC']],
     });
 
-    res.status(200).json(messages);
+    res.status(200).json({ message: 'Messages retrieved successfully', data: messages });
   } catch (error) {
+    console.error('Error fetching messages:', error);
     res.status(500).json({ message: 'Error fetching messages', error: error.message });
   }
 };
+
 
 // Mark messages as read
 exports.markAsRead = async (req, res) => {
