@@ -89,6 +89,9 @@ exports.getMessages = async (req, res) => {
     const { userId } = req.params; // Other user ID
     const currentUserId = req.user.id;
 
+    console.log('Recipient ID:', recipientId); // Debugging
+    console.log('Sender ID:', senderId); // Debugging
+
     const messages = await Message.findAll({
       where: {
         [Op.or]: [
