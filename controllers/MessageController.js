@@ -50,7 +50,6 @@ exports.deleteMessage = async (req, res) => {
   }
 };
 
-const { Message, User } = require('../models');
 
 // Send a message
 exports.sendMessage = async (req, res) => {
