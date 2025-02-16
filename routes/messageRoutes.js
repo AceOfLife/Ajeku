@@ -6,10 +6,10 @@ const { authenticate } = require('../middlewares/authenticate'); // JWT middlewa
 // Send a message
 router.post('/send', authenticate, MessageController.sendMessage);
 
-// Get messages between two users
-router.get('/conversation/:userId', authenticate, MessageController.getMessages);
+// Get messages between the authenticated user and another user
+router.get('/conversation/:recipientId', authenticate, MessageController.getMessages);
 
-// Mark a message as read
+// Mark a message as read (only if it belongs to the authenticated user)
 router.put('/mark-read/:messageId', authenticate, MessageController.markAsRead);
 
 module.exports = router;

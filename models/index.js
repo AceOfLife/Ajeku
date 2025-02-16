@@ -75,6 +75,12 @@ Object.keys(db).forEach(modelName => {
   }
 });
 
+// Define Message model associations
+if (db.Message && db.User) {
+  db.Message.belongsTo(db.User, { foreignKey: 'sender_id', as: 'sender' });
+  db.Message.belongsTo(db.User, { foreignKey: 'receiver_id', as: 'receiver' });
+}
+
 // Add sequelize instance to the db object
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;

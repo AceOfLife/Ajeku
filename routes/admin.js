@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const clientRoutes = require('./clientRoutes');
+const messageRoutes = require('./messageRoutes');
 
 // Import the controllers
 const ClientController = require('../controllers/ClientController');
@@ -69,10 +70,11 @@ router.delete('/transactions/:id', authenticate, authorizeAdmin, TransactionCont
 
 
 // Message routes
-router.get('/messages', authenticate, MessageController.getAllMessages);
-router.post('/messages', authenticate, MessageController.createMessage);
-router.put('/messages/:id', authenticate, MessageController.updateMessage);
-router.delete('/messages/:id', authenticate, MessageController.deleteMessage);
+// router.get('/messages', authenticate, MessageController.getAllMessages);
+// router.post('/messages', authenticate, MessageController.createMessage);
+// router.put('/messages/:id', authenticate, MessageController.updateMessage);
+// router.delete('/messages/:id', authenticate, MessageController.deleteMessage);
+router.use('/messages', messageRoutes);
 
 // Review routes
 router.get('/reviews', authenticate, ReviewController.getAllReviews);
