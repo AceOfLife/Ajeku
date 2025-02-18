@@ -12,6 +12,8 @@ const MessageController = require('../controllers/MessageController');
 const ReviewController = require('../controllers/ReviewController');
 const UserController = require('../controllers/UserController');
 const AdminController = require('../controllers/AdminController');
+// const EscrowController = require('../controllers/EscrowController');
+
 // Import middleware for authentication and authorization
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
 const { upload } = require('../config/multerConfig'); 
@@ -67,6 +69,12 @@ router.get("/transactions/:id", authenticate, authorizeAdmin, TransactionControl
 router.post('/transactions', authenticate, authorizeAdmin, TransactionController.createTransaction);
 router.put('/transactions/:id', authenticate, authorizeAdmin, TransactionController.updateTransaction);
 router.delete('/transactions/:id', authenticate, authorizeAdmin, TransactionController.deleteTransaction);
+
+
+// Escrow Routes
+// router.post('/initiate', authenticate, EscrowController.initiateEscrowPayment);
+// router.put('/approve/:transaction_id', authenticate, authorizeAdmin, EscrowController.approveEscrowPayment);
+// router.put('/release/:transaction_id', authenticate, authorizeAdmin, EscrowController.releaseEscrowFunds);
 
 
 // Message routes
