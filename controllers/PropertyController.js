@@ -751,10 +751,12 @@ exports.createProperty = async (req, res) => {
                 return res.status(404).json({ message: 'Agent not found' });
             }
 
+            const fractionalSlotsInt = is_fractional ? parseInt(fractional_slots, 10) || 0 : null;
+
             // Handle price_per_slot calculation if fractional
             let price_per_slot = null;
-            if (is_fractional && fractional_slots > 0 && price) {
-                price_per_slot = price / fractional_slots;
+            if (is_fractional && fractionalSlotsInt > 0 && price) {
+                price_per_slot = price / fractionalSlotsInt;
             }
 
             // Ensure valid date for date_on_market
@@ -787,7 +789,7 @@ exports.createProperty = async (req, res) => {
                 percentage: percentage || "",
                 duration: duration || "",
                 is_fractional: is_fractional || false,
-                fractional_slots: is_fractional ? fractional_slots : null,
+                fractional_slots: is_fractional ? fractionalSlotsInt : null,
                 price_per_slot: is_fractional ? price_per_slot : null,
                 isRental: isRental || false
             };
@@ -828,37 +830,6 @@ exports.createProperty = async (req, res) => {
             if (req.file) {
                 documentUrl = await uploadDocumentToCloudinary(req.file.buffer, req.file.originalname);
             }
-
-            // Initialize PayStack payment if the property is a rental
-            // let paystackPaymentUrl = null;
-            // if (isRental) {
-            //     try {
-            //         const user = await User.findByPk(req.user.id);
-            //         if (!user) {
-            //             return res.status(404).json({ message: "User not found" });
-            //         }
-
-            //         const response = await axios.post(
-            //             "https://api.paystack.co/transaction/initialize",
-            //             {
-            //                 email: user.email,
-            //                 amount: price * 100, // Convert to kobo
-            //                 currency: "NGN",
-            //                 callback_url: `${process.env.FRONTEND_URL}/payment-success?propertyId=${newProperty.id}`
-            //             },
-            //             {
-            //                 headers: {
-            //                     Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-            //                     "Content-Type": "application/json"
-            //                 }
-            //             }
-            //         );
-
-            //         paystackPaymentUrl = response.data.data.authorization_url;
-            //     } catch (error) {
-            //         console.error("PayStack Error:", error.response ? error.response.data : error.message);
-            //     }
-            // }
 
             // Filter out fields with empty or null values
             const filteredProperty = {};
