@@ -765,52 +765,47 @@ exports.createProperty = async (req, res) => {
             // Prepare property data
             const newPropertyData = {
                 name,
-                size: parseInt(size, 10) || 0,
-                price: parseFloat(price) || 0,
-                agent_id: parseInt(agent_id, 10) || null,
+                size,
+                price,
+                agent_id,
                 type,
                 location: location || "",
                 area: area || "",
                 address: address || "",
-                number_of_baths: parseInt(number_of_baths, 10) || 0,
-                number_of_rooms: parseInt(number_of_rooms, 10) || 0,
-                listed_by: "Admin",
+                number_of_baths: number_of_baths || "0",
+                number_of_rooms: number_of_rooms || "0",
+                listed_by: req.admin ? req.admin.username : "Admin",
                 description: description || "",
                 payment_plan: payment_plan || "",
-                year_built: parseInt(year_built, 10) || 0,
-                special_features: splitToArray(special_features), // FIXED: Use `splitToArray`
-                appliances: splitToArray(appliances), // FIXED: Use `splitToArray`
-                features: splitToArray(features), // FIXED: Use `splitToArray`
-                interior_area: parseInt(interior_area, 10) || 0,
+                year_built: year_built || 0,
+                special_features: special_features || [],
+                appliances: appliances || [],
+                features: features || [],
+                interior_area: interior_area || 0,
                 material: material || "",
-                date_on_market: date_on_market ? new Date(date_on_market).toISOString() : new Date().toISOString(),
+                annual_tax_amount: annual_tax_amount || 0,
+                date_on_market: validDateOnMarket,
                 ownership: ownership || "",
                 percentage: percentage || "",
                 duration: duration || "",
-                is_fractional: is_fractional === "true",
-                fractional_slots: is_fractional ? parseInt(fractional_slots, 10) || 0 : null,
-                price_per_slot: is_fractional ? (price / (parseInt(fractional_slots, 10) || 1)) : null,
-                isRental: isRental === "true",
-                kitchen: splitToArray(kitchen),
-                heating: splitToArray(heating),
-                cooling: splitToArray(cooling),
-                type_and_style: splitToArray(type_and_style),
-                lot: splitToArray(lot),
-                parking: splitToArray(parking) // FIXED: Use `splitToArray`
+                is_fractional: is_fractional || false,
+                fractional_slots: is_fractional ? fractionalSlotsInt : null,
+                price_per_slot: is_fractional ? price_per_slot : null,
+                isRental: isRental || false
             };
 
             console.log("New Property Data:", newPropertyData);
 
             // Convert comma-separated values to arrays
-            // if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
-            // if (heating) newPropertyData.heating = splitToArray(heating);
-            // if (cooling) newPropertyData.cooling = splitToArray(cooling);
-            // if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
-            // if (lot) newPropertyData.lot = splitToArray(lot);
-            // if (special_features) newPropertyData.special_features = splitToArray(special_features);
-            // if (parking) newPropertyData.parking = splitToArray(parking);
-            // if (appliances) newPropertyData.appliances = splitToArray(appliances);
-            // if (features) newPropertyData.features = splitToArray(features);
+            if (kitchen) newPropertyData.kitchen = splitToArray(kitchen);
+            if (heating) newPropertyData.heating = splitToArray(heating);
+            if (cooling) newPropertyData.cooling = splitToArray(cooling);
+            if (type_and_style) newPropertyData.type_and_style = splitToArray(type_and_style);
+            if (lot) newPropertyData.lot = splitToArray(lot);
+            if (special_features) newPropertyData.special_features = splitToArray(special_features);
+            if (parking) newPropertyData.parking = splitToArray(parking);
+            if (appliances) newPropertyData.appliances = splitToArray(appliances);
+            if (features) newPropertyData.features = splitToArray(features);
 
             console.log("Creating property with data:", newPropertyData);
 
