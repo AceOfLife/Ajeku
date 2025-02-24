@@ -930,17 +930,17 @@ exports.createProperty = async (req, res) => {
             }
 
             // Retrieve uploaded images from the database
-            const savedImages = await PropertyImage.findAll({
-                where: { property_id: newProperty.id },
-                attributes: ['image_url'],
-            });
+            // const savedImages = await PropertyImage.findAll({
+            //     where: { property_id: newProperty.id },
+            //     attributes: ['image_url'],
+            // });
 
-            const imageUrlsFromDb = savedImages.map(img => img.image_url);
+            // const imageUrlsFromDb = savedImages.map(img => img.image_url);
 
             // Send response
             res.status(201).json({
                 property: newProperty,
-                images: imageUrlsFromDb,
+                images: imageUrls || [],
                 documentUrl: null
             });
 
