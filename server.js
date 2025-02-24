@@ -15,6 +15,7 @@ const bankOfHeavenRoutes = require('./routes/bankOfHeavenRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 
 const app = express();
+app.use(cors()); // Enable CORS for cross-origin requests
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -52,7 +53,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Middleware
 app.use(bodyParser.json()); // Parse incoming JSON requests
-app.use(cors()); // Enable CORS for cross-origin requests
+
 
 // Health check route
 app.get('/', (req, res) => {
