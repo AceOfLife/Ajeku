@@ -911,11 +911,11 @@ exports.createProperty = async (req, res) => {
                 return res.status(404).json({ message: 'Agent not found' });
             }
 
-            const fractionalSlotsInt = is_fractional === "true" ? parseInt(fractional_slots, 10) || 0 : null;
+            const fractionalSlotsInt = is_fractional ? parseInt(fractional_slots, 10) || 0 : null;
 
             // Handle price_per_slot calculation if fractional
             let price_per_slot = null;
-            if (is_fractional === "true" && fractionalSlotsInt > 0 && price) {
+            if (is_fractional && fractionalSlotsInt > 0 && price) {
                 price_per_slot = price / fractionalSlotsInt;
             }
 
@@ -925,7 +925,7 @@ exports.createProperty = async (req, res) => {
             // Prepare property data
             const newPropertyData = {
                 name,
-                size: parseFloat(size) || 0,
+                size: parseInt(size, 10) || 0,
                 price: parseFloat(price) || 0,
                 agent_id: parseInt(agent_id, 10) || null,
                 type,
@@ -941,12 +941,6 @@ exports.createProperty = async (req, res) => {
                 special_features: parseJsonArray(special_features),
                 appliances: parseJsonArray(appliances),
                 features: parseJsonArray(features),
-                parking: parseJsonArray(parking),
-                cooling: parseJsonArray(cooling),
-                kitchen: parseJsonArray(kitchen),
-                heating: parseJsonArray(heating),
-                type_and_style: parseJsonArray(type_and_style),
-                lot: parseJsonArray(lot),
                 interior_area: parseInt(interior_area, 10) || 0,
                 material: material || "",
                 annual_tax_amount: annual_tax_amount || "",
@@ -955,12 +949,18 @@ exports.createProperty = async (req, res) => {
                 percentage: percentage || "",
                 duration: duration || "",
                 is_fractional: is_fractional === "true",
-                fractional_slots: is_fractional === "true" ? fractionalSlotsInt : null,
-                price_per_slot: is_fractional === "true" ? price_per_slot : null,
-                isRental: isRental === "true"
+                fractional_slots: is_fractional ? fractionalSlotsInt : null,
+                price_per_slot: is_fractional ? price_per_slot : null,
+                isRental: isRental === "true",
+                kitchen: splitToArray(kitchen),
+                heating: splitToArray(heating),
+                cooling: splitToArray(cooling),
+                type_and_style: splitToArray(type_and_style),
+                lot: splitToArray(lot),
+                parking: parseJsonArray(parking),
             };
 
-            console.log("Creating property with data:", newPropertyData);
+            console.log("New Property Data:", newPropertyData);
 
             // Create the property record
             const newProperty = await Property.create(newPropertyData);
@@ -972,7 +972,7 @@ exports.createProperty = async (req, res) => {
 
                 const imageRecords = imageUrls.map(url => ({
                     property_id: newProperty.id,
-                    image_url: [url],
+                    image_url: url, // Ensure it's stored as a single URL string
                 }));
 
                 await PropertyImage.bulkCreate(imageRecords);
@@ -987,7 +987,7 @@ exports.createProperty = async (req, res) => {
             // Filter out fields with empty or null values
             const filteredProperty = {};
             Object.keys(newPropertyData).forEach(key => {
-                if (newPropertyData[key] && newPropertyData[key] !== "" && newPropertyData[key] !== 0 && newPropertyData[key].length !== 0) {
+                if (newPropertyData[key] !== null && newPropertyData[key] !== "" && newPropertyData[key] !== 0) {
                     filteredProperty[key] = newPropertyData[key];
                 }
             });
