@@ -906,68 +906,66 @@ exports.createProperty = async (req, res) => {
             }
 
             // Check if the agent exists
-            const agent = await User.findByPk(parseInt(agent_id, 10), { where: { role: 'agent' } });
+            const agent = await User.findByPk(agent_id, { where: { role: 'agent' } });
             if (!agent) {
                 return res.status(404).json({ message: 'Agent not found' });
             }
 
-            const fractionalSlotsInt = is_fractional ? parseInt(fractional_slots, 10) || 0 : null;
+            const fractionalSlotsInt = is_fractional === "true" ? parseInt(fractional_slots, 10) || 0 : null;
+
+            // Handle price_per_slot calculation if fractional
             let price_per_slot = null;
-            if (is_fractional && fractionalSlotsInt > 0 && price) {
-                price_per_slot = parseFloat(price) / fractionalSlotsInt;
+            if (is_fractional === "true" && fractionalSlotsInt > 0 && price) {
+                price_per_slot = price / fractionalSlotsInt;
             }
 
+            // Ensure valid date for date_on_market
             const validDateOnMarket = date_on_market && date_on_market.trim() !== "" ? date_on_market : new Date().toISOString();
 
+            // Prepare property data
             const newPropertyData = {
-                name: String(name || ''),
-                size: String(size || ''),
+                name,
+                size: parseFloat(size) || 0,
                 price: parseFloat(price) || 0,
                 agent_id: parseInt(agent_id, 10) || null,
-                type: String(type || ''),
-                location: String(location || ''),
-                area: String(area || ''),
-                address: String(address || ''),
+                type,
+                location: location || "",
+                area: area || "",
+                address: address || "",
                 number_of_baths: parseInt(number_of_baths, 10) || 0,
                 number_of_rooms: parseInt(number_of_rooms, 10) || 0,
-                listed_by: req.admin ? String(req.admin.username) : "Admin",
-                description: String(description || ''),
-                payment_plan: String(payment_plan || ''),
+                listed_by: req.admin ? req.admin.username : "Admin",
+                description: description || "",
+                payment_plan: payment_plan || "",
                 year_built: parseInt(year_built, 10) || 0,
-                special_features: special_features ? JSON.parse(special_features) : [],
-                appliances: appliances ? JSON.parse(appliances) : [],
-                features: features ? JSON.parse(features) : [],
+                special_features: parseJsonArray(special_features),
+                appliances: parseJsonArray(appliances),
+                features: parseJsonArray(features),
+                parking: parseJsonArray(parking),
+                cooling: parseJsonArray(cooling),
+                kitchen: parseJsonArray(kitchen),
+                heating: parseJsonArray(heating),
+                type_and_style: parseJsonArray(type_and_style),
+                lot: parseJsonArray(lot),
                 interior_area: parseInt(interior_area, 10) || 0,
-                material: String(material || ''),
-                annual_tax_amount: parseFloat(annual_tax_amount) || 0,
+                material: material || "",
+                annual_tax_amount: annual_tax_amount || "",
                 date_on_market: validDateOnMarket,
-                ownership: String(ownership || ''),
-                percentage: String(percentage || ''),
-                duration: String(duration || ''),
-                is_fractional: is_fractional === 'true' || is_fractional === true,
-                fractional_slots: is_fractional ? fractionalSlotsInt : null,
-                price_per_slot: is_fractional ? price_per_slot : null,
-                isRental: isRental === 'true' || isRental === true
+                ownership: ownership || "",
+                percentage: percentage || "",
+                duration: duration || "",
+                is_fractional: is_fractional === "true",
+                fractional_slots: is_fractional === "true" ? fractionalSlotsInt : null,
+                price_per_slot: is_fractional === "true" ? price_per_slot : null,
+                isRental: isRental === "true"
             };
-
-            console.log("New Property Data:", newPropertyData);
-
-            // Convert comma-separated values to arrays
-            const splitToArray = (value) => value ? value.split(',').map(item => item.trim()) : [];
-            newPropertyData.kitchen = splitToArray(kitchen);
-            newPropertyData.heating = splitToArray(heating);
-            newPropertyData.cooling = splitToArray(cooling);
-            newPropertyData.type_and_style = splitToArray(type_and_style);
-            newPropertyData.lot = splitToArray(lot);
-            newPropertyData.special_features = splitToArray(special_features);
-            newPropertyData.parking = splitToArray(parking);
-            newPropertyData.appliances = splitToArray(appliances);
-            newPropertyData.features = splitToArray(features);
 
             console.log("Creating property with data:", newPropertyData);
 
+            // Create the property record
             const newProperty = await Property.create(newPropertyData);
 
+            // Handle image uploads to Cloudinary
             let imageUrls = [];
             if (req.files && req.files.length > 0) {
                 imageUrls = await uploadImagesToCloudinary(req.files);
@@ -980,11 +978,13 @@ exports.createProperty = async (req, res) => {
                 await PropertyImage.bulkCreate(imageRecords);
             }
 
+            // Handle document upload to Cloudinary
             let documentUrl = null;
             if (req.file) {
                 documentUrl = await uploadDocumentToCloudinary(req.file.buffer, req.file.originalname);
             }
 
+            // Filter out fields with empty or null values
             const filteredProperty = {};
             Object.keys(newPropertyData).forEach(key => {
                 if (newPropertyData[key] && newPropertyData[key] !== "" && newPropertyData[key] !== 0 && newPropertyData[key].length !== 0) {
@@ -995,7 +995,7 @@ exports.createProperty = async (req, res) => {
             res.status(201).json({
                 property: filteredProperty,
                 images: imageUrls || [],
-                documentUrl: documentUrl || null,
+                documentUrl: documentUrl || null
             });
         } catch (error) {
             console.error(error);
