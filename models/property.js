@@ -120,7 +120,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     material: { // Building Material (e.g., brick, wood)
-      type: DataTypes.STRING,
+      type: Sequelize.ARRAY(Sequelize.STRING),
       allowNull: true,
     },
     annual_tax_amount: { // Annual property tax

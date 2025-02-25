@@ -894,7 +894,8 @@ exports.createProperty = async (req, res) => {
                 appliances: splitToArray(appliances), // FIXED: Use `splitToArray`
                 features: splitToArray(features), // FIXED: Use `splitToArray`
                 interior_area: parseInt(interior_area, 10) || 0,
-                material: material || "",
+                // material: material || "",
+                material: splitToArray(material), // Convert string to array
                 date_on_market: date_on_market ? new Date(date_on_market).toISOString() : new Date().toISOString(),
                 ownership: ownership || "",
                 percentage: percentage || "",
