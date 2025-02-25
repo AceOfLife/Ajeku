@@ -24,12 +24,22 @@ const parseJsonArray = (field) => {
     }
 };
 
+// const splitToArray = (field) => {
+//     // Only split if the field is a string
+//     if (typeof field === 'string') {
+//         return field.split(",").map(item => item.trim());
+//     }
+//     return []; // Return empty array if not a string
+// };
+
 const splitToArray = (field) => {
-    // Only split if the field is a string
+    if (Array.isArray(field)) {
+        return field; // Return as-is if it's already an array
+    }
     if (typeof field === 'string') {
         return field.split(",").map(item => item.trim());
     }
-    return []; // Return empty array if not a string
+    return []; // Return an empty array if null/undefined or an unexpected type
 };
 
 
