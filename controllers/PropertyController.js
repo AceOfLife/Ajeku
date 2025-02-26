@@ -872,8 +872,8 @@ exports.createProperty = async (req, res) => {
         }
 
         try {
-            console.log("Request Body:", req.body);
-            console.log("Uploaded Files:", req.files);
+            console.log("Material Type:", typeof material);
+            console.log("Material Value:", material);
 
             const { 
                 name, size, price, agent_id, type, location, area, 
