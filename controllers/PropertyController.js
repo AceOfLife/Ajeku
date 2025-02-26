@@ -872,9 +872,6 @@ exports.createProperty = async (req, res) => {
         }
 
         try {
-            console.log("Material Type:", typeof material);
-            console.log("Material Value:", material);
-
             const { 
                 name, size, price, agent_id, type, location, area, 
                 number_of_baths, number_of_rooms, address, description, 
@@ -883,6 +880,9 @@ exports.createProperty = async (req, res) => {
                 ownership, kitchen, heating, cooling, type_and_style, lot, 
                 percentage, duration, is_fractional, fractional_slots, isRental 
             } = req.body;
+
+            console.log("Material Type:", typeof material);
+            console.log("Material Value:", material);
 
             // Ensure correct data parsing
             const newPropertyData = {
