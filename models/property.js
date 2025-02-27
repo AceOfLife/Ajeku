@@ -104,7 +104,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     interior_area: { // Interior Area in square feet or meters
-      type: DataTypes.INTEGER,
+      type: DataTypes.STRING,
       allowNull: true,
     },
     parking: { // Parking details (e.g., garage, carport)
