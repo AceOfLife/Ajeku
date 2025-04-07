@@ -61,7 +61,7 @@ module.exports = (sequelize, DataTypes) => {
     //   allowNull: true,
     // },
     special_features: { // Special Features (multiple possible values)
-      type: DataTypes.JSONB, // JSONB is used to store multiple items (array of strings)
+      type: DataTypes.ARRAY(DataTypes.STRING), // JSONB is used to store multiple items (array of strings)
       allowNull: true,
     },
     isRental: {
@@ -96,11 +96,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     appliances: { // Appliances details
-      type: DataTypes.JSONB, // Can store multiple appliance types (e.g., fridge, oven, etc.)
+      type: DataTypes.ARRAY(DataTypes.STRING), // Can store multiple appliance types (e.g., fridge, oven, etc.)
       allowNull: true,
     },
     features: { // Features of the property (e.g., pool, garden, etc.)
-      type: DataTypes.JSONB, // List of features as JSON
+      type: DataTypes.ARRAY(DataTypes.STRING), // List of features as JSON
       allowNull: true,
     },
     interior_area: { // Interior Area in square feet or meters
@@ -108,7 +108,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     parking: { // Parking details (e.g., garage, carport)
-      type: DataTypes.JSONB,
+      type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: true,
     },
     lot: { // Lot size (e.g., 5000 sqft)
