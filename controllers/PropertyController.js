@@ -921,10 +921,18 @@ exports.createProperty = async (req, res) => {
             };
 
             
+            console.log("===== DEBUG PROPERTY FIELDS =====");
             console.log("kitchen:", newPropertyData.kitchen, "Type:", typeof newPropertyData.kitchen);
             console.log("heating:", newPropertyData.heating, "Type:", typeof newPropertyData.heating);
             console.log("cooling:", newPropertyData.cooling, "Type:", typeof newPropertyData.cooling);
             console.log("material:", newPropertyData.material, "Type:", typeof newPropertyData.material);
+            console.log("parking:", newPropertyData.parking, "Type:", typeof newPropertyData.parking);
+            console.log("lot:", newPropertyData.lot, "Type:", typeof newPropertyData.lot);
+            console.log("type_and_style:", newPropertyData.type_and_style, "Type:", typeof newPropertyData.type_and_style);
+            console.log("features:", newPropertyData.features, "Type:", typeof newPropertyData.features);
+            console.log("appliances:", newPropertyData.appliances, "Type:", typeof newPropertyData.appliances);
+            console.log("interior_area:", newPropertyData.interior_area, "Type:", typeof newPropertyData.interior_area);
+
 
 
             // Create the property record
