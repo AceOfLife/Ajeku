@@ -881,8 +881,6 @@ exports.createProperty = async (req, res) => {
                 percentage, duration, is_fractional, fractional_slots, isRental 
             } = req.body;
 
-            console.log("Material Type:", typeof material);
-            console.log("Material Value:", material);
 
             // Ensure correct data parsing
             const newPropertyData = {
@@ -922,7 +920,12 @@ exports.createProperty = async (req, res) => {
                 parking: splitToArray(parking) // FIXED: Use `splitToArray`
             };
 
-            console.log("New Property Data:", newPropertyData);
+            
+            console.log("kitchen:", newPropertyData.kitchen, "Type:", typeof newPropertyData.kitchen);
+            console.log("heating:", newPropertyData.heating, "Type:", typeof newPropertyData.heating);
+            console.log("cooling:", newPropertyData.cooling, "Type:", typeof newPropertyData.cooling);
+            console.log("material:", newPropertyData.material, "Type:", typeof newPropertyData.material);
+
 
             // Create the property record
             const newProperty = await Property.create(newPropertyData);
