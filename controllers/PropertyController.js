@@ -162,12 +162,12 @@ exports.createProperty = async (req, res) => {
                 fractional_slots: is_fractional ? parseInt(fractional_slots, 10) || 0 : null,
                 price_per_slot: is_fractional ? (price / (parseInt(fractional_slots, 10) || 1)) : null,
                 isRental: isRental === "true",
-                kitchen: splitToArray(kitchen),
-                heating: splitToArray(heating),
-                cooling: splitToArray(cooling),
-                type_and_style: splitToArray(type_and_style),
-                lot: splitToArray(lot),
-                parking: splitToArray(parking) // FIXED: Use `splitToArray`
+                // kitchen: splitToArray(kitchen),
+                // heating: splitToArray(heating),
+                // cooling: splitToArray(cooling),
+                // type_and_style: splitToArray(type_and_style),
+                // lot: splitToArray(lot),
+                // parking: splitToArray(parking) // FIXED: Use `splitToArray`
             };
 
 
