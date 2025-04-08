@@ -184,7 +184,12 @@ exports.createProperty = async (req, res) => {
             // console.log("interior_area:", newPropertyData.interior_area, "Type:", typeof newPropertyData.interior_area);
 
 
-            console.log("Final newPropertyData:", JSON.stringify(newPropertyData, null, 2));
+            [
+                'kitchen', 'heating', 'cooling', 'appliances', 'features',
+                'material', 'parking', 'lot', 'type_and_style', 'special_features'
+              ].forEach(field => {
+                console.log(`${field}:`, newPropertyData[field], 'Type:', typeof newPropertyData[field]);
+              });
 
             // Create the property record
             const newProperty = await Property.create(newPropertyData);
