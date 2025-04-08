@@ -72,24 +72,36 @@ const parseJsonArray = (field) => {
 
 const splitToArray = (field) => {
     try {
+        if (!field) return [];
+
         if (Array.isArray(field)) {
-            return field.map(item => item.toString().trim()); // Coerce to string
+            return field.map(item => item.toString().trim());
         }
+
         if (typeof field === 'string') {
-            return field
-                .split(',')
-                .map(item => item.trim())
-                .filter(Boolean);
+            try {
+                // Try to parse if it looks like a JSON array (e.g., '["one", "two"]')
+                const parsed = JSON.parse(field);
+                if (Array.isArray(parsed)) {
+                    return parsed.map(item => item.toString().trim());
+                }
+            } catch (jsonErr) {
+                // Not JSON? Then treat it as comma-separated string
+                return field.split(',').map(item => item.trim()).filter(Boolean);
+            }
         }
-        if (typeof field === 'object' && field !== null) {
-            // Handle JSON strings like '["Kitchen", "Wood"]'
+
+        if (typeof field === 'object') {
             return Object.values(field).map(item => item.toString().trim());
         }
+
     } catch (error) {
         console.error('Error parsing array field:', field, error);
     }
+
     return [];
 };
+
 
 
 
