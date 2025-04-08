@@ -56,10 +56,6 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: true,
     },
-    // amount_per_sqft: { // Price per square foot
-    //   type: DataTypes.STRING,
-    //   allowNull: true,
-    // },
     special_features: { // Special Features (multiple possible values)
       type: DataTypes.ARRAY(DataTypes.STRING), // JSONB is used to store multiple items (array of strings)
       allowNull: true,
@@ -69,16 +65,6 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: false
     },  
-    // last_checked: { // Last checked date
-    //   type: DataTypes.DATE,
-    //   allowNull: true,
-    //   defaultValue: DataTypes.NOW, // Automatically set to current timestamp
-    // },
-    // listing_updated: { // Date the listing was last updated
-    //   type: DataTypes.DATE,
-    //   allowNull: true,
-    //   defaultValue: DataTypes.NOW, // Automatically set to current timestamp on create
-    // },
     listed_by: { // The agent or entity who listed the property
       type: DataTypes.STRING,
       allowNull: true,

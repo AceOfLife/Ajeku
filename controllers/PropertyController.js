@@ -7,35 +7,6 @@ const cloudinary = require('../config/cloudinaryConfig');
 const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
 
 
-//Create a new property 20/12
-
-// Helper function to safely parse arrays from string
-const parseJsonArray = (field) => {
-    try {
-        if (typeof field === 'string' && field.trim().startsWith("[") && field.trim().endsWith("]")) {
-            return JSON.parse(field);
-        } else if (Array.isArray(field)) {
-            return field;
-        }
-        return [];
-    } catch (error) {
-        console.error('Error parsing JSON array', error);
-        return []; // Return empty array on error
-    }
-};
-
-const splitToArray = (field) => {
-    if (Array.isArray(field)) {
-        return field;
-    }
-    if (typeof field === 'string') {
-        return field.split(',').map(item => item.trim()).filter(Boolean);
-    }
-    return []; // fallback for null, undefined, numbers, etc.
-};
-
-
-
 // Document upload 30/12/2024
 
 const uploadDocumentToCloudinary = async (fileBuffer, fileName) => {
@@ -72,6 +43,55 @@ const uploadDocumentToCloudinary = async (fileBuffer, fileName) => {
     }
 };
 
+//Create a new property 20/12
+
+// Helper function to safely parse arrays from string
+const parseJsonArray = (field) => {
+    try {
+        if (typeof field === 'string' && field.trim().startsWith("[") && field.trim().endsWith("]")) {
+            return JSON.parse(field);
+        } else if (Array.isArray(field)) {
+            return field;
+        }
+        return [];
+    } catch (error) {
+        console.error('Error parsing JSON array', error);
+        return []; // Return empty array on error
+    }
+};
+
+// const splitToArray = (field) => {
+//     if (Array.isArray(field)) {
+//         return field;
+//     }
+//     if (typeof field === 'string') {
+//         return field.split(',').map(item => item.trim()).filter(Boolean);
+//     }
+//     return []; // fallback for null, undefined, numbers, etc.
+// };
+
+const splitToArray = (field) => {
+    try {
+        if (Array.isArray(field)) {
+            return field.map(item => item.toString().trim()); // Coerce to string
+        }
+        if (typeof field === 'string') {
+            return field
+                .split(',')
+                .map(item => item.trim())
+                .filter(Boolean);
+        }
+        if (typeof field === 'object' && field !== null) {
+            // Handle JSON strings like '["Kitchen", "Wood"]'
+            return Object.values(field).map(item => item.toString().trim());
+        }
+    } catch (error) {
+        console.error('Error parsing array field:', field, error);
+    }
+    return [];
+};
+
+
 
 // PayStack Payment Gateway
 
@@ -85,6 +105,9 @@ exports.createProperty = async (req, res) => {
             console.error("Multer error:", err);
             return res.status(400).json({ message: 'Error uploading images', error: err });
         }
+
+        console.log("=== Raw req.body ===");
+        console.dir(req.body, { depth: null });
 
         try {
             const { 
