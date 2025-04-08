@@ -172,7 +172,8 @@ exports.createProperty = async (req, res) => {
 
 
             [
-                'kitchen', 'heating', 'cooling', 'appliances', 'features'
+                
+                'material', 'parking', 'lot', 'type_and_style', 'special_features', 'interior_area'
               ].forEach(field => {
                 console.log(`${field}:`, newPropertyData[field], 'Type:', typeof newPropertyData[field]);
               });
