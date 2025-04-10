@@ -206,12 +206,12 @@ exports.createProperty = async (req, res) => {
                 attributes: ['image_url'],
             });
 
-            // const imageUrlsFromDb = savedImages.map(img => img.image_url);
+            const imageUrlsFromDb = savedImages.map(img => img.image_url);
 
             // Send response
             res.status(201).json({
                 property: newProperty,
-                images: imageUrls || [],
+                images: imageUrlsFromDb || [],
                 documentUrl: null
             });
 
