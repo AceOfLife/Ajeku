@@ -112,115 +112,224 @@ const axios = require("axios");
 
 // February 24th 2025
 
+// exports.createProperty = async (req, res) => {
+//     upload(req, res, async (err) => {
+//         if (err) {
+//             console.error("Multer error:", err);
+//             return res.status(400).json({ message: 'Error uploading images', error: err });
+//         }
+
+//         console.log("=== Raw req.body ===");
+//         console.dir(req.body, { depth: null });
+
+//         try {
+//             const { 
+//                 name, size, price, agent_id, type, location, area, 
+//                 number_of_baths, number_of_rooms, address, description, 
+//                 payment_plan, year_built, special_features, appliances, features, 
+//                 interior_area, parking, material, annual_tax_amount, date_on_market, 
+//                 ownership, kitchen, heating, cooling, type_and_style, lot, 
+//                 percentage, duration, is_fractional, fractional_slots, isRental 
+//             } = req.body;
+
+
+//             // Ensure correct data parsing
+//             const newPropertyData = {
+//                 name,
+//                 size: parseInt(size, 10) || 0,
+//                 price: parseFloat(price) || 0,
+//                 agent_id: parseInt(agent_id, 10) || null,
+//                 type,
+//                 location: location || "",
+//                 area: area || "",
+//                 address: address || "",
+//                 number_of_baths: parseInt(number_of_baths, 10) || 0,
+//                 number_of_rooms: parseInt(number_of_rooms, 10) || 0,
+//                 listed_by: "Admin",
+//                 description: description || "",
+//                 payment_plan: payment_plan || "",
+//                 year_built: parseInt(year_built, 10) || 0,
+//                 special_features: splitToArray(special_features), // FIXED: Use `splitToArray`
+//                 appliances: splitToArray(appliances), // FIXED: Use `splitToArray`
+//                 features: splitToArray(features), // FIXED: Use `splitToArray`
+//                 interior_area: interior_area ? interior_area.toString() : null,
+//                 // material: material || "",
+//                 material: splitToArray(material), // Convert string to array
+//                 date_on_market: date_on_market ? new Date(date_on_market).toISOString() : new Date().toISOString(),
+//                 ownership: ownership || "",
+//                 percentage: percentage || "",
+//                 duration: duration || "",
+//                 is_fractional: is_fractional === "true",
+//                 fractional_slots: is_fractional ? parseInt(fractional_slots, 10) || 0 : null,
+//                 price_per_slot: is_fractional ? (price / (parseInt(fractional_slots, 10) || 1)) : null,
+//                 isRental: isRental === "true",
+//                 kitchen: splitToArray(kitchen),
+//                 heating: splitToArray(heating),
+//                 cooling: splitToArray(cooling),
+//                 type_and_style: splitToArray(type_and_style),
+//                 lot: splitToArray(lot),
+//                 parking: splitToArray(parking) // FIXED: Use `splitToArray`
+//             };
+
+
+//             [
+                
+//                 'material', 'parking', 'lot', 'type_and_style', 'special_features', 'interior_area'
+//               ].forEach(field => {
+//                 console.log(`${field}:`, newPropertyData[field], 'Type:', typeof newPropertyData[field]);
+//               });
+
+//             // Create the property record
+//             const newProperty = await Property.create(newPropertyData);
+
+//             // Upload Images to Cloudinary
+//             let imageUrls = [];
+//             if (req.files && req.files.length > 0) {
+//                 imageUrls = await uploadImagesToCloudinary(req.files);
+
+//                  // Ensure imageUrls is an array
+//                 if (!Array.isArray(imageUrls)) {
+//                     imageUrls = [imageUrls];
+//                 }
+
+//                 const imageRecords = imageUrls.map(url => ({
+//                     property_id: newProperty.id,
+//                     image_url: url,
+//                 }));
+
+//                 await PropertyImage.bulkCreate(imageRecords);
+//             }
+
+//             // Retrieve uploaded images from the database
+//             const savedImages = await PropertyImage.findAll({
+//                 where: { property_id: newProperty.id },
+//                 attributes: ['image_url'],
+//             });
+
+//             const imageUrlsFromDb = savedImages.map(img => img.image_url);
+
+//             // Send response
+//             res.status(201).json({
+//                 property: newProperty,
+//                 images: imageUrlsFromDb || [],
+//                 documentUrl: null
+//             });
+
+//         } catch (error) {
+//             console.error("Error creating property:", error);
+//             res.status(500).json({ message: 'Error creating property', error });
+//         }
+//     });
+// };
+
+
+
+// 10/04/2025
+
 exports.createProperty = async (req, res) => {
     upload(req, res, async (err) => {
-        if (err) {
-            console.error("Multer error:", err);
-            return res.status(400).json({ message: 'Error uploading images', error: err });
+      if (err) {
+        console.error("Multer error:", err);
+        return res.status(400).json({ message: 'Error uploading images', error: err });
+      }
+  
+      console.log("=== Raw req.body ===");
+      console.dir(req.body, { depth: null });
+  
+      try {
+        const {
+          name, size, price, agent_id, type, location, area,
+          number_of_baths, number_of_rooms, address, description,
+          payment_plan, year_built, special_features, appliances, features,
+          interior_area, parking, material, annual_tax_amount, date_on_market,
+          ownership, kitchen, heating, cooling, type_and_style, lot,
+          percentage, duration, is_fractional, fractional_slots, isRental
+        } = req.body;
+  
+        // Ensure correct data parsing
+        const newPropertyData = {
+          name,
+          size: parseInt(size, 10) || 0,
+          price: parseFloat(price) || 0,
+          agent_id: parseInt(agent_id, 10) || null,
+          type,
+          location: location || "",
+          area: area || "",
+          address: address || "",
+          number_of_baths: parseInt(number_of_baths, 10) || 0,
+          number_of_rooms: parseInt(number_of_rooms, 10) || 0,
+          listed_by: "Admin",
+          description: description || "",
+          payment_plan: payment_plan || "",
+          year_built: parseInt(year_built, 10) || 0,
+          special_features: splitToArray(special_features),
+          appliances: splitToArray(appliances),
+          features: splitToArray(features),
+          interior_area: interior_area ? interior_area.toString() : null,
+          material: splitToArray(material),
+          date_on_market: date_on_market ? new Date(date_on_market).toISOString() : new Date().toISOString(),
+          ownership: ownership || "",
+          percentage: percentage || "",
+          duration: duration || "",
+          is_fractional: is_fractional === "true",
+          fractional_slots: is_fractional ? parseInt(fractional_slots, 10) || 0 : null,
+          price_per_slot: is_fractional ? (price / (parseInt(fractional_slots, 10) || 1)) : null,
+          isRental: isRental === "true",
+          kitchen: splitToArray(kitchen),
+          heating: splitToArray(heating),
+          cooling: splitToArray(cooling),
+          type_and_style: splitToArray(type_and_style),
+          lot: splitToArray(lot),
+          parking: splitToArray(parking)
+        };
+  
+        // Debug array fields
+        [
+          'material', 'parking', 'lot', 'type_and_style', 'special_features', 'interior_area'
+        ].forEach(field => {
+          console.log(`${field}:`, newPropertyData[field], 'Type:', typeof newPropertyData[field]);
+        });
+  
+        // Create the property record
+        const newProperty = await Property.create(newPropertyData);
+  
+        // Upload Images to Cloudinary
+        let imageUrls = [];
+        if (req.files && req.files.length > 0) {
+          imageUrls = await uploadImagesToCloudinary(req.files);
+  
+          // Ensure imageUrls is an array
+          if (!Array.isArray(imageUrls)) {
+            imageUrls = [imageUrls];
+          }
+  
+          // Save all image URLs as one array in a single row
+          await PropertyImage.create({
+            property_id: newProperty.id,
+            image_url: imageUrls
+          });
         }
-
-        console.log("=== Raw req.body ===");
-        console.dir(req.body, { depth: null });
-
-        try {
-            const { 
-                name, size, price, agent_id, type, location, area, 
-                number_of_baths, number_of_rooms, address, description, 
-                payment_plan, year_built, special_features, appliances, features, 
-                interior_area, parking, material, annual_tax_amount, date_on_market, 
-                ownership, kitchen, heating, cooling, type_and_style, lot, 
-                percentage, duration, is_fractional, fractional_slots, isRental 
-            } = req.body;
-
-
-            // Ensure correct data parsing
-            const newPropertyData = {
-                name,
-                size: parseInt(size, 10) || 0,
-                price: parseFloat(price) || 0,
-                agent_id: parseInt(agent_id, 10) || null,
-                type,
-                location: location || "",
-                area: area || "",
-                address: address || "",
-                number_of_baths: parseInt(number_of_baths, 10) || 0,
-                number_of_rooms: parseInt(number_of_rooms, 10) || 0,
-                listed_by: "Admin",
-                description: description || "",
-                payment_plan: payment_plan || "",
-                year_built: parseInt(year_built, 10) || 0,
-                special_features: splitToArray(special_features), // FIXED: Use `splitToArray`
-                appliances: splitToArray(appliances), // FIXED: Use `splitToArray`
-                features: splitToArray(features), // FIXED: Use `splitToArray`
-                interior_area: interior_area ? interior_area.toString() : null,
-                // material: material || "",
-                material: splitToArray(material), // Convert string to array
-                date_on_market: date_on_market ? new Date(date_on_market).toISOString() : new Date().toISOString(),
-                ownership: ownership || "",
-                percentage: percentage || "",
-                duration: duration || "",
-                is_fractional: is_fractional === "true",
-                fractional_slots: is_fractional ? parseInt(fractional_slots, 10) || 0 : null,
-                price_per_slot: is_fractional ? (price / (parseInt(fractional_slots, 10) || 1)) : null,
-                isRental: isRental === "true",
-                kitchen: splitToArray(kitchen),
-                heating: splitToArray(heating),
-                cooling: splitToArray(cooling),
-                type_and_style: splitToArray(type_and_style),
-                lot: splitToArray(lot),
-                parking: splitToArray(parking) // FIXED: Use `splitToArray`
-            };
-
-
-            [
-                
-                'material', 'parking', 'lot', 'type_and_style', 'special_features', 'interior_area'
-              ].forEach(field => {
-                console.log(`${field}:`, newPropertyData[field], 'Type:', typeof newPropertyData[field]);
-              });
-
-            // Create the property record
-            const newProperty = await Property.create(newPropertyData);
-
-            // Upload Images to Cloudinary
-            let imageUrls = [];
-            if (req.files && req.files.length > 0) {
-                imageUrls = await uploadImagesToCloudinary(req.files);
-
-                 // Ensure imageUrls is an array
-                if (!Array.isArray(imageUrls)) {
-                    imageUrls = [imageUrls];
-                }
-
-                const imageRecords = imageUrls.map(url => ({
-                    property_id: newProperty.id,
-                    image_url: url,
-                }));
-
-                await PropertyImage.bulkCreate(imageRecords);
-            }
-
-            // Retrieve uploaded images from the database
-            const savedImages = await PropertyImage.findAll({
-                where: { property_id: newProperty.id },
-                attributes: ['image_url'],
-            });
-
-            const imageUrlsFromDb = savedImages.map(img => img.image_url);
-
-            // Send response
-            res.status(201).json({
-                property: newProperty,
-                images: imageUrlsFromDb || [],
-                documentUrl: null
-            });
-
-        } catch (error) {
-            console.error("Error creating property:", error);
-            res.status(500).json({ message: 'Error creating property', error });
-        }
+  
+        // Retrieve saved image record (if needed)
+        const savedImageRecord = await PropertyImage.findOne({
+          where: { property_id: newProperty.id },
+          attributes: ['image_url']
+        });
+  
+        // Send response
+        res.status(201).json({
+          property: newProperty,
+          images: savedImageRecord?.image_url || [],
+          documentUrl: null
+        });
+  
+      } catch (error) {
+        console.error("Error creating property:", error);
+        res.status(500).json({ message: 'Error creating property', error });
+      }
     });
-};
+  };
+  
 
 
 
