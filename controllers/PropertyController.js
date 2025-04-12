@@ -548,35 +548,35 @@ exports.getFilteredProperties = async (req, res) => {
 
 exports.getPropertySlots = async (req, res) => {
     try {
-      const { property_id } = req.params; // Get property ID from the route params
-      const { user_id } = req.query; // Get user ID from query parameters (optional)
+      const { property_id } = req.params;
+      const { user_id } = req.query;
   
-      // Fetch the property based on the property_id
       const property = await Property.findByPk(property_id);
       if (!property) {
         return res.status(404).json({ message: 'Property not found' });
       }
   
-      // Initialize purchasedSlots to 0
       let purchasedSlots = 0;
   
-      // If user_id is provided, fetch their fractional ownership records for the property
       if (user_id) {
-        const fractionalOwnership = await FractionalOwnership.findOne({
+        const ownershipRecords = await FractionalOwnership.findAll({
           where: { property_id, user_id }
         });
-        if (fractionalOwnership) {
-          purchasedSlots = fractionalOwnership.slots_purchased; // Get the number of slots the user has purchased
+  
+        if (ownershipRecords && ownershipRecords.length > 0) {
+          purchasedSlots = ownershipRecords.reduce(
+            (sum, record) => sum + record.slots_purchased,
+            0
+          );
         }
       }
   
-      // Send the property data, available slots, and purchased slots as response
       res.status(200).json({
         property_id: property.id,
         name: property.name,
-        available_slots: property.fractional_slots, // Available slots left
-        purchased_slots: purchasedSlots, // Purchased slots by the user
-        total_slots: property.fractional_slots + purchasedSlots, // Total slots = available + purchased
+        available_slots: property.fractional_slots,
+        purchased_slots: purchasedSlots,
+        total_slots: property.fractional_slots + purchasedSlots
       });
   
     } catch (error) {
@@ -584,4 +584,5 @@ exports.getPropertySlots = async (req, res) => {
       res.status(500).json({ message: 'Error fetching property slot information', error: error.message });
     }
   };
+  
   
