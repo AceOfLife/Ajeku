@@ -599,21 +599,28 @@ exports.getPropertySlots = async (req, res) => {
         return res.status(404).json({ message: 'Property not found' });
       }
   
+      console.log('Property Data:', property); // Debug log to check property data
+  
       // Initialize purchasedSlots to 0
       let purchasedSlots = 0;
   
       // If user_id is provided, fetch their fractional ownership records for the property
       if (user_id) {
         const userId = parseInt(user_id, 10); // Ensure user_id is an integer
+        console.log('Searching FractionalOwnership for user_id:', userId);
   
         const fractionalOwnership = await FractionalOwnership.findOne({
           where: { property_id, user_id: userId }
         });
   
+        console.log('FractionalOwnership Found:', fractionalOwnership); // Debug log to check if we found the ownership record
+  
         if (fractionalOwnership) {
           purchasedSlots = fractionalOwnership.slots_purchased; // Get the number of slots the user has purchased
         }
       }
+  
+      console.log('Purchased Slots:', purchasedSlots); // Debug log to check purchased slots value
   
       // Send the property data, available slots, and purchased slots as response
       res.status(200).json({
