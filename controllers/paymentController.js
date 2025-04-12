@@ -166,7 +166,7 @@ exports.initializePayment = async (req, res) => {
       amount = property.price_per_slot * slots;
     }
 
-    const amountInKobo = amount * 100;
+    const amountInKobo = Math.round(amount * 100);
 
     const response = await axios.post(
       "https://api.paystack.co/transaction/initialize",
