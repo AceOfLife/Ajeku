@@ -246,11 +246,14 @@ exports.createProperty = async (req, res) => {
           percentage, duration, is_fractional, fractional_slots, isRental
         } = req.body;
   
-        // Ensure correct data parsing
+        const parsedFractional = is_fractional === "true";
+        const parsedFractionalSlots = parsedFractional ? parseInt(fractional_slots, 10) || 0 : null;
+        const parsedPrice = parseFloat(price) || 0;
+  
         const newPropertyData = {
           name,
           size: parseInt(size, 10) || 0,
-          price: parseFloat(price) || 0,
+          price: parsedPrice,
           agent_id: parseInt(agent_id, 10) || null,
           type,
           location: location || "",
@@ -271,9 +274,10 @@ exports.createProperty = async (req, res) => {
           ownership: ownership || "",
           percentage: percentage || "",
           duration: duration || "",
-          is_fractional: is_fractional === "true",
-          fractional_slots: is_fractional ? parseInt(fractional_slots, 10) || 0 : null,
-          price_per_slot: is_fractional ? (price / (parseInt(fractional_slots, 10) || 1)) : null,
+          is_fractional: parsedFractional,
+          fractional_slots: parsedFractionalSlots,
+          price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
+          available_slots: parsedFractional ? parsedFractionalSlots : null,
           isRental: isRental === "true",
           kitchen: splitToArray(kitchen),
           heating: splitToArray(heating),
@@ -298,25 +302,21 @@ exports.createProperty = async (req, res) => {
         if (req.files && req.files.length > 0) {
           imageUrls = await uploadImagesToCloudinary(req.files);
   
-          // Ensure imageUrls is an array
           if (!Array.isArray(imageUrls)) {
             imageUrls = [imageUrls];
           }
   
-          // Save all image URLs as one array in a single row
           await PropertyImage.create({
             property_id: newProperty.id,
             image_url: imageUrls
           });
         }
   
-        // Retrieve saved image record (if needed)
         const savedImageRecord = await PropertyImage.findOne({
           where: { property_id: newProperty.id },
           attributes: ['image_url']
         });
   
-        // Send response
         res.status(201).json({
           property: newProperty,
           images: savedImageRecord?.image_url || [],
@@ -329,6 +329,7 @@ exports.createProperty = async (req, res) => {
       }
     });
   };
+  
   
 
 
