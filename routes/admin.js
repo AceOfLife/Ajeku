@@ -59,6 +59,9 @@ router.put('/properties/:id', authenticate, authorizeAdmin, PropertyController.u
 router.delete('/properties/:id', authenticate, authorizeAdmin, PropertyController.deleteProperty);
 router.get('/properties/:id', PropertyController.getPropertyById);
 
+// Route for Fetching Property Slots
+router.get('/properties/:property_id/slots', authenticate, PropertyController.getPropertySlots);  
+
 // Transaction routes
 router.get("/transactions/revenue", authenticate, authorizeAdmin, TransactionController.getRevenueStats);
 router.get("/customer-map", authenticate, authorizeAdmin, TransactionController.getCustomerMap);

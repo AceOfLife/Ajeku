@@ -144,6 +144,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       defaultValue: null, // Default value for non-fractional properties
     },
+    available_slots: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: null, // Optional: Set this equal to fractional_slots when creating the property
+    },
     price_per_slot: { // Price per slot for fractional properties
       type: DataTypes.FLOAT,
       allowNull: true,
