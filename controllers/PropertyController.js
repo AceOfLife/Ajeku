@@ -579,12 +579,22 @@ exports.getPropertySlots = async (req, res) => {
           0
         );
   
+        // Fetch all ownership records to calculate total purchased slots for the property
+        const allOwnerships = await FractionalOwnership.findAll({
+          where: { property_id }
+        });
+  
+        const totalPurchasedSlots = allOwnerships.reduce(
+          (sum, record) => sum + record.slots_purchased,
+          0
+        );
+  
         return res.status(200).json({
           property_id: property.id,
           name: property.name,
-          available_slots: property.fractional_slots,
-          purchased_slots: purchasedSlots,
-          total_slots: property.fractional_slots + purchasedSlots,
+          available_slots: property.fractional_slots - purchasedSlots, // Available slots left for the user
+          purchased_slots: purchasedSlots, // Purchased slots by the user
+          total_slots: property.fractional_slots + totalPurchasedSlots, // Total slots = available + all purchased slots
           purchases: ownershipRecords.map(ownership => ({
             user_id: ownership.user_id,
             user_name: ownership.User.name,
@@ -634,7 +644,7 @@ exports.getPropertySlots = async (req, res) => {
         property_id: property.id,
         name: property.name,
         total_purchased_slots: totalPurchasedSlots,
-        available_slots: property.fractional_slots,
+        available_slots: property.fractional_slots - totalPurchasedSlots,
         total_slots: totalSlots,
         purchases // Show all the purchase details
       });
