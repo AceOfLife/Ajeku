@@ -591,47 +591,43 @@ exports.getFilteredProperties = async (req, res) => {
 
 exports.getPropertySlots = async (req, res) => {
     try {
-      const { property_id } = req.params; // Get property ID from the route params
-      const { user_id } = req.query; // Get user ID from query parameters (optional)
+      const { property_id } = req.params;
+      const { user_id } = req.query;
   
-      // Fetch the property based on the property_id
+      // Fetch the property
       const property = await Property.findByPk(property_id);
       if (!property) {
         return res.status(404).json({ message: 'Property not found' });
       }
   
-      console.log('Property Data:', property); // Debug log to check property data
+      // Get total purchased slots for the property (by all users)
+      const totalPurchasedResult = await FractionalOwnership.findAll({
+        where: { property_id },
+      });
   
-      // Initialize purchasedSlots to 0
-      let purchasedSlots = 0;
+      const totalPurchasedSlots = totalPurchasedResult.reduce((sum, ownership) => {
+        return sum + ownership.slots_purchased;
+      }, 0);
   
-      // If user_id is provided, fetch their fractional ownership records for the property
+      // Get purchased slots by this user (if user_id is given)
+      let userPurchasedSlots = 0;
       if (user_id) {
-        const userId = parseInt(user_id, 10); // Ensure user_id is an integer
-        console.log('Searching FractionalOwnership for user_id:', userId);
-  
-        const fractionalOwnership = await FractionalOwnership.findOne({
-          where: { property_id, user_id: userId }
+        const userOwnership = await FractionalOwnership.findOne({
+          where: { property_id, user_id },
         });
-  
-        console.log('FractionalOwnership Found:', fractionalOwnership); // Debug log to check if we found the ownership record
-  
-        if (fractionalOwnership) {
-          purchasedSlots = fractionalOwnership.slots_purchased; // Get the number of slots the user has purchased
+        if (userOwnership) {
+          userPurchasedSlots = userOwnership.slots_purchased;
         }
       }
   
-      console.log('Purchased Slots:', purchasedSlots); // Debug log to check purchased slots value
-  
-      // Send the property data, available slots, and purchased slots as response
+      // Respond
       res.status(200).json({
         property_id: property.id,
         name: property.name,
-        available_slots: property.fractional_slots - purchasedSlots, // Available slots left
-        purchased_slots: purchasedSlots, // Purchased slots by the user
-        total_slots: property.fractional_slots, // Total slots = available + purchased
+        available_slots: property.fractional_slots - totalPurchasedSlots,
+        purchased_slots: userPurchasedSlots,
+        total_slots: property.fractional_slots,
       });
-  
     } catch (error) {
       console.error("Error fetching property slots:", error.message);
       res.status(500).json({ message: 'Error fetching property slot information', error: error.message });
