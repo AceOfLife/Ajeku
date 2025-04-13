@@ -6,6 +6,10 @@ module.exports = (sequelize, DataTypes) => {
       autoIncrement: true,
       primaryKey: true
     },
+    ownership_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
     user_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -18,6 +22,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DECIMAL,
       allowNull: false,
     },
+    payment_month: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    payment_year: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
     payment_date: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -28,6 +40,7 @@ module.exports = (sequelize, DataTypes) => {
   InstallmentPayment.associate = function(models) {
     InstallmentPayment.belongsTo(models.User, { foreignKey: 'user_id' });
     InstallmentPayment.belongsTo(models.Property, { foreignKey: 'property_id' });
+    InstallmentPayment.hasMAny(models.InstallmentOwnership, { foreignKey: 'ownership_id' });
   };
 
   return InstallmentPayment;

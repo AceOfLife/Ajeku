@@ -306,6 +306,7 @@ exports.verifyPayment = async (req, res) => {
       }
 
       await InstallmentPayment.create({
+        ownership_id: ownership.id,
         user_id,
         property_id,
         amount_paid: paymentData.amount / 100,
