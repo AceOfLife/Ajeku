@@ -550,7 +550,6 @@ exports.getFilteredProperties = async (req, res) => {
 exports.getPropertySlots = async (req, res) => {
     try {
       const { property_id } = req.params;
-      const { user_id } = req.query;
   
       const property = await Property.findByPk(property_id);
       if (!property) {
@@ -559,10 +558,31 @@ exports.getPropertySlots = async (req, res) => {
   
       // Fetch all ownerships for the property
       const allOwnerships = await FractionalOwnership.findAll({
-        where: { property_id }
+        where: { property_id },
+        include: [
+          {
+            model: User, // Assuming User is associated with FractionalOwnership
+            attributes: ['id', 'name', 'email'] // Include relevant user details
+          }
+        ]
       });
   
-      // Calculate total purchased slots across all users
+      if (!allOwnerships || allOwnerships.length === 0) {
+        return res.status(200).json({
+          message: 'No slots have been purchased yet for this property.'
+        });
+      }
+  
+      // Map through the ownerships and include user details
+      const purchases = allOwnerships.map(ownership => ({
+        user_id: ownership.user_id,
+        user_name: ownership.User.name,
+        user_email: ownership.User.email,
+        slots_purchased: ownership.slots_purchased,
+        purchase_date: ownership.createdAt
+      }));
+  
+      // Calculate total purchased slots
       const totalPurchasedSlots = allOwnerships.reduce(
         (sum, record) => sum + record.slots_purchased,
         0
@@ -571,30 +591,15 @@ exports.getPropertySlots = async (req, res) => {
       // Calculate total slots (available + purchased)
       const totalSlots = property.fractional_slots + totalPurchasedSlots;
   
-      // If user_id is provided, get user's specific purchased slots
-      if (user_id) {
-        const userPurchasedSlots = allOwnerships
-          .filter(record => record.user_id.toString() === user_id.toString())
-          .reduce((sum, record) => sum + record.slots_purchased, 0);
-  
-        return res.status(200).json({
-          property_id: property.id,
-          name: property.name,
-          available_slots: property.fractional_slots,
-          purchased_slots: userPurchasedSlots,
-          total_slots: totalSlots
-        });
-      }
-  
-      // Return for admin (all users)
-      return res.status(200).json({
+      res.status(200).json({
         property_id: property.id,
         name: property.name,
-        available_slots: property.fractional_slots,
         total_purchased_slots: totalPurchasedSlots,
-        total_slots: totalSlots
+        available_slots: property.fractional_slots,
+        total_slots: totalSlots,
+        purchases // Show all the purchase details
       });
-  
+      
     } catch (error) {
       console.error("Error fetching property slots:", error.message);
       res.status(500).json({
