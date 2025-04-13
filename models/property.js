@@ -125,6 +125,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
+    isInstallment: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
     duration: { // Duration for part payment
       type: DataTypes.STRING,
       allowNull: true,
