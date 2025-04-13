@@ -550,30 +550,69 @@ exports.getFilteredProperties = async (req, res) => {
 exports.getPropertySlots = async (req, res) => {
     try {
       const { property_id } = req.params;
+      const { user_id } = req.query;
   
+      // Fetch property details
       const property = await Property.findByPk(property_id);
       if (!property) {
         return res.status(404).json({ message: 'Property not found' });
       }
   
-      // Fetch all ownerships for the property
+      // If user_id is provided, fetch only that user's purchase details
+      if (user_id) {
+        const ownershipRecords = await FractionalOwnership.findAll({
+          where: { property_id, user_id },
+          include: [
+            {
+              model: User, // Assuming User is associated with FractionalOwnership
+              attributes: ['id', 'name', 'email'] // Include relevant user details
+            }
+          ]
+        });
+  
+        if (ownershipRecords.length === 0) {
+          return res.status(404).json({ message: 'No purchase records found for this user' });
+        }
+  
+        const purchasedSlots = ownershipRecords.reduce(
+          (sum, record) => sum + record.slots_purchased,
+          0
+        );
+  
+        return res.status(200).json({
+          property_id: property.id,
+          name: property.name,
+          available_slots: property.fractional_slots,
+          purchased_slots: purchasedSlots,
+          total_slots: property.fractional_slots + purchasedSlots,
+          purchases: ownershipRecords.map(ownership => ({
+            user_id: ownership.user_id,
+            user_name: ownership.User.name,
+            user_email: ownership.User.email,
+            slots_purchased: ownership.slots_purchased,
+            purchase_date: ownership.createdAt
+          }))
+        });
+      }
+  
+      // If no user_id is provided, fetch all purchases for the property
       const allOwnerships = await FractionalOwnership.findAll({
         where: { property_id },
         include: [
           {
-            model: User, // Assuming User is associated with FractionalOwnership
-            attributes: ['id', 'name', 'email'] // Include relevant user details
+            model: User, // Include user details for each purchase
+            attributes: ['id', 'name', 'email']
           }
         ]
       });
   
-      if (!allOwnerships || allOwnerships.length === 0) {
+      if (allOwnerships.length === 0) {
         return res.status(200).json({
           message: 'No slots have been purchased yet for this property.'
         });
       }
   
-      // Map through the ownerships and include user details
+      // Map through all purchases and include user details
       const purchases = allOwnerships.map(ownership => ({
         user_id: ownership.user_id,
         user_name: ownership.User.name,
@@ -599,7 +638,7 @@ exports.getPropertySlots = async (req, res) => {
         total_slots: totalSlots,
         purchases // Show all the purchase details
       });
-      
+  
     } catch (error) {
       console.error("Error fetching property slots:", error.message);
       res.status(500).json({
