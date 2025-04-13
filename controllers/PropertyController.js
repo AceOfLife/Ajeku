@@ -557,46 +557,42 @@ exports.getPropertySlots = async (req, res) => {
         return res.status(404).json({ message: 'Property not found' });
       }
   
-      let purchasedSlots = 0;
-  
-      // If user_id is provided, get user's specific slots
-      if (user_id) {
-        const ownershipRecords = await FractionalOwnership.findAll({
-          where: { property_id, user_id }
-        });
-  
-        if (ownershipRecords.length > 0) {
-          purchasedSlots = ownershipRecords.reduce(
-            (sum, record) => sum + record.slots_purchased,
-            0
-          );
-        }
-  
-        return res.status(200).json({
-          property_id: property.id,
-          name: property.name,
-          available_slots: property.fractional_slots,
-          purchased_slots: purchasedSlots,
-          total_slots: property.fractional_slots + purchasedSlots
-        });
-      }
-  
-      // If no user_id, sum all users' purchased slots
+      // Fetch all ownerships for the property
       const allOwnerships = await FractionalOwnership.findAll({
         where: { property_id }
       });
   
+      // Calculate total purchased slots across all users
       const totalPurchasedSlots = allOwnerships.reduce(
         (sum, record) => sum + record.slots_purchased,
         0
       );
   
-      res.status(200).json({
+      // Calculate total slots (available + purchased)
+      const totalSlots = property.fractional_slots + totalPurchasedSlots;
+  
+      // If user_id is provided, get user's specific purchased slots
+      if (user_id) {
+        const userPurchasedSlots = allOwnerships
+          .filter(record => record.user_id.toString() === user_id.toString())
+          .reduce((sum, record) => sum + record.slots_purchased, 0);
+  
+        return res.status(200).json({
+          property_id: property.id,
+          name: property.name,
+          available_slots: property.fractional_slots,
+          purchased_slots: userPurchasedSlots,
+          total_slots: totalSlots
+        });
+      }
+  
+      // Return for admin (all users)
+      return res.status(200).json({
         property_id: property.id,
         name: property.name,
         available_slots: property.fractional_slots,
         total_purchased_slots: totalPurchasedSlots,
-        total_slots: property.fractional_slots + totalPurchasedSlots
+        total_slots: totalSlots
       });
   
     } catch (error) {
