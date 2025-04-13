@@ -600,15 +600,6 @@ exports.getPropertySlots = async (req, res) => {
         return res.status(404).json({ message: 'Property not found' });
       }
   
-      // Get total purchased slots for the property (by all users)
-      const totalPurchasedResult = await FractionalOwnership.findAll({
-        where: { property_id },
-      });
-  
-      const totalPurchasedSlots = totalPurchasedResult.reduce((sum, ownership) => {
-        return sum + ownership.slots_purchased;
-      }, 0);
-  
       // Get purchased slots by this user (if user_id is given)
       let userPurchasedSlots = 0;
       if (user_id) {
@@ -620,13 +611,14 @@ exports.getPropertySlots = async (req, res) => {
         }
       }
   
-      // Respond
+      const totalSlots = property.available_slots + userPurchasedSlots;
+  
       res.status(200).json({
         property_id: property.id,
         name: property.name,
-        available_slots: property.fractional_slots - totalPurchasedSlots,
-        purchased_slots: userPurchasedSlots,
-        total_slots: property.fractional_slots,
+        available_slots: property.available_slots,       // from DB (e.g. 6)
+        purchased_slots: userPurchasedSlots,             // user’s purchased slots (e.g. 4)
+        total_slots: totalSlots,                         // calculated as available + purchased (10)
       });
     } catch (error) {
       console.error("Error fetching property slots:", error.message);
