@@ -1,6 +1,7 @@
 // PropertyImage Table Update
 
-const { Property, User, PropertyImage } = require('../models');
+// const { Property, User, PropertyImage } = require('../models');
+const { Property, User, PropertyImage, FractionalOwnership } = require('../models');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
