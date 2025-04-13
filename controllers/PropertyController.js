@@ -547,6 +547,71 @@ exports.getFilteredProperties = async (req, res) => {
 
 // 11/04/2025
 
+// exports.getPropertySlots = async (req, res) => {
+//     try {
+//       const { property_id } = req.params;
+//       const { user_id } = req.query;
+  
+//       const property = await Property.findByPk(property_id);
+//       if (!property) {
+//         return res.status(404).json({ message: 'Property not found' });
+//       }
+  
+//       let purchasedSlots = 0;
+  
+//       // If user_id is provided, get user's specific slots
+//       if (user_id) {
+//         const ownershipRecords = await FractionalOwnership.findAll({
+//           where: { property_id, user_id }
+//         });
+  
+//         if (ownershipRecords.length > 0) {
+//           purchasedSlots = ownershipRecords.reduce(
+//             (sum, record) => sum + record.slots_purchased,
+//             0
+//           );
+//         }
+  
+//         return res.status(200).json({
+//           property_id: property.id,
+//           name: property.name,
+//           available_slots: property.fractional_slots,
+//           purchased_slots: purchasedSlots,
+//           total_slots: property.fractional_slots + purchasedSlots
+//         });
+//       }
+  
+//       // If no user_id, sum all users' purchased slots
+//       const allOwnerships = await FractionalOwnership.findAll({
+//         where: { property_id }
+//       });
+  
+//       const totalPurchasedSlots = allOwnerships.reduce(
+//         (sum, record) => sum + record.slots_purchased,
+//         0
+//       );
+  
+//       res.status(200).json({
+//         property_id: property.id,
+//         name: property.name,
+//         available_slots: property.fractional_slots,
+//         total_purchased_slots: totalPurchasedSlots,
+//         total_slots: property.fractional_slots + totalPurchasedSlots
+//       });
+  
+//     } catch (error) {
+//       console.error("Error fetching property slots:", error.message);
+//       res.status(500).json({
+//         message: 'Error fetching property slot information',
+//         error: error.message
+//       });
+//     }
+//   };
+  
+  
+  
+// 13/04/2025
+
 exports.getPropertySlots = async (req, res) => {
     try {
       const { property_id } = req.params;
@@ -557,6 +622,8 @@ exports.getPropertySlots = async (req, res) => {
       if (!property) {
         return res.status(404).json({ message: 'Property not found' });
       }
+  
+      let purchasedSlots = 0;
   
       // If user_id is provided, fetch only that user's purchase details
       if (user_id) {
@@ -574,7 +641,8 @@ exports.getPropertySlots = async (req, res) => {
           return res.status(404).json({ message: 'No purchase records found for this user' });
         }
   
-        const purchasedSlots = ownershipRecords.reduce(
+        // Calculate the total number of slots purchased by the user
+        purchasedSlots = ownershipRecords.reduce(
           (sum, record) => sum + record.slots_purchased,
           0
         );
@@ -589,15 +657,15 @@ exports.getPropertySlots = async (req, res) => {
           0
         );
   
-        // Calculate available slots for this user
+        // Calculate available slots based on total purchased slots
         const availableSlots = property.fractional_slots - totalPurchasedSlots;
   
         return res.status(200).json({
           property_id: property.id,
           name: property.name,
-          available_slots: availableSlots, // Total available slots for the user
+          available_slots: availableSlots, // Available slots for the user
           purchased_slots: purchasedSlots, // Purchased slots by the user
-          total_slots: property.fractional_slots + totalPurchasedSlots, // Total slots = initial + all purchased
+          total_slots: property.fractional_slots, // Initial total slots
           purchases: ownershipRecords.map(ownership => ({
             user_id: ownership.user_id,
             user_name: ownership.User.name,
@@ -634,17 +702,17 @@ exports.getPropertySlots = async (req, res) => {
         purchase_date: ownership.createdAt
       }));
   
-      // Calculate total purchased slots
+      // Calculate total purchased slots by all users
       const totalPurchasedSlots = allOwnerships.reduce(
         (sum, record) => sum + record.slots_purchased,
         0
       );
   
-      // Calculate available slots for all users
+      // Calculate available slots based on total purchased slots by all users
       const availableSlots = property.fractional_slots - totalPurchasedSlots;
   
-      // Calculate total slots (available + purchased)
-      const totalSlots = property.fractional_slots + totalPurchasedSlots;
+      // Calculate total slots (this is just the initial slots for fractional ownership)
+      const totalSlots = property.fractional_slots;
   
       res.status(200).json({
         property_id: property.id,
@@ -652,7 +720,7 @@ exports.getPropertySlots = async (req, res) => {
         total_purchased_slots: totalPurchasedSlots,
         available_slots: availableSlots,
         total_slots: totalSlots,
-        purchases // Show all the purchase details
+        purchases // All purchases made for this property
       });
   
     } catch (error) {
@@ -664,44 +732,4 @@ exports.getPropertySlots = async (req, res) => {
     }
   };
   
-  
-  
-// 12/04/2025
-
-// exports.getPropertySlots = async (req, res) => {
-//     try {
-//       const { property_id } = req.params;
-//       const { user_id } = req.query;
-  
-//       // Fetch the property
-//       const property = await Property.findByPk(property_id);
-//       if (!property) {
-//         return res.status(404).json({ message: 'Property not found' });
-//       }
-  
-//       // Get purchased slots by this user (if user_id is given)
-//       let userPurchasedSlots = 0;
-//       if (user_id) {
-//         const userOwnership = await FractionalOwnership.findOne({
-//           where: { property_id, user_id },
-//         });
-//         if (userOwnership) {
-//           userPurchasedSlots = userOwnership.slots_purchased;
-//         }
-//       }
-  
-//       const totalSlots = property.available_slots + userPurchasedSlots;
-  
-//       res.status(200).json({
-//         property_id: property.id,
-//         name: property.name,
-//         available_slots: totalSlots - userPurchasedSlots,       // from DB (e.g. 6)
-//         purchased_slots: userPurchasedSlots,             // user’s purchased slots (e.g. 4)
-//         total_slots: totalSlots,                         // calculated as available + purchased (10)
-//       });
-//     } catch (error) {
-//       console.error("Error fetching property slots:", error.message);
-//       res.status(500).json({ message: 'Error fetching property slot information', error: error.message });
-//     }
-//   };
   
