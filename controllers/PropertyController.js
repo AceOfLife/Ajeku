@@ -616,7 +616,7 @@ exports.getPropertySlots = async (req, res) => {
       res.status(200).json({
         property_id: property.id,
         name: property.name,
-        available_slots: property.available_slots,       // from DB (e.g. 6)
+        available_slots: totalSlots - userPurchasedSlots,       // from DB (e.g. 6)
         purchased_slots: userPurchasedSlots,             // user’s purchased slots (e.g. 4)
         total_slots: totalSlots,                         // calculated as available + purchased (10)
       });
