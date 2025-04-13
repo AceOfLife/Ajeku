@@ -559,32 +559,55 @@ exports.getPropertySlots = async (req, res) => {
   
       let purchasedSlots = 0;
   
+      // If user_id is provided, get user's specific slots
       if (user_id) {
         const ownershipRecords = await FractionalOwnership.findAll({
           where: { property_id, user_id }
         });
   
-        if (ownershipRecords && ownershipRecords.length > 0) {
+        if (ownershipRecords.length > 0) {
           purchasedSlots = ownershipRecords.reduce(
             (sum, record) => sum + record.slots_purchased,
             0
           );
         }
+  
+        return res.status(200).json({
+          property_id: property.id,
+          name: property.name,
+          available_slots: property.fractional_slots,
+          purchased_slots: purchasedSlots,
+          total_slots: property.fractional_slots + purchasedSlots
+        });
       }
+  
+      // If no user_id, sum all users' purchased slots
+      const allOwnerships = await FractionalOwnership.findAll({
+        where: { property_id }
+      });
+  
+      const totalPurchasedSlots = allOwnerships.reduce(
+        (sum, record) => sum + record.slots_purchased,
+        0
+      );
   
       res.status(200).json({
         property_id: property.id,
         name: property.name,
         available_slots: property.fractional_slots,
-        purchased_slots: purchasedSlots,
-        total_slots: property.fractional_slots + purchasedSlots
+        total_purchased_slots: totalPurchasedSlots,
+        total_slots: property.fractional_slots + totalPurchasedSlots
       });
   
     } catch (error) {
       console.error("Error fetching property slots:", error.message);
-      res.status(500).json({ message: 'Error fetching property slot information', error: error.message });
+      res.status(500).json({
+        message: 'Error fetching property slot information',
+        error: error.message
+      });
     }
   };
+  
   
   
 // 12/04/2025
