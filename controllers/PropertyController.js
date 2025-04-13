@@ -616,9 +616,10 @@ exports.getPropertySlots = async (req, res) => {
       res.status(200).json({
         property_id: property.id,
         name: property.name,
-        available_slots: property.available_slots,       // from DB (e.g. 6)
-        purchased_slots: userPurchasedSlots,             // user’s purchased slots (e.g. 4)
-        total_slots: totalSlots,                         // calculated as available + purchased (10)
+        // available_slots: property.available_slots,       
+        purchased_slots: userPurchasedSlots,             
+        total_slots: totalSlots,                        
+        available_slots: total_slot  - purchased_slots, 
       });
     } catch (error) {
       console.error("Error fetching property slots:", error.message);
