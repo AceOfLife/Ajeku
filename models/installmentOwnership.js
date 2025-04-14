@@ -23,7 +23,7 @@ module.exports = (sequelize, DataTypes) => {
 
   InstallmentOwnership.associate = function(models) {
     InstallmentOwnership.belongsTo(models.User, { foreignKey: 'user_id' });
-    InstallmentOwnership.belongsTo(models.Property, { foreignKey: 'property_id' });
+    InstallmentOwnership.belongsTo(models.Property, { foreignKey: 'property_id', as: 'property' });
   };
 
   return InstallmentOwnership;
