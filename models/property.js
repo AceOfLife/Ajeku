@@ -131,7 +131,7 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: false
     },
     duration: { // Duration for part payment
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
     is_fractional: { // New column: Whether the property is fractional
