@@ -211,10 +211,146 @@ exports.initializePayment = async (req, res) => {
   }
 };
 
+// exports.verifyPayment = async (req, res) => {
+//   try {
+//     const { reference } = req.query;
+//     if (!reference) return res.status(400).json({ message: "Transaction reference is required" });
+
+//     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+//       headers: {
+//         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+//         "Content-Type": "application/json"
+//       }
+//     });
+
+//     const paymentData = response.data.data;
+//     if (paymentData.status !== "success") {
+//       return res.status(400).json({
+//         message: "Payment not successful",
+//         status: paymentData.status,
+//         gateway_response: paymentData.gateway_response
+//       });
+//     }
+
+//     const { user_id, property_id, payment_type, slots = 1 } = paymentData.metadata || {};
+//     if (!user_id || !property_id || !payment_type) {
+//       return res.status(400).json({ message: "Incomplete payment metadata" });
+//     }
+
+//     const user = await User.findOne({ where: { id: user_id } });
+//     if (!user) return res.status(404).json({ message: "User not found" });
+
+//     const property = await Property.findByPk(property_id);
+//     if (!property) return res.status(404).json({ message: "Property not found" });
+
+//     // Save transaction
+//     const transaction = await Transaction.create({
+//       user_id,
+//       property_id,
+//       reference,
+//       price: paymentData.amount / 100,
+//       currency: paymentData.currency,
+//       status: paymentData.status,
+//       transaction_date: new Date(paymentData.transaction_date),
+//       payment_type
+//     });
+
+//     // ===== Handle FRACTIONAL ownership =====
+//     if (payment_type === "fractional" && property.is_fractional) {
+//       if (slots > property.fractional_slots) {
+//         return res.status(400).json({ message: 'Not enough fractional slots available (post-payment)' });
+//       }
+
+//       await FractionalOwnership.create({
+//         user_id,
+//         property_id,
+//         slots_purchased: slots
+//       });
+
+//       property.fractional_slots -= slots;
+//       await property.save();
+
+//       return res.status(200).json({
+//         message: "Fractional payment verified successfully",
+//         transaction,
+//         slotsPurchased: slots,
+//         availableSlots: property.fractional_slots
+//       });
+//     }
+
+//     // ===== Handle INSTALLMENT ownership =====
+//     if (payment_type === "installment" && property.isInstallment) {
+//       const totalMonths = parseInt(property.duration);
+//       const today = new Date();
+//       const month = today.getMonth() + 1;
+//       const year = today.getFullYear();
+
+//       let ownership = await InstallmentOwnership.findOne({
+//         where: { user_id, property_id }
+//       });
+
+//       if (!ownership) {
+//         ownership = await InstallmentOwnership.create({
+//           user_id,
+//           property_id,
+//           total_months: totalMonths,
+//           months_paid: 1,
+//           status: totalMonths === 1 ? "completed" : "ongoing"
+//         });
+//       } else {
+//         ownership.months_paid += 1;
+//         if (ownership.months_paid >= totalMonths) {
+//           ownership.status = "completed";
+//         }
+//         await ownership.save();
+//       }
+
+//       await InstallmentPayment.create({
+//         ownership_id: ownership.id,
+//         user_id,
+//         property_id,
+//         amount_paid: paymentData.amount / 100,
+//         payment_month: month,
+//         payment_year: year
+//       });
+
+//       return res.status(200).json({
+//         message: "Installment payment verified successfully",
+//         transaction,
+//         monthsPaid: ownership.months_paid,
+//         monthsRemaining: ownership.total_months - ownership.months_paid,
+//         status: ownership.status
+//       });
+//     }
+
+//     // Fallback if payment_type not handled
+//     return res.status(200).json({
+//       message: "Payment verified, but no specific ownership type was processed",
+//       transaction
+//     });
+
+//   } catch (error) {
+//     console.error("Payment Verification Error:", error.response ? error.response.data : error.message);
+//     return res.status(500).json({ message: "Error verifying payment", error: error.message });
+//   }
+// };
+
+
+// Check for previous payment verification 22/04/2025
+
 exports.verifyPayment = async (req, res) => {
   try {
     const { reference } = req.query;
     if (!reference) return res.status(400).json({ message: "Transaction reference is required" });
+
+    // Check if the payment has already been verified
+    const existingTransaction = await Transaction.findOne({ where: { reference } });
+    if (existingTransaction) {
+      return res.status(200).json({
+        message: "The Payment has been verified already",
+        transaction: existingTransaction
+      });
+    }
 
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
@@ -334,6 +470,7 @@ exports.verifyPayment = async (req, res) => {
     return res.status(500).json({ message: "Error verifying payment", error: error.message });
   }
 };
+
 
 // Get installment status for a specific property
 exports.getInstallmentStatus = async (req, res) => {
