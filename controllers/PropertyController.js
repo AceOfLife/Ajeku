@@ -410,6 +410,9 @@ exports.createProperty = async (req, res) => {
   
         // Create the property record
         const newProperty = await Property.create(newPropertyData);
+
+        // Immediately reload the property from DB to get all updated fields
+        const property = await Property.findByPk(newProperty.id);
   
         // Upload Images to Cloudinary
         let imageUrls = [];
