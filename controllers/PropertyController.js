@@ -425,7 +425,7 @@ exports.createProperty = async (req, res) => {
   
           await PropertyImage.create({
             property,
-            // property_id: newProperty.id,
+            property_id: newProperty.id,
             image_url: imageUrls
           });
         }
