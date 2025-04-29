@@ -139,6 +139,11 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: false, // Default is 'false'
       allowNull: false, // Cannot be null
     },
+    isFractionalInstallment: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
+    },
     // share_percentage: { // New column: Share percentage for fractional properties
     //   type: DataTypes.FLOAT,
     //   defaultValue: 0, // Default is '0' (not fractional)
