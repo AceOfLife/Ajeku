@@ -505,7 +505,7 @@ exports.createProperty = async (req, res) => {
           ownership: ownership || "",
           percentage: percentage || "",
           duration: parsedDuration,
-          isInstallment: parsedIsInstallment,
+        //   isInstallment: parsedIsInstallment,
           is_fractional: parsedFractional,
           fractional_slots: parsedFractionalSlots,
           price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
