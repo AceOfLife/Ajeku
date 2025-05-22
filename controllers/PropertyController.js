@@ -460,10 +460,6 @@ exports.createProperty = async (req, res) => {
       console.dir(req.body, { depth: null });
   
       try {
-        // Normalize naming between camelCase and snake_case
-        req.body.isInstallment = req.body.isInstallment ?? req.body.is_installment;
-        req.body.is_fractional = req.body.is_fractional ?? req.body.isFractional;
-  
         const {
           name, size, price, agent_id, type, location, area,
           number_of_baths, number_of_rooms, address, description,
@@ -474,22 +470,22 @@ exports.createProperty = async (req, res) => {
           isInstallment
         } = req.body;
   
-        // === Parse and normalize fields ===
+        // Normalize and parse boolean fields
         const parsedIsFractional = String(is_fractional).toLowerCase() === "true";
-        const parsedFractionalSlots = parsedIsFractional ? parseInt(fractional_slots, 10) || 0 : null;
-        const parsedPrice = parseFloat(price) || 0;
         const parsedIsInstallment = String(isInstallment).toLowerCase() === "true";
+        const parsedIsRental = String(isRental).toLowerCase() === "true";
+  
+        // Parse numbers
+        const parsedPrice = parseFloat(price) || 0;
+        const parsedFractionalSlots = parsedIsFractional ? parseInt(fractional_slots, 10) || 0 : null;
+  
+        // Determine if this is a fractional installment case
         const isFractionalInstallment = parsedIsFractional && parsedIsInstallment;
   
+        // Set duration if it's a non-fractional installment property
         const parsedDuration = parsedIsInstallment && !parsedIsFractional
           ? parseInt(duration, 10) || null
           : null;
-  
-        // === Debug logs ===
-        console.log("parsedIsInstallment:", parsedIsInstallment);
-        console.log("parsedIsFractional:", parsedIsFractional);
-        console.log("parsedDuration:", parsedDuration);
-        console.log("parsedFractionalSlots:", parsedFractionalSlots);
   
         const newPropertyData = {
           name,
@@ -517,11 +513,11 @@ exports.createProperty = async (req, res) => {
           duration: parsedDuration,
           isInstallment: parsedIsInstallment,
           is_fractional: parsedIsFractional,
-          isFractionalInstallment: isFractionalInstallment,
+          isFractionalInstallment,
           fractional_slots: parsedFractionalSlots,
           price_per_slot: parsedIsFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
           available_slots: parsedIsFractional ? parsedFractionalSlots : null,
-          isRental: String(isRental).toLowerCase() === "true",
+          isRental: parsedIsRental,
           kitchen: splitToArray(kitchen),
           heating: splitToArray(heating),
           cooling: splitToArray(cooling),
@@ -530,23 +526,24 @@ exports.createProperty = async (req, res) => {
           parking: splitToArray(parking)
         };
   
-        // === Debug array fields ===
+        // Debug log for array fields
         [
           'material', 'parking', 'lot', 'type_and_style', 'special_features', 'interior_area'
         ].forEach(field => {
           console.log(`${field}:`, newPropertyData[field], 'Type:', typeof newPropertyData[field]);
         });
   
-        // === Create Property Record ===
+        // Create the property record
         const newProperty = await Property.create(newPropertyData);
   
-        // === Reload property to get all updated fields ===
+        // Reload the property from DB to get updated fields
         const property = await Property.findByPk(newProperty.id);
   
-        // === Upload Images to Cloudinary ===
+        // Upload images to Cloudinary
         let imageUrls = [];
         if (req.files && req.files.length > 0) {
           imageUrls = await uploadImagesToCloudinary(req.files);
+  
           if (!Array.isArray(imageUrls)) {
             imageUrls = [imageUrls];
           }
@@ -574,7 +571,6 @@ exports.createProperty = async (req, res) => {
       }
     });
   };
-  
   
   
 
