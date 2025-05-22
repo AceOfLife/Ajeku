@@ -471,16 +471,13 @@ exports.createProperty = async (req, res) => {
           isInstallment
         } = req.body;
   
-        // Parse booleans consistently
-        const parsedIsFractional = is_fractional === "true";
-        const parsedIsInstallment = isInstallment === "true";
-        const parsedIsRental = isRental === "true";
-  
-        const parsedFractionalSlots = parsedIsFractional ? parseInt(fractional_slots, 10) || 0 : null;
+        const parsedFractional = is_fractional === "true";
+        const parsedFractionalSlots = parsedFractional ? parseInt(fractional_slots, 10) || 0 : null;
         const parsedPrice = parseFloat(price) || 0;
-        const isFractionalInstallment = parsedIsFractional && parsedIsInstallment;
+        // const parsedIsInstallment = isInstallment === "true";
+        const isFractionalInstallment = parsedFractional && parsedIsInstallment;
   
-        const parsedDuration = parsedIsInstallment && !parsedIsFractional
+        const parsedDuration = parsedIsInstallment && !parsedFractional
           ? parseInt(duration, 10) || null
           : null;
   
@@ -509,12 +506,12 @@ exports.createProperty = async (req, res) => {
           percentage: percentage || "",
           duration: parsedDuration,
           isInstallment: parsedIsInstallment,
-          is_fractional: parsedIsFractional,
-          isFractionalInstallment,
+          is_fractional: parsedFractional,
           fractional_slots: parsedFractionalSlots,
-          price_per_slot: parsedIsFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
-          available_slots: parsedIsFractional ? parsedFractionalSlots : null,
-          isRental: parsedIsRental,
+          price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
+          available_slots: parsedFractional ? parsedFractionalSlots : null,
+          isRental: isRental === "true",
+          isInstallment: isInstallment === "true",
           kitchen: splitToArray(kitchen),
           heating: splitToArray(heating),
           cooling: splitToArray(cooling),
@@ -570,6 +567,7 @@ exports.createProperty = async (req, res) => {
     });
   };
   
+
 
 
 // Update an existing property
