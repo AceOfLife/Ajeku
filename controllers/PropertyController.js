@@ -470,19 +470,22 @@ exports.createProperty = async (req, res) => {
           isInstallment
         } = req.body;
   
-        // Safe boolean parsing from form data strings
-        const parsedIsInstallment = String(isInstallment).toLowerCase() === "true";
+        // === Parse and normalize fields ===
         const parsedIsFractional = String(is_fractional).toLowerCase() === "true";
         const parsedFractionalSlots = parsedIsFractional ? parseInt(fractional_slots, 10) || 0 : null;
         const parsedPrice = parseFloat(price) || 0;
+        const parsedIsInstallment = String(isInstallment).toLowerCase() === "true";
+        const isFractionalInstallment = parsedIsFractional && parsedIsInstallment;
+  
         const parsedDuration = parsedIsInstallment && !parsedIsFractional
           ? parseInt(duration, 10) || null
           : null;
   
-        // Debug
+        // === Debug logs ===
         console.log("parsedIsInstallment:", parsedIsInstallment);
         console.log("parsedIsFractional:", parsedIsFractional);
         console.log("parsedDuration:", parsedDuration);
+        console.log("parsedFractionalSlots:", parsedFractionalSlots);
   
         const newPropertyData = {
           name,
@@ -510,6 +513,7 @@ exports.createProperty = async (req, res) => {
           duration: parsedDuration,
           isInstallment: parsedIsInstallment,
           is_fractional: parsedIsFractional,
+          isFractionalInstallment: isFractionalInstallment,
           fractional_slots: parsedFractionalSlots,
           price_per_slot: parsedIsFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
           available_slots: parsedIsFractional ? parsedFractionalSlots : null,
@@ -522,20 +526,20 @@ exports.createProperty = async (req, res) => {
           parking: splitToArray(parking)
         };
   
-        // Debug array fields
+        // === Debug array fields ===
         [
           'material', 'parking', 'lot', 'type_and_style', 'special_features', 'interior_area'
         ].forEach(field => {
           console.log(`${field}:`, newPropertyData[field], 'Type:', typeof newPropertyData[field]);
         });
   
-        // Create the property record
+        // === Create Property Record ===
         const newProperty = await Property.create(newPropertyData);
   
-        // Immediately reload the property from DB
+        // === Reload property to get all updated fields ===
         const property = await Property.findByPk(newProperty.id);
   
-        // Upload Images to Cloudinary
+        // === Upload Images to Cloudinary ===
         let imageUrls = [];
         if (req.files && req.files.length > 0) {
           imageUrls = await uploadImagesToCloudinary(req.files);
@@ -544,7 +548,6 @@ exports.createProperty = async (req, res) => {
           }
   
           await PropertyImage.create({
-            property,
             property_id: newProperty.id,
             image_url: imageUrls
           });
