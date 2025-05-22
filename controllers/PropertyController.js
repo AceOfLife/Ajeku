@@ -449,7 +449,6 @@ const axios = require("axios");
 //   };
   
   
-// New update with is_Fractional and isInstallment
 exports.createProperty = async (req, res) => {
     upload(req, res, async (err) => {
       if (err) {
@@ -471,15 +470,19 @@ exports.createProperty = async (req, res) => {
           isInstallment
         } = req.body;
   
-        const parsedFractional = is_fractional === "true";
-        const parsedFractionalSlots = parsedFractional ? parseInt(fractional_slots, 10) || 0 : null;
+        // Safe boolean parsing from form data strings
+        const parsedIsInstallment = String(isInstallment).toLowerCase() === "true";
+        const parsedIsFractional = String(is_fractional).toLowerCase() === "true";
+        const parsedFractionalSlots = parsedIsFractional ? parseInt(fractional_slots, 10) || 0 : null;
         const parsedPrice = parseFloat(price) || 0;
-        const parsedIsInstallment = isInstallment === "true";
-        const isFractionalInstallment = parsedFractional && parsedIsInstallment;
-  
-        const parsedDuration = parsedIsInstallment && !parsedFractional
+        const parsedDuration = parsedIsInstallment && !parsedIsFractional
           ? parseInt(duration, 10) || null
           : null;
+  
+        // Debug
+        console.log("parsedIsInstallment:", parsedIsInstallment);
+        console.log("parsedIsFractional:", parsedIsFractional);
+        console.log("parsedDuration:", parsedDuration);
   
         const newPropertyData = {
           name,
@@ -506,11 +509,11 @@ exports.createProperty = async (req, res) => {
           percentage: percentage || "",
           duration: parsedDuration,
           isInstallment: parsedIsInstallment,
-          is_fractional: parsedFractional,
+          is_fractional: parsedIsFractional,
           fractional_slots: parsedFractionalSlots,
-          price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
-          available_slots: parsedFractional ? parsedFractionalSlots : null,
-          isRental: isRental === "true",
+          price_per_slot: parsedIsFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
+          available_slots: parsedIsFractional ? parsedFractionalSlots : null,
+          isRental: String(isRental).toLowerCase() === "true",
           kitchen: splitToArray(kitchen),
           heating: splitToArray(heating),
           cooling: splitToArray(cooling),
@@ -529,14 +532,13 @@ exports.createProperty = async (req, res) => {
         // Create the property record
         const newProperty = await Property.create(newPropertyData);
   
-        // Immediately reload the property from DB to get all updated fields
+        // Immediately reload the property from DB
         const property = await Property.findByPk(newProperty.id);
   
         // Upload Images to Cloudinary
         let imageUrls = [];
         if (req.files && req.files.length > 0) {
           imageUrls = await uploadImagesToCloudinary(req.files);
-  
           if (!Array.isArray(imageUrls)) {
             imageUrls = [imageUrls];
           }
@@ -565,6 +567,7 @@ exports.createProperty = async (req, res) => {
       }
     });
   };
+  
   
 
 
