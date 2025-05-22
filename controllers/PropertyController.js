@@ -449,6 +449,7 @@ const axios = require("axios");
 //   };
   
   
+// New update with is_Fractional and isInstallment
 exports.createProperty = async (req, res) => {
     upload(req, res, async (err) => {
       if (err) {
@@ -470,19 +471,15 @@ exports.createProperty = async (req, res) => {
           isInstallment
         } = req.body;
   
-        // Normalize and parse boolean fields
-        const parsedIsFractional = String(is_fractional).toLowerCase() === "true";
-        const parsedIsInstallment = String(isInstallment).toLowerCase() === "true";
-        const parsedIsRental = String(isRental).toLowerCase() === "true";
+        // Parse booleans consistently
+        const parsedIsFractional = is_fractional === "true";
+        const parsedIsInstallment = isInstallment === "true";
+        const parsedIsRental = isRental === "true";
   
-        // Parse numbers
-        const parsedPrice = parseFloat(price) || 0;
         const parsedFractionalSlots = parsedIsFractional ? parseInt(fractional_slots, 10) || 0 : null;
-  
-        // Determine if this is a fractional installment case
+        const parsedPrice = parseFloat(price) || 0;
         const isFractionalInstallment = parsedIsFractional && parsedIsInstallment;
   
-        // Set duration if it's a non-fractional installment property
         const parsedDuration = parsedIsInstallment && !parsedIsFractional
           ? parseInt(duration, 10) || null
           : null;
@@ -526,7 +523,7 @@ exports.createProperty = async (req, res) => {
           parking: splitToArray(parking)
         };
   
-        // Debug log for array fields
+        // Debug array fields
         [
           'material', 'parking', 'lot', 'type_and_style', 'special_features', 'interior_area'
         ].forEach(field => {
@@ -536,10 +533,10 @@ exports.createProperty = async (req, res) => {
         // Create the property record
         const newProperty = await Property.create(newPropertyData);
   
-        // Reload the property from DB to get updated fields
+        // Immediately reload the property from DB to get all updated fields
         const property = await Property.findByPk(newProperty.id);
   
-        // Upload images to Cloudinary
+        // Upload Images to Cloudinary
         let imageUrls = [];
         if (req.files && req.files.length > 0) {
           imageUrls = await uploadImagesToCloudinary(req.files);
@@ -549,6 +546,7 @@ exports.createProperty = async (req, res) => {
           }
   
           await PropertyImage.create({
+            property,
             property_id: newProperty.id,
             image_url: imageUrls
           });
@@ -572,8 +570,6 @@ exports.createProperty = async (req, res) => {
     });
   };
   
-  
-
 
 
 // Update an existing property
