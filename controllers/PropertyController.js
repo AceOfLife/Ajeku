@@ -460,6 +460,10 @@ exports.createProperty = async (req, res) => {
       console.dir(req.body, { depth: null });
   
       try {
+        // Normalize naming between camelCase and snake_case
+        req.body.isInstallment = req.body.isInstallment ?? req.body.is_installment;
+        req.body.is_fractional = req.body.is_fractional ?? req.body.isFractional;
+  
         const {
           name, size, price, agent_id, type, location, area,
           number_of_baths, number_of_rooms, address, description,
@@ -570,6 +574,7 @@ exports.createProperty = async (req, res) => {
       }
     });
   };
+  
   
   
 
