@@ -465,7 +465,7 @@ exports.createProperty = async (req, res) => {
           name, size, price, agent_id, type, location, area,
           number_of_baths, number_of_rooms, address, description,
           payment_plan, year_built, special_features, appliances, features,
-          interior_area, parking, material, annual_tax_amount, date_on_market,
+          interior_area, parking, material, date_on_market,
           ownership, kitchen, heating, cooling, type_and_style, lot,
           percentage, duration, is_fractional, fractional_slots, isRental,
           isInstallment
@@ -474,7 +474,7 @@ exports.createProperty = async (req, res) => {
         const parsedFractional = is_fractional === "true";
         const parsedFractionalSlots = parsedFractional ? parseInt(fractional_slots, 10) || 0 : null;
         const parsedPrice = parseFloat(price) || 0;
-        // const parsedIsInstallment = isInstallment === "true";
+        const parsedIsInstallment = isInstallment === "true";
         const isFractionalInstallment = parsedFractional && parsedIsInstallment;
   
         const parsedDuration = parsedIsInstallment && !parsedFractional
@@ -505,13 +505,12 @@ exports.createProperty = async (req, res) => {
           ownership: ownership || "",
           percentage: percentage || "",
           duration: parsedDuration,
-        //   isInstallment: parsedIsInstallment,
+          isInstallment: parsedIsInstallment,
           is_fractional: parsedFractional,
           fractional_slots: parsedFractionalSlots,
           price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
           available_slots: parsedFractional ? parsedFractionalSlots : null,
           isRental: isRental === "true",
-          isInstallment: isInstallment === "true",
           kitchen: splitToArray(kitchen),
           heating: splitToArray(heating),
           cooling: splitToArray(cooling),
