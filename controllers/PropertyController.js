@@ -450,6 +450,125 @@ const axios = require("axios");
   
   
 // New update with is_Fractional and isInstallment
+// exports.createProperty = async (req, res) => {
+//     upload(req, res, async (err) => {
+//       if (err) {
+//         console.error("Multer error:", err);
+//         return res.status(400).json({ message: 'Error uploading images', error: err });
+//       }
+  
+//       console.log("=== Raw req.body ===");
+//       console.dir(req.body, { depth: null });
+  
+//       try {
+//         const {
+//           name, size, price, agent_id, type, location, area,
+//           number_of_baths, number_of_rooms, address, description,
+//           payment_plan, year_built, special_features, appliances, features,
+//           interior_area, parking, material, date_on_market,
+//           ownership, kitchen, heating, cooling, type_and_style, lot,
+//           percentage, duration, is_fractional, fractional_slots, isRental,
+//           isInstallment
+//         } = req.body;
+  
+//         const parsedFractional = is_fractional === "true";
+//         const parsedFractionalSlots = parsedFractional ? parseInt(fractional_slots, 10) || 0 : null;
+//         const parsedPrice = parseFloat(price) || 0;
+//         const parsedIsInstallment = isInstallment === "true";
+//         const isFractionalInstallment = parsedFractional && parsedIsInstallment;
+  
+//         const parsedDuration = parsedIsInstallment && !parsedFractional
+//           ? parseInt(duration, 10) || null
+//           : null;
+  
+//         const newPropertyData = {
+//           name,
+//           size: parseInt(size, 10) || 0,
+//           price: parsedPrice,
+//           agent_id: parseInt(agent_id, 10) || null,
+//           type,
+//           location: location || "",
+//           area: area || "",
+//           address: address || "",
+//           number_of_baths: parseInt(number_of_baths, 10) || 0,
+//           number_of_rooms: parseInt(number_of_rooms, 10) || 0,
+//           listed_by: "Admin",
+//           description: description || "",
+//           payment_plan: payment_plan || "",
+//           year_built: parseInt(year_built, 10) || 0,
+//           special_features: splitToArray(special_features),
+//           appliances: splitToArray(appliances),
+//           features: splitToArray(features),
+//           interior_area: interior_area ? interior_area.toString() : null,
+//           material: splitToArray(material),
+//           date_on_market: date_on_market ? new Date(date_on_market).toISOString() : new Date().toISOString(),
+//           ownership: ownership || "",
+//           percentage: percentage || "",
+//           duration: parsedDuration,
+//           isInstallment: parsedIsInstallment,
+//           is_fractional: parsedFractional,
+//           fractional_slots: parsedFractionalSlots,
+//           price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
+//           available_slots: parsedFractional ? parsedFractionalSlots : null,
+//           isRental: isRental === "true",
+//           kitchen: splitToArray(kitchen),
+//           heating: splitToArray(heating),
+//           cooling: splitToArray(cooling),
+//           type_and_style: splitToArray(type_and_style),
+//           lot: splitToArray(lot),
+//           parking: splitToArray(parking)
+//         };
+  
+//         // Debug array fields
+//         [
+//           'material', 'parking', 'lot', 'type_and_style', 'special_features', 'interior_area'
+//         ].forEach(field => {
+//           console.log(`${field}:`, newPropertyData[field], 'Type:', typeof newPropertyData[field]);
+//         });
+  
+//         // Create the property record
+//         const newProperty = await Property.create(newPropertyData);
+  
+//         // Immediately reload the property from DB to get all updated fields
+//         const property = await Property.findByPk(newProperty.id);
+  
+//         // Upload Images to Cloudinary
+//         let imageUrls = [];
+//         if (req.files && req.files.length > 0) {
+//           imageUrls = await uploadImagesToCloudinary(req.files);
+  
+//           if (!Array.isArray(imageUrls)) {
+//             imageUrls = [imageUrls];
+//           }
+  
+//           await PropertyImage.create({
+//             property,
+//             property_id: newProperty.id,
+//             image_url: imageUrls
+//           });
+//         }
+  
+//         const savedImageRecord = await PropertyImage.findOne({
+//           where: { property_id: newProperty.id },
+//           attributes: ['image_url']
+//         });
+  
+//         res.status(201).json({
+//           property: newProperty,
+//           images: savedImageRecord?.image_url || [],
+//           documentUrl: null
+//         });
+  
+//       } catch (error) {
+//         console.error("Error creating property:", error);
+//         res.status(500).json({ message: 'Error creating property', error });
+//       }
+//     });
+//   };
+  
+
+
+// May 23 2025 Update
 exports.createProperty = async (req, res) => {
     upload(req, res, async (err) => {
       if (err) {
@@ -457,10 +576,12 @@ exports.createProperty = async (req, res) => {
         return res.status(400).json({ message: "Error uploading images", error: err });
       }
   
+      // Enhanced logging for debugging frontend payload
       console.log("=== Raw req.body ===");
-      console.dir(req.body, { depth: null });
-      console.log("Raw isInstallment:", req.body.isInstallment, typeof req.body.isInstallment);
-      console.log("Raw duration:", req.body.duration, typeof req.body.duration);
+      console.log(JSON.stringify(req.body, null, 2));
+      console.log("Request headers:", JSON.stringify(req.headers, null, 2));
+      console.log("Raw isInstallment:", req.body.isInstallment, "Type:", typeof req.body.isInstallment);
+      console.log("Raw duration:", req.body.duration, "Type:", typeof req.body.duration);
   
       try {
         const {
@@ -474,11 +595,18 @@ exports.createProperty = async (req, res) => {
         } = req.body;
   
         // Typecasting
-        const parsedFractional = ["true", "1", true].includes(is_fractional);
-        const parsedFractionalSlots = parsedFractional ? parseInt(fractional_slots, 10) || 0 : null;
-        const parsedPrice = parseFloat(price) || 0;
-        const parsedIsInstallment = ["true", "1", true].includes(isInstallment);
+        const parsedIsInstallment = isInstallment === "true" || isInstallment === "1" || isInstallment === true;
         const parsedDuration = duration != null ? parseInt(duration, 10) : null;
+  
+        // Log parsed values
+        console.log("Parsed isInstallment:", parsedIsInstallment, "Type:", typeof parsedIsInstallment);
+        console.log("Parsed duration:", parsedDuration, "Type:", typeof parsedDuration);
+        if (isInstallment === undefined) {
+          console.log("isInstallment is undefined in request");
+        }
+        if (isInstallment === "false" || isInstallment === "0" || isInstallment === false) {
+          console.log("isInstallment explicitly set to false");
+        }
   
         // Validation
         if (isInstallment === undefined) {
@@ -487,14 +615,15 @@ exports.createProperty = async (req, res) => {
         if (parsedIsInstallment && (parsedDuration == null || isNaN(parsedDuration) || parsedDuration <= 0)) {
           return res.status(400).json({ message: "Duration must be a positive integer when isInstallment is true" });
         }
+        // Reset duration if isInstallment is false
+        const finalDuration = parsedIsInstallment ? parsedDuration : null;
   
-        console.log("Parsed isInstallment:", parsedIsInstallment);
-        console.log("Parsed duration:", parsedDuration);
+        console.log("Final duration:", finalDuration);
   
         const newPropertyData = {
           name,
           size: parseInt(size, 10) || 0,
-          price: parsedPrice,
+          price: parseFloat(price) || 0,
           agent_id: parseInt(agent_id, 10) || null,
           type,
           location: location || "",
@@ -514,12 +643,12 @@ exports.createProperty = async (req, res) => {
           date_on_market: date_on_market ? new Date(date_on_market).toISOString() : new Date().toISOString(),
           ownership: ownership || "",
           percentage: percentage || "",
-          duration: parsedDuration,
+          duration: finalDuration,
           isInstallment: parsedIsInstallment,
-          is_fractional: parsedFractional,
-          fractional_slots: parsedFractionalSlots,
-          price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
-          available_slots: parsedFractional ? parsedFractionalSlots : null,
+          is_fractional: ["true", "1", true].includes(is_fractional),
+          fractional_slots: ["true", "1", true].includes(is_fractional) ? parseInt(fractional_slots, 10) || 0 : null,
+          price_per_slot: ["true", "1", true].includes(is_fractional) ? (parseFloat(price) / (parseInt(fractional_slots, 10) || 1)) : null,
+          available_slots: ["true", "1", true].includes(is_fractional) ? parseInt(fractional_slots, 10) : null,
           isRental: ["true", "1", true].includes(isRental),
           kitchen: splitToArray(kitchen),
           heating: splitToArray(heating),
@@ -544,6 +673,9 @@ exports.createProperty = async (req, res) => {
         // Create the property record
         const newProperty = await Property.create(newPropertyData);
   
+        // Log saved values
+        console.log("Saved isInstallment:", newProperty.isInstallment, "Saved duration:", newProperty.duration);
+  
         // Immediately reload the property from DB to get all updated fields
         const property = await Property.findByPk(newProperty.id);
   
@@ -551,11 +683,9 @@ exports.createProperty = async (req, res) => {
         let imageUrls = [];
         if (req.files && req.files.length > 0) {
           imageUrls = await uploadImagesToCloudinary(req.files);
-  
           if (!Array.isArray(imageUrls)) {
             imageUrls = [imageUrls];
           }
-  
           await PropertyImage.create({
             property,
             property_id: newProperty.id,
@@ -568,6 +698,8 @@ exports.createProperty = async (req, res) => {
           attributes: ["image_url"]
         });
   
+        // Log response data
+        console.log("Response property isInstallment:", newProperty.isInstallment);
         res.status(201).json({
           property: newProperty,
           images: savedImageRecord?.image_url || [],
@@ -579,6 +711,7 @@ exports.createProperty = async (req, res) => {
       }
     });
   };
+
 
 // Update an existing property
 exports.updateProperty = async (req, res) => {
