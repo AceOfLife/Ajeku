@@ -454,11 +454,13 @@ exports.createProperty = async (req, res) => {
     upload(req, res, async (err) => {
       if (err) {
         console.error("Multer error:", err);
-        return res.status(400).json({ message: 'Error uploading images', error: err });
+        return res.status(400).json({ message: "Error uploading images", error: err });
       }
   
       console.log("=== Raw req.body ===");
       console.dir(req.body, { depth: null });
+      console.log("Raw isInstallment:", req.body.isInstallment, typeof req.body.isInstallment);
+      console.log("Raw duration:", req.body.duration, typeof req.body.duration);
   
       try {
         const {
@@ -471,15 +473,23 @@ exports.createProperty = async (req, res) => {
           isInstallment
         } = req.body;
   
-        const parsedFractional = is_fractional === "true";
+        // Typecasting
+        const parsedFractional = ["true", "1", true].includes(is_fractional);
         const parsedFractionalSlots = parsedFractional ? parseInt(fractional_slots, 10) || 0 : null;
         const parsedPrice = parseFloat(price) || 0;
-        const parsedIsInstallment = isInstallment === "true";
-        const isFractionalInstallment = parsedFractional && parsedIsInstallment;
+        const parsedIsInstallment = ["true", "1", true].includes(isInstallment);
+        const parsedDuration = duration != null ? parseInt(duration, 10) : null;
   
-        const parsedDuration = parsedIsInstallment && !parsedFractional
-          ? parseInt(duration, 10) || null
-          : null;
+        // Validation
+        if (isInstallment === undefined) {
+          return res.status(400).json({ message: "isInstallment is required" });
+        }
+        if (parsedIsInstallment && (parsedDuration == null || isNaN(parsedDuration) || parsedDuration <= 0)) {
+          return res.status(400).json({ message: "Duration must be a positive integer when isInstallment is true" });
+        }
+  
+        console.log("Parsed isInstallment:", parsedIsInstallment);
+        console.log("Parsed duration:", parsedDuration);
   
         const newPropertyData = {
           name,
@@ -510,7 +520,7 @@ exports.createProperty = async (req, res) => {
           fractional_slots: parsedFractionalSlots,
           price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
           available_slots: parsedFractional ? parsedFractionalSlots : null,
-          isRental: isRental === "true",
+          isRental: ["true", "1", true].includes(isRental),
           kitchen: splitToArray(kitchen),
           heating: splitToArray(heating),
           cooling: splitToArray(cooling),
@@ -521,9 +531,14 @@ exports.createProperty = async (req, res) => {
   
         // Debug array fields
         [
-          'material', 'parking', 'lot', 'type_and_style', 'special_features', 'interior_area'
-        ].forEach(field => {
-          console.log(`${field}:`, newPropertyData[field], 'Type:', typeof newPropertyData[field]);
+          "material",
+          "parking",
+          "lot",
+          "type_and_style",
+          "special_features",
+          "interior_area"
+        ].forEach((field) => {
+          console.log(`${field}:`, newPropertyData[field], "Type:", typeof newPropertyData[field]);
         });
   
         // Create the property record
@@ -550,7 +565,7 @@ exports.createProperty = async (req, res) => {
   
         const savedImageRecord = await PropertyImage.findOne({
           where: { property_id: newProperty.id },
-          attributes: ['image_url']
+          attributes: ["image_url"]
         });
   
         res.status(201).json({
@@ -558,16 +573,12 @@ exports.createProperty = async (req, res) => {
           images: savedImageRecord?.image_url || [],
           documentUrl: null
         });
-  
       } catch (error) {
         console.error("Error creating property:", error);
-        res.status(500).json({ message: 'Error creating property', error });
+        res.status(500).json({ message: "Error creating property", error });
       }
     });
   };
-  
-
-
 
 // Update an existing property
 exports.updateProperty = async (req, res) => {
