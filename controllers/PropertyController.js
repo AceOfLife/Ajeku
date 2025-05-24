@@ -572,14 +572,17 @@ const axios = require("axios");
 exports.createProperty = async (req, res) => {
     upload(req, res, async (err) => {
       if (err) {
-        console.error("Multer error:", err);
-        return res.status(400).json({ message: "Error uploading images", error: err });
+        console.error("Multer error:", err.message);
+        return res.status(400).json({ message: "Error uploading images", error: err.message });
       }
   
+      // Log raw body, headers, and Multer-parsed fields
       console.log("=== Raw req.body ===");
-      console.dir(req.body, { depth: null });
-      console.log("Raw isInstallment:", req.body.isInstallment, typeof req.body.isInstallment);
-      console.log("Raw duration:", req.body.duration, typeof req.body.duration);
+      console.log(JSON.stringify(req.body, null, 2));
+      console.log("=== Request headers ===");
+      console.log(JSON.stringify(req.headers, null, 2));
+      console.log("=== Multer files ===");
+      console.log(req.files ? JSON.stringify(req.files, null, 2) : "No files uploaded");
   
       try {
         const {
@@ -592,28 +595,42 @@ exports.createProperty = async (req, res) => {
           isInstallment
         } = req.body;
   
+        // Normalize fields to handle FormData quirks
+        const normalizeField = (value) => (typeof value === "string" ? value.trim() : value === undefined || value === null ? null : value);
+  
+        const rawIsInstallment = normalizeField(isInstallment);
+        const rawDuration = normalizeField(duration);
+  
+        // Log raw values
+        console.log("Raw isInstallment:", rawIsInstallment, "Type:", typeof rawIsInstallment);
+        console.log("Raw duration:", rawDuration, "Type:", typeof rawDuration);
+  
         // Typecasting
-        const parsedFractional = ["true", "1", true].includes(is_fractional);
-        const parsedFractionalSlots = parsedFractional ? parseInt(fractional_slots, 10) || 0 : null;
-        const parsedPrice = parseFloat(price) || 0;
-        const parsedIsInstallment = ["true", "1", true].includes(isInstallment);
-        const parsedDuration = duration != null ? parseInt(duration, 10) : null;
+        const parsedIsInstallment = rawIsInstallment === "true" || rawIsInstallment === "1" || rawIsInstallment === true;
+        const parsedDuration = rawDuration != null && rawDuration !== "" ? parseInt(rawDuration, 10) : null;
+  
+        // Log parsed values
+        console.log("Parsed isInstallment:", parsedIsInstallment, "Type:", typeof parsedIsInstallment);
+        console.log("Parsed duration:", parsedDuration, "Type:", typeof parsedDuration);
   
         // Validation
-        if (isInstallment === undefined) {
+        if (rawIsInstallment === null || rawIsInstallment === "") {
+          console.log("Validation failed: isInstallment is missing or empty");
           return res.status(400).json({ message: "isInstallment is required" });
         }
         if (parsedIsInstallment && (parsedDuration == null || isNaN(parsedDuration) || parsedDuration <= 0)) {
+          console.log("Validation failed: Duration invalid for isInstallment=true");
           return res.status(400).json({ message: "Duration must be a positive integer when isInstallment is true" });
         }
   
-        console.log("Parsed isInstallment:", parsedIsInstallment);
-        console.log("Parsed duration:", parsedDuration);
+        // Reset duration if isInstallment is false
+        const finalDuration = parsedIsInstallment ? parsedDuration : null;
+        console.log("Final duration:", finalDuration);
   
         const newPropertyData = {
           name,
           size: parseInt(size, 10) || 0,
-          price: parsedPrice,
+          price: parseFloat(price) || 0,
           agent_id: parseInt(agent_id, 10) || null,
           type,
           location: location || "",
@@ -633,12 +650,12 @@ exports.createProperty = async (req, res) => {
           date_on_market: date_on_market ? new Date(date_on_market).toISOString() : new Date().toISOString(),
           ownership: ownership || "",
           percentage: percentage || "",
-          duration: parsedDuration,
-          isInstallment: parsedIsInstallment,
-          is_fractional: parsedFractional,
-          fractional_slots: parsedFractionalSlots,
-          price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
-          available_slots: parsedFractional ? parsedFractionalSlots : null,
+          duration: finalDuration,
+          isInstallment: !!parsedIsInstallment, // Ensure boolean
+          is_fractional: ["true", "1", true].includes(is_fractional),
+          fractional_slots: ["true", "1", true].includes(is_fractional) ? parseInt(fractional_slots, 10) || 0 : null,
+          price_per_slot: ["true", "1", true].includes(is_fractional) ? (parseFloat(price) / (parseInt(fractional_slots, 10) || 1)) : null,
+          available_slots: ["true", "1", true].includes(is_fractional) ? parseInt(fractional_slots, 10) : null,
           isRental: ["true", "1", true].includes(isRental),
           kitchen: splitToArray(kitchen),
           heating: splitToArray(heating),
@@ -649,32 +666,28 @@ exports.createProperty = async (req, res) => {
         };
   
         // Debug array fields
-        [
-          "material",
-          "parking",
-          "lot",
-          "type_and_style",
-          "special_features",
-          "interior_area"
-        ].forEach((field) => {
+        ["material", "parking", "lot", "type_and_style", "special_features", "interior_area"].forEach((field) => {
           console.log(`${field}:`, newPropertyData[field], "Type:", typeof newPropertyData[field]);
         });
   
         // Create the property record
         const newProperty = await Property.create(newPropertyData);
   
-        // Immediately reload the property from DB to get all updated fields
+        // Log saved values
+        console.log("Saved isInstallment:", newProperty.isInstallment, "Type:", typeof newProperty.isInstallment);
+        console.log("Saved duration:", newProperty.duration, "Type:", typeof newProperty.duration);
+  
+        // Reload property from DB
         const property = await Property.findByPk(newProperty.id);
+        console.log("Reloaded isInstallment:", property.isInstallment, "Reloaded duration:", property.duration);
   
         // Upload Images to Cloudinary
         let imageUrls = [];
-        if (req.files && req.files.length > 0) {
-          imageUrls = await uploadImagesToCloudinary(req.files);
-  
+        if (req.files && req.files.images && req.files.images.length > 0) {
+          imageUrls = await uploadImagesToCloudinary(req.files.images);
           if (!Array.isArray(imageUrls)) {
             imageUrls = [imageUrls];
           }
-  
           await PropertyImage.create({
             property,
             property_id: newProperty.id,
@@ -687,14 +700,16 @@ exports.createProperty = async (req, res) => {
           attributes: ["image_url"]
         });
   
+        // Log response data
+        console.log("Response property isInstallment:", newProperty.isInstallment, "duration:", newProperty.duration);
         res.status(201).json({
           property: newProperty,
           images: savedImageRecord?.image_url || [],
           documentUrl: null
         });
       } catch (error) {
-        console.error("Error creating property:", error);
-        res.status(500).json({ message: "Error creating property", error });
+        console.error("Error creating property:", error.message);
+        res.status(500).json({ message: "Error creating property", error: error.message });
       }
     });
   };
