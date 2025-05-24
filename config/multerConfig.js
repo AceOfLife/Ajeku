@@ -8,8 +8,8 @@ const upload = multer({
   storage: storage,
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 }).fields([
-  { name: 'images', maxCount: 15 }, // File field
-  { name: 'isInstallment', maxCount: 1 }, // Non-file fields
+  { name: 'images', maxCount: 15 },
+  { name: 'isInstallment', maxCount: 1 },
   { name: 'duration', maxCount: 1 },
   { name: 'name', maxCount: 1 },
   { name: 'size', maxCount: 1 },
@@ -40,7 +40,9 @@ const upload = multer({
   { name: 'percentage', maxCount: 1 },
   { name: 'is_fractional', maxCount: 1 },
   { name: 'fractional_slots', maxCount: 1 },
-  { name: 'isRental', maxCount: 1 }
+  { name: 'isRental', maxCount: 1 },
+  { name: 'amount_per_sqft', maxCount: 1 },
+  { name: 'documents', maxCount: 1 }
 ]);
 
 async function uploadImagesToCloudinary(files) {

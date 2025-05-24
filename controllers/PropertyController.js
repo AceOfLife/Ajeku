@@ -594,7 +594,7 @@ exports.createProperty = async (req, res) => {
           interior_area, parking, material, date_on_market,
           ownership, kitchen, heating, cooling, type_and_style, lot,
           percentage, duration, is_fractional, fractional_slots, isRental,
-          isInstallment
+          isInstallment, amount_per_sqft, documents
         } = req.body;
   
         // Normalize fields to handle FormData quirks
@@ -664,7 +664,9 @@ exports.createProperty = async (req, res) => {
           cooling: splitToArray(cooling),
           type_and_style: splitToArray(type_and_style),
           lot: splitToArray(lot),
-          parking: splitToArray(parking)
+          parking: splitToArray(parking),
+          amount_per_sqft: parseFloat(amount_per_sqft) || null,
+          documents: documents || null
         };
   
         // Debug array fields
