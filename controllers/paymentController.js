@@ -190,8 +190,7 @@ exports.initializePayment = async (req, res) => {
         }
 
         amount = property.price / property.duration;
-        console.log(property.duration);
-        console.log(property.price);
+        console.log(amount);
       }
     }
 
