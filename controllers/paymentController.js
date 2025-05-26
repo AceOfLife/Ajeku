@@ -151,9 +151,11 @@ exports.initializePayment = async (req, res) => {
   try {
     const { user_id, property_id, payment_type, slots = 1 } = req.body;
 
+    // Fetch the user
     const user = await User.findByPk(user_id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
+    // Fetch the property
     const property = await Property.findByPk(property_id);
     if (!property) return res.status(404).json({ message: 'Property not found' });
 
@@ -170,14 +172,28 @@ exports.initializePayment = async (req, res) => {
 
       amount = property.price_per_slot * slots;
     } else if (payment_type === "installment" && property.isInstallment) {
-      if (!property.duration || property.duration <= 0) {
-        return res.status(400).json({ message: 'Invalid installment setup' });
-      }
+      if (property.is_fractional) {
+        // Fractional with part-payment logic
+        if (!property.price_per_slot || !property.fractional_slots) {
+          return res.status(400).json({ message: 'Invalid fractional installment setup' });
+        }
 
-      amount = property.price / property.duration;
+        if (slots > property.fractional_slots) {
+          return res.status(400).json({ message: 'Not enough fractional slots available' });
+        }
+
+        amount = property.price_per_slot * slots; // Full slot cost
+      } else {
+        // Standard monthly installment logic
+        if (!property.duration || property.duration <= 0) {
+          return res.status(400).json({ message: 'Invalid installment setup' });
+        }
+
+        amount = property.price / property.duration;
+      }
     }
 
-    const amountInKobo = Math.round(amount * 100);
+    const amountInKobo = Math.round(amount * 100); // Convert to kobo for Paystack
 
     const response = await axios.post(
       "https://api.paystack.co/transaction/initialize",
