@@ -202,7 +202,7 @@ exports.initializePayment = async (req, res) => {
         email: user.email,
         amount: amountInKobo,
         currency: "NGN",
-        callback_url: `https://ajeku-mu.vercel.app/payment-success?propertyId=${property.id}`,
+        callback_url: `https://ajeku-developing.vercel.app?propertyId=${property.id}`,
         metadata: {
           user_id: user.id,
           property_id: property.id,
@@ -525,7 +525,7 @@ exports.verifyPayment = async (req, res) => {
       return res.status(400).json({ message: "Incomplete payment metadata" });
     }
 
-    const user = await User.findOne({ where: { id: user_id } });
+    const user = await User.findByPk(user_id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const property = await Property.findByPk(property_id);
@@ -565,9 +565,25 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // ===== FRACTIONAL INSTALLMENT SLOT PURCHASE (part payment for slots) =====
+    // ===== FRACTIONAL INSTALLMENT (slot part-payment) =====
     if (payment_type === "fractional_installment" && property.is_fractional && property.isFractionalInstallment) {
+      let ownership = await InstallmentOwnership.findOne({
+        where: { user_id, property_id }
+      });
+
+      if (!ownership) {
+        ownership = await InstallmentOwnership.create({
+          user_id,
+          property_id,
+          start_date: new Date(),
+          total_months: null,       // Undefined in this model
+          months_paid: null,
+          status: "incomplete"
+        });
+      }
+
       await InstallmentPayment.create({
+        ownership_id: ownership.id,
         user_id,
         property_id,
         amount_paid: paymentData.amount / 100,
@@ -581,7 +597,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // ===== NON-FRACTIONAL INSTALLMENT (monthly) =====
+    // ===== STANDARD INSTALLMENT (monthly) =====
     if (payment_type === "installment" && property.isInstallment && !property.is_fractional) {
       const totalMonths = parseInt(property.duration);
       const today = new Date();
@@ -596,6 +612,7 @@ exports.verifyPayment = async (req, res) => {
         ownership = await InstallmentOwnership.create({
           user_id,
           property_id,
+          start_date: today,
           total_months: totalMonths,
           months_paid: 1,
           status: totalMonths === 1 ? "completed" : "ongoing"
@@ -636,6 +653,7 @@ exports.verifyPayment = async (req, res) => {
     return res.status(500).json({ message: "Error verifying payment", error: error.message });
   }
 };
+
 
 
 // Get installment status for a specific property

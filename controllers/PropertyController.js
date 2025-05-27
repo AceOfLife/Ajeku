@@ -817,10 +817,53 @@ exports.getAllProperties = async (req, res) => {
 //     }
 // };
 
+// exports.getPropertyById = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { userId } = req.query; // Pass userId from frontend if available
+
+//     const property = await Property.findOne({
+//       where: { id },
+//       include: [{ model: PropertyImage, as: 'images' }]
+//     });
+
+//     if (!property) {
+//       return res.status(404).json({ message: 'Property not found' });
+//     }
+
+//     await property.update({ last_checked: new Date() });
+
+//     let installmentProgress = null;
+//     if (userId && property.isInstallment && !property.is_fractional) {
+//       const ownership = await InstallmentOwnership.findOne({
+//         where: { user_id: userId, property_id: id }
+//       });
+
+//       const payments = await InstallmentPayment.findAll({
+//         where: { user_id: userId, property_id: id }
+//       });
+
+//       const paidMonths = payments.length;
+//       const totalMonths = property.duration || 0;
+//       const remainingMonths = totalMonths - paidMonths;
+
+//       installmentProgress = {
+//         totalMonths,
+//         paidMonths,
+//         remainingMonths
+//       };
+//     }
+
+//     res.status(200).json({ property, installmentProgress });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Error retrieving property', error });
+//   }
+// };
+
 exports.getPropertyById = async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query; // Pass userId from frontend if available
+    const { userId } = req.query;
 
     const property = await Property.findOne({
       where: { id },
@@ -831,34 +874,34 @@ exports.getPropertyById = async (req, res) => {
       return res.status(404).json({ message: 'Property not found' });
     }
 
+    // Update last_checked timestamp
     await property.update({ last_checked: new Date() });
 
     let installmentProgress = null;
+
     if (userId && property.isInstallment && !property.is_fractional) {
       const ownership = await InstallmentOwnership.findOne({
         where: { user_id: userId, property_id: id }
       });
 
-      const payments = await InstallmentPayment.findAll({
-        where: { user_id: userId, property_id: id }
-      });
-
-      const paidMonths = payments.length;
-      const totalMonths = property.duration || 0;
-      const remainingMonths = totalMonths - paidMonths;
-
-      installmentProgress = {
-        totalMonths,
-        paidMonths,
-        remainingMonths
-      };
+      if (ownership) {
+        installmentProgress = {
+          totalMonths: ownership.total_months,
+          paidMonths: ownership.months_paid,
+          remainingMonths: ownership.total_months - ownership.months_paid,
+          status: ownership.status,
+          startDate: ownership.start_date
+        };
+      }
     }
 
     res.status(200).json({ property, installmentProgress });
   } catch (error) {
+    console.error("Error in getPropertyById:", error);
     res.status(500).json({ message: 'Error retrieving property', error });
   }
 };
+
 
 
 const { Op } = require('sequelize');
