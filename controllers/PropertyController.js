@@ -794,27 +794,70 @@ exports.getAllProperties = async (req, res) => {
 };
 
 // Get a property by ID
-exports.getPropertyById = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const property = await Property.findOne({
-            where: { id },
-            include: [{ model: PropertyImage, as: 'images' }] // Include images for the property
-        });
+// exports.getPropertyById = async (req, res) => {
+//     try {
+//         const { id } = req.params;
+//         const property = await Property.findOne({
+//             where: { id },
+//             include: [{ model: PropertyImage, as: 'images' }] // Include images for the property
+//         });
 
-        if (property) {
-            // Update the 'last_checked' field to current timestamp when the property is viewed
-            await property.update({
-                last_checked: new Date(),
-            });
+//         if (property) {
+//             // Update the 'last_checked' field to current timestamp when the property is viewed
+//             await property.update({
+//                 last_checked: new Date(),
+//             });
             
-            res.status(200).json(property);
-        } else {
-            res.status(404).json({ message: 'Property not found' });
-        }
-    } catch (error) {
-        res.status(500).json({ message: 'Error retrieving property', error });
+//             res.status(200).json(property);
+//         } else {
+//             res.status(404).json({ message: 'Property not found' });
+//         }
+//     } catch (error) {
+//         res.status(500).json({ message: 'Error retrieving property', error });
+//     }
+// };
+
+exports.getPropertyById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.query; // Pass userId from frontend if available
+
+    const property = await Property.findOne({
+      where: { id },
+      include: [{ model: PropertyImage, as: 'images' }]
+    });
+
+    if (!property) {
+      return res.status(404).json({ message: 'Property not found' });
     }
+
+    await property.update({ last_checked: new Date() });
+
+    let installmentProgress = null;
+    if (userId && property.isInstallment && !property.is_fractional) {
+      const ownership = await InstallmentOwnership.findOne({
+        where: { user_id: userId, property_id: id }
+      });
+
+      const payments = await InstallmentPayment.findAll({
+        where: { user_id: userId, property_id: id }
+      });
+
+      const paidMonths = payments.length;
+      const totalMonths = property.duration || 0;
+      const remainingMonths = totalMonths - paidMonths;
+
+      installmentProgress = {
+        totalMonths,
+        paidMonths,
+        remainingMonths
+      };
+    }
+
+    res.status(200).json({ property, installmentProgress });
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving property', error });
+  }
 };
 
 
