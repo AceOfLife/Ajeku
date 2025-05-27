@@ -202,7 +202,7 @@ exports.initializePayment = async (req, res) => {
         email: user.email,
         amount: amountInKobo,
         currency: "NGN",
-        callback_url: `https://ajeku-developing.vercel.app?propertyId=${property.id}`,
+        callback_url: `https://ajeku-developing.vercel.app/payment-success?propertyId=${property.id}`,
         metadata: {
           user_id: user.id,
           property_id: property.id,
