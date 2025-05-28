@@ -860,6 +860,49 @@ exports.getAllProperties = async (req, res) => {
 //   }
 // };
 
+// Revert to today if any errors for the meeting
+// exports.getPropertyById = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { userId } = req.query;
+
+//     const property = await Property.findOne({
+//       where: { id },
+//       include: [{ model: PropertyImage, as: 'images' }]
+//     });
+
+//     if (!property) {
+//       return res.status(404).json({ message: 'Property not found' });
+//     }
+
+//     // Update last_checked timestamp
+//     await property.update({ last_checked: new Date() });
+
+//     let installmentProgress = null;
+
+//     if (userId && property.isInstallment && !property.is_fractional) {
+//       const ownership = await InstallmentOwnership.findOne({
+//         where: { user_id: userId, property_id: id }
+//       });
+
+//       if (ownership) {
+//         installmentProgress = {
+//           totalMonths: ownership.total_months,
+//           paidMonths: ownership.months_paid,
+//           remainingMonths: ownership.total_months - ownership.months_paid,
+//           status: ownership.status,
+//           startDate: ownership.start_date
+//         };
+//       }
+//     }
+
+//     res.status(200).json({ property, installmentProgress });
+//   } catch (error) {
+//     console.error("Error in getPropertyById:", error);
+//     res.status(500).json({ message: 'Error retrieving property', error });
+//   }
+// };
+
 exports.getPropertyById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -874,11 +917,11 @@ exports.getPropertyById = async (req, res) => {
       return res.status(404).json({ message: 'Property not found' });
     }
 
-    // Update last_checked timestamp
     await property.update({ last_checked: new Date() });
 
     let installmentProgress = null;
 
+    // Only proceed if non-fractional installment and user is logged in
     if (userId && property.isInstallment && !property.is_fractional) {
       const ownership = await InstallmentOwnership.findOne({
         where: { user_id: userId, property_id: id }
@@ -889,8 +932,7 @@ exports.getPropertyById = async (req, res) => {
           totalMonths: ownership.total_months,
           paidMonths: ownership.months_paid,
           remainingMonths: ownership.total_months - ownership.months_paid,
-          status: ownership.status,
-          startDate: ownership.start_date
+          status: ownership.status
         };
       }
     }
