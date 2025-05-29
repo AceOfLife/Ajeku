@@ -921,10 +921,16 @@ exports.getPropertyById = async (req, res) => {
 
     let installmentProgress = null;
 
-    // Only proceed if non-fractional installment and user is logged in
-    if (userId && property.isInstallment && !property.is_fractional) {
+    // ✅ Ensure userId and id are integers
+    const parsedUserId = parseInt(userId);
+    const parsedPropertyId = parseInt(id);
+
+    if (parsedUserId && property.isInstallment && !property.is_fractional) {
       const ownership = await InstallmentOwnership.findOne({
-        where: { user_id: userId, property_id: id }
+        where: {
+          user_id: parsedUserId,
+          property_id: parsedPropertyId
+        }
       });
 
       if (ownership) {
@@ -943,6 +949,7 @@ exports.getPropertyById = async (req, res) => {
     res.status(500).json({ message: 'Error retrieving property', error });
   }
 };
+
 
 
 
