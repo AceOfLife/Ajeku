@@ -6,8 +6,6 @@ const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
 const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
-// const { InstallmentOwnership } = require('../models');
-
 
 
 // Document upload 30/12/2024

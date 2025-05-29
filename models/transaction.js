@@ -140,5 +140,11 @@ module.exports = (sequelize, DataTypes) => {
     timestamps: true
   });
 
+  // ✅ Add associations here
+  Transaction.associate = function(models) {
+    Transaction.belongsTo(models.User, { foreignKey: 'user_id', as: 'user' });
+    Transaction.belongsTo(models.Property, { foreignKey: 'property_id', as: 'property' });
+  };
+
   return Transaction;
 };
