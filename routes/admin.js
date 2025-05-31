@@ -58,7 +58,6 @@ router.post('/properties', authenticate, authorizeAdmin, PropertyController.crea
 router.put('/properties/:id', authenticate, authorizeAdmin, PropertyController.updateProperty);
 router.delete('/properties/:id', authenticate, authorizeAdmin, PropertyController.deleteProperty);
 router.get('/properties/:id', PropertyController.getPropertyById);
-router.get('/installments/:propertyId', authenticateAdmin, PropertyController.getInstallmentProgressByProperty);
 
 
 // Route for Fetching Property Slots

@@ -379,53 +379,6 @@ exports.getAllProperties = async (req, res) => {
 };
 
 
-// exports.getPropertyById = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { userId } = req.query;
-
-//     const property = await Property.findOne({
-//       where: { id },
-//       include: [{ model: PropertyImage, as: 'images' }]
-//     });
-
-//     if (!property) {
-//       return res.status(404).json({ message: 'Property not found' });
-//     }
-
-//     await property.update({ last_checked: new Date() });
-
-//     let installmentProgress = null;
-
-//     // ✅ Ensure userId and id are integers
-//     const parsedUserId = parseInt(userId);
-//     const parsedPropertyId = parseInt(id);
-
-//     if (parsedUserId && property.isInstallment && !property.is_fractional) {
-//       const ownership = await InstallmentOwnership.findOne({
-//         where: {
-//           user_id: parsedUserId,
-//           property_id: parsedPropertyId
-//         }
-//       });
-
-//       if (ownership) {
-//         installmentProgress = {
-//           totalMonths: ownership.total_months,
-//           paidMonths: ownership.months_paid,
-//           remainingMonths: ownership.total_months - ownership.months_paid,
-//           status: ownership.status
-//         };
-//       }
-//     }
-
-//     res.status(200).json({ property, installmentProgress });
-//   } catch (error) {
-//     console.error("Error in getPropertyById:", error);
-//     res.status(500).json({ message: 'Error retrieving property', error });
-//   }
-// };
-
 exports.getPropertyById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -443,13 +396,17 @@ exports.getPropertyById = async (req, res) => {
     await property.update({ last_checked: new Date() });
 
     let installmentProgress = null;
+
+    // ✅ Ensure userId and id are integers
     const parsedUserId = parseInt(userId);
     const parsedPropertyId = parseInt(id);
 
-    // 🧠 User-specific (Option 2 - already working)
     if (parsedUserId && property.isInstallment && !property.is_fractional) {
       const ownership = await InstallmentOwnership.findOne({
-        where: { user_id: parsedUserId, property_id: parsedPropertyId }
+        where: {
+          user_id: parsedUserId,
+          property_id: parsedPropertyId
+        }
       });
 
       if (ownership) {
@@ -462,59 +419,10 @@ exports.getPropertyById = async (req, res) => {
       }
     }
 
-    // ✅ Option 1: Admin call with no userId — aggregate view
-    if (!parsedUserId && property.isInstallment && !property.is_fractional) {
-      const ownerships = await InstallmentOwnership.findAll({
-        where: { property_id: parsedPropertyId }
-      });
-
-      const totalUsers = ownerships.length;
-
-      if (totalUsers > 0) {
-        const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
-        const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
-
-        installmentProgress = {
-          totalUsers,
-          totalMonths,
-          paidMonths,
-          averagePaidMonths: (paidMonths / totalUsers).toFixed(2),
-          averageRemainingMonths: ((totalMonths - paidMonths) / totalUsers).toFixed(2),
-        };
-      }
-    }
-
-    return res.status(200).json({ property, installmentProgress });
+    res.status(200).json({ property, installmentProgress });
   } catch (error) {
     console.error("Error in getPropertyById:", error);
     res.status(500).json({ message: 'Error retrieving property', error });
-  }
-};
-
-// controllers/PropertyController.js
-exports.getInstallmentProgressByProperty = async (req, res) => {
-  try {
-    const { propertyId } = req.params;
-
-    const ownerships = await InstallmentOwnership.findAll({
-      where: { property_id: propertyId },
-      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }]
-    });
-
-    const result = ownerships.map((ownership) => ({
-      userId: ownership.user.id,
-      name: ownership.user.name,
-      email: ownership.user.email,
-      totalMonths: ownership.total_months,
-      paidMonths: ownership.months_paid,
-      remainingMonths: ownership.total_months - ownership.months_paid,
-      status: ownership.status
-    }));
-
-    return res.status(200).json({ propertyId, users: result });
-  } catch (error) {
-    console.error("Error fetching installment progress by property:", error);
-    return res.status(500).json({ message: "Error fetching data", error });
   }
 };
 
