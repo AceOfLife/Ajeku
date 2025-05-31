@@ -328,3 +328,36 @@ exports.getTransactionHistory = async (req, res) => {
     return res.status(500).json({ message: "Error fetching transaction history", error });
   }
 };
+
+// Get transaction history for the currently logged-in user
+exports.getUserTransactionHistory = async (req, res) => {
+  try {
+    const userId = req.user.id; // Extracted from token by middleware
+
+    const transactions = await Transaction.findAll({
+      where: { user_id: userId },
+      include: [
+        {
+          model: Property,
+          as: "property",
+          attributes: ["id", "name"], // Property name
+        },
+      ],
+      attributes: ["id", "price", "status", "createdAt"], // Required fields
+      order: [["createdAt", "DESC"]],
+    });
+
+    const formattedTransactions = transactions.map((transaction) => ({
+      transactionId: transaction.id,
+      propertyName: transaction.property?.name || "Unknown",
+      amountPaid: transaction.price,
+      status: transaction.status,
+      date: transaction.createdAt.toISOString().split("T")[0],
+    }));
+
+    return res.status(200).json({ success: true, transactions: formattedTransactions });
+  } catch (error) {
+    console.error("Error fetching user transaction history:", error);
+    return res.status(500).json({ message: "Error fetching transaction history", error });
+  }
+};
