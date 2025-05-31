@@ -480,8 +480,8 @@ exports.getPropertyById = async (req, res) => {
           totalUsers,
           totalMonths,
           paidMonths,
-          averagePaidMonths: (paidMonths / totalUsers).toFixed(2),
-          averageRemainingMonths: ((totalMonths - paidMonths) / totalUsers).toFixed(2),
+          // averagePaidMonths: (paidMonths / totalUsers).toFixed(2),
+          remainingMonths: totalMonths - paidMonths,
         };
       }
     }
