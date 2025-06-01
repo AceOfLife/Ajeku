@@ -244,9 +244,6 @@ exports.createProperty = async (req, res) => {
 
     console.log("=== Raw req.body ===");
     console.dir(req.body, { depth: null });
-    console.log("Raw isInstallment:", req.body.isInstallment, typeof req.body.isInstallment);
-    console.log("Raw isFractionalInstallment:", req.body.isFractionalInstallment, typeof req.body.isFractionalInstallment);
-    console.log("Raw duration:", req.body.duration, typeof req.body.duration);
 
     try {
       const {
@@ -256,31 +253,26 @@ exports.createProperty = async (req, res) => {
         interior_area, parking, material, date_on_market,
         ownership, kitchen, heating, cooling, type_and_style, lot,
         percentage, duration, is_fractional, fractional_slots,
-        isInstallment, isFractionalInstallment, isRental
+        isRental, isInstallment, isFractionalInstallment
       } = req.body;
 
-      // Typecasting
+      // === Typecasting and validation ===
       const parsedFractional = ["true", "1", true].includes(is_fractional);
-      const parsedFractionalInstallment = parsedFractional && ["true", "1", true].includes(isFractionalInstallment);
       const parsedFractionalSlots = parsedFractional ? parseInt(fractional_slots, 10) || 0 : null;
       const parsedPrice = parseFloat(price) || 0;
-      const parsedIsInstallment = !parsedFractional && ["true", "1", true].includes(isInstallment);
+      const parsedIsInstallment = ["true", "1", true].includes(isInstallment);
       const parsedDuration = duration != null ? parseInt(duration, 10) : null;
+      const parsedIsFractionalInstallment = parsedFractional
+        ? ["true", "1", true].includes(isFractionalInstallment)
+        : false; // only meaningful if property is fractional
 
-      // Validation
-      if (parsedFractional && isFractionalInstallment === undefined) {
-        return res.status(400).json({ message: "isFractionalInstallment is required for fractional properties" });
-      }
+      // === Validation ===
       if (!parsedFractional && isInstallment === undefined) {
         return res.status(400).json({ message: "isInstallment is required for non-fractional properties" });
       }
-      if ((parsedIsInstallment || parsedFractionalInstallment) && (parsedDuration == null || isNaN(parsedDuration) || parsedDuration <= 0)) {
-        return res.status(400).json({ message: "Duration must be a positive integer when installment is true" });
+      if (!parsedFractional && parsedIsInstallment && (parsedDuration == null || isNaN(parsedDuration) || parsedDuration <= 0)) {
+        return res.status(400).json({ message: "Duration must be a positive integer when isInstallment is true" });
       }
-
-      console.log("Parsed isInstallment:", parsedIsInstallment);
-      console.log("Parsed isFractionalInstallment:", parsedFractionalInstallment);
-      console.log("Parsed duration:", parsedDuration);
 
       const newPropertyData = {
         name,
@@ -305,14 +297,14 @@ exports.createProperty = async (req, res) => {
         date_on_market: date_on_market ? new Date(date_on_market).toISOString() : new Date().toISOString(),
         ownership: ownership || "",
         percentage: percentage || "",
-        duration: parsedDuration,
-        isInstallment: parsedIsInstallment,
+        duration: parsedFractional ? null : parsedDuration, // duration only relevant for non-fractional
+        isInstallment: parsedFractional ? false : parsedIsInstallment,
         is_fractional: parsedFractional,
-        isFractionalInstallment: parsedFractionalInstallment,
         fractional_slots: parsedFractionalSlots,
         price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
         available_slots: parsedFractional ? parsedFractionalSlots : null,
         isRental: ["true", "1", true].includes(isRental),
+        isFractionalInstallment: parsedIsFractionalInstallment,
         kitchen: splitToArray(kitchen),
         heating: splitToArray(heating),
         cooling: splitToArray(cooling),
@@ -321,25 +313,10 @@ exports.createProperty = async (req, res) => {
         parking: splitToArray(parking)
       };
 
-      // Debug array fields
-      [
-        "material",
-        "parking",
-        "lot",
-        "type_and_style",
-        "special_features",
-        "interior_area"
-      ].forEach((field) => {
-        console.log(`${field}:`, newPropertyData[field], "Type:", typeof newPropertyData[field]);
-      });
-
-      // Create the property record
       const newProperty = await Property.create(newPropertyData);
 
-      // Reload property to fetch all updated fields
       const property = await Property.findByPk(newProperty.id);
 
-      // Upload Images to Cloudinary
       let imageUrls = [];
       if (req.files && req.files.length > 0) {
         imageUrls = await uploadImagesToCloudinary(req.files);
