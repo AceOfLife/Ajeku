@@ -292,34 +292,43 @@ exports.getRecentCustomers = async (req, res) => {
 // };
 
 
+// controllers/TransactionController.js
+const { Transaction, User, Property } = require('../models');
+
 exports.getTransactionHistory = async (req, res) => {
   try {
     const transactions = await Transaction.findAll({
       include: [
         {
           model: User,
-          as: "user",
-          attributes: ["id", "name"], // Only customer name
+          as: 'user', // Buyer (User To)
+          attributes: ['id', 'name']
         },
         {
           model: Property,
-          as: "property",
-          attributes: ["id", "name"], // Only property name
-        },
+          as: 'property',
+          attributes: ['id', 'name', 'type', 'address', 'agent_id'],
+          include: [
+            {
+              model: User,
+              as: 'agent', // Seller (User From)
+              attributes: ['id', 'name']
+            }
+          ]
+        }
       ],
-      attributes: ["id", "price", "status", "createdAt"], // Required fields
-      order: [["createdAt", "DESC"]], // Order by latest transactions
+      attributes: ['id', 'price', 'status', 'transaction_date'],
+      order: [['transaction_date', 'DESC']]
     });
 
-    // Format response for frontend
-    const formattedTransactions = transactions.map((transaction) => ({
+    const formattedTransactions = transactions.map(transaction => ({
       transactionId: transaction.id,
-      customerName: transaction.user?.name || "Unknown",
-      propertyName: transaction.property?.name || "Unknown",
-      amountPaid: transaction.amount,
-      paymentType: transaction.payment_type,
-      status: transaction.status,
-      date: transaction.createdAt.toISOString().split("T")[0], // Format as YYYY-MM-DD
+      userFrom: transaction.property?.agent?.name || 'Unknown',
+      userTo: transaction.user?.name || 'Unknown',
+      realtyType: transaction.property?.type || 'N/A',
+      address: transaction.property?.address || 'N/A',
+      date: transaction.transaction_date.toISOString().split('T')[0],
+      status: transaction.status
     }));
 
     return res.status(200).json({ success: true, transactions: formattedTransactions });
@@ -328,6 +337,7 @@ exports.getTransactionHistory = async (req, res) => {
     return res.status(500).json({ message: "Error fetching transaction history", error });
   }
 };
+
 
 // Get transaction history for the currently logged-in user
 exports.getUserTransactionHistory = async (req, res) => {
@@ -340,19 +350,29 @@ exports.getUserTransactionHistory = async (req, res) => {
         {
           model: Property,
           as: "property",
-          attributes: ["id", "name"], // Property name
-        },
+          attributes: ["id", "name", "type", "address", "agent_id"],
+          include: [
+            {
+              model: User,
+              as: "agent",
+              attributes: ["id", "name"]
+            }
+          ]
+        }
       ],
-      attributes: ["id", "price", "status", "createdAt"], // Required fields
-      order: [["createdAt", "DESC"]],
+      attributes: ["id", "price", "status", "transaction_date"],
+      order: [["transaction_date", "DESC"]]
     });
 
     const formattedTransactions = transactions.map((transaction) => ({
       transactionId: transaction.id,
+      userFrom: transaction.property?.agent?.name || "Unknown",
       propertyName: transaction.property?.name || "Unknown",
+      realtyType: transaction.property?.type || "N/A",
+      address: transaction.property?.address || "N/A",
       amountPaid: transaction.price,
       status: transaction.status,
-      date: transaction.createdAt.toISOString().split("T")[0],
+      date: transaction.transaction_date.toISOString().split("T")[0],
     }));
 
     return res.status(200).json({ success: true, transactions: formattedTransactions });
@@ -361,3 +381,4 @@ exports.getUserTransactionHistory = async (req, res) => {
     return res.status(500).json({ message: "Error fetching transaction history", error });
   }
 };
+
