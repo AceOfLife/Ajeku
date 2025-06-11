@@ -144,6 +144,10 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: false,
       allowNull: false,
     },
+    isFractionalDuration: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+},
     fractional_slots: { // Number of fractional slots
       type: DataTypes.INTEGER,
       allowNull: true,

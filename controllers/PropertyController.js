@@ -235,15 +235,128 @@ const axios = require("axios");
 
 // NTest for isFractionalInstallment
 
+// exports.createProperty = async (req, res) => {
+//   upload(req, res, async (err) => {
+//     if (err) {
+//       console.error("Multer error:", err);
+//       return res.status(400).json({ message: "Error uploading images", error: err });
+//     }
+
+//     console.log("=== Raw req.body ===");
+//     console.dir(req.body, { depth: null });
+
+//     try {
+//       const {
+//         name, size, price, agent_id, type, location, area,
+//         number_of_baths, number_of_rooms, address, description,
+//         payment_plan, year_built, special_features, appliances, features,
+//         interior_area, parking, material, date_on_market,
+//         ownership, kitchen, heating, cooling, type_and_style, lot,
+//         percentage, duration, is_fractional, fractional_slots,
+//         isRental, isInstallment, isFractionalInstallment
+//       } = req.body;
+
+//       // === Typecasting and validation ===
+//       const parsedFractional = ["true", "1", true].includes(is_fractional);
+//       const parsedFractionalSlots = parsedFractional ? parseInt(fractional_slots, 10) || 0 : null;
+//       const parsedPrice = parseFloat(price) || 0;
+//       const parsedIsInstallment = ["true", "1", true].includes(isInstallment);
+//       const parsedDuration = duration != null ? parseInt(duration, 10) : null;
+//       const parsedIsFractionalInstallment = parsedFractional
+//         ? ["true", "1", true].includes(isFractionalInstallment)
+//         : false; // only meaningful if property is fractional
+
+//       // === Validation ===
+//       if (!parsedFractional && isInstallment === undefined) {
+//         return res.status(400).json({ message: "isInstallment is required for non-fractional properties" });
+//       }
+//       if (!parsedFractional && parsedIsInstallment && (parsedDuration == null || isNaN(parsedDuration) || parsedDuration <= 0)) {
+//         return res.status(400).json({ message: "Duration must be a positive integer when isInstallment is true" });
+//       }
+
+//       const newPropertyData = {
+//         name,
+//         size: parseInt(size, 10) || 0,
+//         price: parsedPrice,
+//         agent_id: parseInt(agent_id, 10) || null,
+//         type,
+//         location: location || "",
+//         area: area || "",
+//         address: address || "",
+//         number_of_baths: parseInt(number_of_baths, 10) || 0,
+//         number_of_rooms: parseInt(number_of_rooms, 10) || 0,
+//         listed_by: "Admin",
+//         description: description || "",
+//         payment_plan: payment_plan || "",
+//         year_built: parseInt(year_built, 10) || 0,
+//         special_features: splitToArray(special_features),
+//         appliances: splitToArray(appliances),
+//         features: splitToArray(features),
+//         interior_area: interior_area ? interior_area.toString() : null,
+//         material: splitToArray(material),
+//         date_on_market: date_on_market ? new Date(date_on_market).toISOString() : new Date().toISOString(),
+//         ownership: ownership || "",
+//         percentage: percentage || "",
+//         duration: parsedFractional ? null : parsedDuration, // duration only relevant for non-fractional
+//         isInstallment: parsedFractional ? false : parsedIsInstallment,
+//         is_fractional: parsedFractional,
+//         fractional_slots: parsedFractionalSlots,
+//         price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
+//         available_slots: parsedFractional ? parsedFractionalSlots : null,
+//         isRental: ["true", "1", true].includes(isRental),
+//         isFractionalInstallment: parsedIsFractionalInstallment,
+//         kitchen: splitToArray(kitchen),
+//         heating: splitToArray(heating),
+//         cooling: splitToArray(cooling),
+//         type_and_style: splitToArray(type_and_style),
+//         lot: splitToArray(lot),
+//         parking: splitToArray(parking)
+//       };
+
+//       const newProperty = await Property.create(newPropertyData);
+
+//       const property = await Property.findByPk(newProperty.id);
+
+//       let imageUrls = [];
+//       if (req.files && req.files.length > 0) {
+//         imageUrls = await uploadImagesToCloudinary(req.files);
+
+//         if (!Array.isArray(imageUrls)) {
+//           imageUrls = [imageUrls];
+//         }
+
+//         await PropertyImage.create({
+//           property,
+//           property_id: newProperty.id,
+//           image_url: imageUrls
+//         });
+//       }
+
+//       const savedImageRecord = await PropertyImage.findOne({
+//         where: { property_id: newProperty.id },
+//         attributes: ["image_url"]
+//       });
+
+//       res.status(201).json({
+//         property: newProperty,
+//         images: savedImageRecord?.image_url || [],
+//         documentUrl: null
+//       });
+//     } catch (error) {
+//       console.error("Error creating property:", error);
+//       res.status(500).json({ message: "Error creating property", error });
+//     }
+//   });
+// };
+
+// New CreateProperty for isFractionalDuration:
+
 exports.createProperty = async (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
       console.error("Multer error:", err);
       return res.status(400).json({ message: "Error uploading images", error: err });
     }
-
-    console.log("=== Raw req.body ===");
-    console.dir(req.body, { depth: null });
 
     try {
       const {
@@ -253,7 +366,7 @@ exports.createProperty = async (req, res) => {
         interior_area, parking, material, date_on_market,
         ownership, kitchen, heating, cooling, type_and_style, lot,
         percentage, duration, is_fractional, fractional_slots,
-        isRental, isInstallment, isFractionalInstallment
+        isRental, isInstallment, isFractionalInstallment, isFractionalDuration
       } = req.body;
 
       // === Typecasting and validation ===
@@ -264,14 +377,24 @@ exports.createProperty = async (req, res) => {
       const parsedDuration = duration != null ? parseInt(duration, 10) : null;
       const parsedIsFractionalInstallment = parsedFractional
         ? ["true", "1", true].includes(isFractionalInstallment)
-        : false; // only meaningful if property is fractional
+        : false;
+      const parsedIsFractionalDuration = parsedIsFractionalInstallment
+        ? parseInt(isFractionalDuration, 10)
+        : null;
 
       // === Validation ===
       if (!parsedFractional && isInstallment === undefined) {
         return res.status(400).json({ message: "isInstallment is required for non-fractional properties" });
       }
+
       if (!parsedFractional && parsedIsInstallment && (parsedDuration == null || isNaN(parsedDuration) || parsedDuration <= 0)) {
         return res.status(400).json({ message: "Duration must be a positive integer when isInstallment is true" });
+      }
+
+      if (parsedFractional && parsedIsFractionalInstallment) {
+        if (!parsedIsFractionalDuration || isNaN(parsedIsFractionalDuration) || parsedIsFractionalDuration <= 0) {
+          return res.status(400).json({ message: "isFractionalDuration must be a positive integer when isFractionalInstallment is true" });
+        }
       }
 
       const newPropertyData = {
@@ -297,7 +420,7 @@ exports.createProperty = async (req, res) => {
         date_on_market: date_on_market ? new Date(date_on_market).toISOString() : new Date().toISOString(),
         ownership: ownership || "",
         percentage: percentage || "",
-        duration: parsedFractional ? null : parsedDuration, // duration only relevant for non-fractional
+        duration: parsedFractional ? null : parsedDuration,
         isInstallment: parsedFractional ? false : parsedIsInstallment,
         is_fractional: parsedFractional,
         fractional_slots: parsedFractionalSlots,
@@ -305,6 +428,7 @@ exports.createProperty = async (req, res) => {
         available_slots: parsedFractional ? parsedFractionalSlots : null,
         isRental: ["true", "1", true].includes(isRental),
         isFractionalInstallment: parsedIsFractionalInstallment,
+        isFractionalDuration: parsedFractional && parsedIsFractionalInstallment ? parsedIsFractionalDuration : null,
         kitchen: splitToArray(kitchen),
         heating: splitToArray(heating),
         cooling: splitToArray(cooling),
@@ -348,6 +472,7 @@ exports.createProperty = async (req, res) => {
     }
   });
 };
+
 
 
 
