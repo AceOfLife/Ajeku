@@ -293,7 +293,7 @@ exports.getRecentCustomers = async (req, res) => {
 
 
 // controllers/TransactionController.js
-const { Transaction, User, Property } = require('../models');
+// const { Transaction, User, Property } = require('../models');
 
 exports.getTransactionHistory = async (req, res) => {
   try {
