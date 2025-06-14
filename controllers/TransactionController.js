@@ -350,7 +350,7 @@ exports.getUserTransactionHistory = async (req, res) => {
         {
           model: Property,
           as: "property",
-          attributes: ["id", "name", "type", "address", "agent_id"],
+          attributes: ["id", "name", "type", "address", "agent_id", "listed_by"],
           include: [
             {
               model: User,
@@ -364,16 +364,23 @@ exports.getUserTransactionHistory = async (req, res) => {
       order: [["transaction_date", "DESC"]]
     });
 
-    const formattedTransactions = transactions.map((transaction) => ({
-      transactionId: transaction.id,
-      userFrom: transaction.property?.agent?.name || "Unknown",
-      propertyName: transaction.property?.name || "Unknown",
-      realtyType: transaction.property?.type || "N/A",
-      address: transaction.property?.address || "N/A",
-      amountPaid: transaction.price,
-      status: transaction.status,
-      date: transaction.transaction_date.toISOString().split("T")[0],
-    }));
+    const formattedTransactions = transactions.map((transaction) => {
+      const isAdmin = transaction.property?.listed_by?.toLowerCase() === "admin";
+      const userFrom = isAdmin
+        ? "Ajeku"
+        : transaction.property?.agent?.name || "Unknown";
+
+      return {
+        transactionId: transaction.id,
+        userFrom,
+        propertyName: transaction.property?.name || "Unknown",
+        realtyType: transaction.property?.type || "N/A",
+        address: transaction.property?.address || "N/A",
+        amountPaid: transaction.price,
+        status: transaction.status,
+        date: transaction.transaction_date.toISOString().split("T")[0],
+      };
+    });
 
     return res.status(200).json({ success: true, transactions: formattedTransactions });
   } catch (error) {
@@ -381,4 +388,5 @@ exports.getUserTransactionHistory = async (req, res) => {
     return res.status(500).json({ message: "Error fetching transaction history", error });
   }
 };
+
 
