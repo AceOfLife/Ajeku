@@ -455,15 +455,13 @@ exports.initializePayment = async (req, res) => {
 };
 
 
-
-// Check for previous payment verification 22/04/2025
+// Updated with isFractionalInstallment 18th June
 
 // exports.verifyPayment = async (req, res) => {
 //   try {
 //     const { reference } = req.query;
 //     if (!reference) return res.status(400).json({ message: "Transaction reference is required" });
 
-//     // Check if the payment has already been verified
 //     const existingTransaction = await Transaction.findOne({ where: { reference } });
 //     if (existingTransaction) {
 //       return res.status(200).json({
@@ -493,13 +491,12 @@ exports.initializePayment = async (req, res) => {
 //       return res.status(400).json({ message: "Incomplete payment metadata" });
 //     }
 
-//     const user = await User.findOne({ where: { id: user_id } });
+//     const user = await User.findByPk(user_id);
 //     if (!user) return res.status(404).json({ message: "User not found" });
 
 //     const property = await Property.findByPk(property_id);
 //     if (!property) return res.status(404).json({ message: "Property not found" });
 
-//     // Save transaction
 //     const transaction = await Transaction.create({
 //       user_id,
 //       property_id,
@@ -511,7 +508,7 @@ exports.initializePayment = async (req, res) => {
 //       payment_type
 //     });
 
-//     // ===== Handle FRACTIONAL ownership =====
+//     // ===== FRACTIONAL SLOT PURCHASE =====
 //     if (payment_type === "fractional" && property.is_fractional) {
 //       if (slots > property.fractional_slots) {
 //         return res.status(400).json({ message: 'Not enough fractional slots available (post-payment)' });
@@ -534,8 +531,40 @@ exports.initializePayment = async (req, res) => {
 //       });
 //     }
 
-//     // ===== Handle INSTALLMENT ownership =====
-//     if (payment_type === "installment" && property.isInstallment) {
+//     // ===== FRACTIONAL INSTALLMENT (slot part-payment) =====
+//     if (payment_type === "fractional_installment" && property.is_fractional && property.isFractionalInstallment) {
+//       let ownership = await InstallmentOwnership.findOne({
+//         where: { user_id, property_id }
+//       });
+
+//       if (!ownership) {
+//         ownership = await InstallmentOwnership.create({
+//           user_id,
+//           property_id,
+//           start_date: new Date(),
+//           total_months: null,       // Undefined in this model
+//           months_paid: null,
+//           status: "incomplete"
+//         });
+//       }
+
+//       await InstallmentPayment.create({
+//         ownership_id: ownership.id,
+//         user_id,
+//         property_id,
+//         amount_paid: paymentData.amount / 100,
+//         payment_month: null,
+//         payment_year: null
+//       });
+
+//       return res.status(200).json({
+//         message: "Fractional installment payment recorded successfully",
+//         transaction
+//       });
+//     }
+
+//     // ===== STANDARD INSTALLMENT (monthly) =====
+//     if (payment_type === "installment" && property.isInstallment && !property.is_fractional) {
 //       const totalMonths = parseInt(property.duration);
 //       const today = new Date();
 //       const month = today.getMonth() + 1;
@@ -549,6 +578,7 @@ exports.initializePayment = async (req, res) => {
 //         ownership = await InstallmentOwnership.create({
 //           user_id,
 //           property_id,
+//           start_date: today,
 //           total_months: totalMonths,
 //           months_paid: 1,
 //           status: totalMonths === 1 ? "completed" : "ongoing"
@@ -579,7 +609,6 @@ exports.initializePayment = async (req, res) => {
 //       });
 //     }
 
-//     // Fallback if payment_type not handled
 //     return res.status(200).json({
 //       message: "Payment verified, but no specific ownership type was processed",
 //       transaction
@@ -590,9 +619,6 @@ exports.initializePayment = async (req, res) => {
 //     return res.status(500).json({ message: "Error verifying payment", error: error.message });
 //   }
 // };
-
-
-// Updated with isFractionalInstallment
 
 exports.verifyPayment = async (req, res) => {
   try {
@@ -645,7 +671,7 @@ exports.verifyPayment = async (req, res) => {
       payment_type
     });
 
-    // ===== FRACTIONAL SLOT PURCHASE =====
+    // === FRACTIONAL SLOT OUTRIGHT PAYMENT ===
     if (payment_type === "fractional" && property.is_fractional) {
       if (slots > property.fractional_slots) {
         return res.status(400).json({ message: 'Not enough fractional slots available (post-payment)' });
@@ -668,8 +694,12 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // ===== FRACTIONAL INSTALLMENT (slot part-payment) =====
-    if (payment_type === "fractional_installment" && property.is_fractional && property.isFractionalInstallment) {
+    // === FRACTIONAL INSTALLMENT (monthly payment on slots) ===
+    if (payment_type === "fractionalInstallment" && property.is_fractional && property.isFractionalInstallment) {
+      const today = new Date();
+      const month = today.getMonth() + 1;
+      const year = today.getFullYear();
+
       let ownership = await InstallmentOwnership.findOne({
         where: { user_id, property_id }
       });
@@ -678,11 +708,17 @@ exports.verifyPayment = async (req, res) => {
         ownership = await InstallmentOwnership.create({
           user_id,
           property_id,
-          start_date: new Date(),
-          total_months: null,       // Undefined in this model
-          months_paid: null,
-          status: "incomplete"
+          start_date: today,
+          total_months: property.isFractionalDuration,
+          months_paid: 1,
+          status: property.isFractionalDuration === 1 ? "completed" : "ongoing"
         });
+      } else {
+        ownership.months_paid += 1;
+        if (ownership.months_paid >= ownership.total_months) {
+          ownership.status = "completed";
+        }
+        await ownership.save();
       }
 
       await InstallmentPayment.create({
@@ -690,17 +726,20 @@ exports.verifyPayment = async (req, res) => {
         user_id,
         property_id,
         amount_paid: paymentData.amount / 100,
-        payment_month: null,
-        payment_year: null
+        payment_month: month,
+        payment_year: year
       });
 
       return res.status(200).json({
-        message: "Fractional installment payment recorded successfully",
-        transaction
+        message: "Fractional installment payment verified successfully",
+        transaction,
+        monthsPaid: ownership.months_paid,
+        monthsRemaining: ownership.total_months - ownership.months_paid,
+        status: ownership.status
       });
     }
 
-    // ===== STANDARD INSTALLMENT (monthly) =====
+    // === STANDARD INSTALLMENT (non-fractional) ===
     if (payment_type === "installment" && property.isInstallment && !property.is_fractional) {
       const totalMonths = parseInt(property.duration);
       const today = new Date();
