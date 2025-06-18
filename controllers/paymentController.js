@@ -147,173 +147,86 @@ const {
   InstallmentPayment
 } = require('../models');
 
-// June 18th
-
-// exports.initializePayment = async (req, res) => {
-//   try {
-//     const { user_id, property_id, payment_type, slots = 1 } = req.body;
-
-//     // Fetch the user
-//     const user = await User.findByPk(user_id);
-//     if (!user) return res.status(404).json({ message: 'User not found' });
-
-//     // Fetch the property
-//     const property = await Property.findByPk(property_id);
-//     if (!property) return res.status(404).json({ message: 'Property not found' });
-
-//     let amount = property.price;
-
-//     if (payment_type === "fractional" && property.is_fractional) {
-//       if (!property.price_per_slot || !property.fractional_slots) {
-//         return res.status(400).json({ message: 'Invalid fractional property setup' });
-//       }
-
-//       if (slots > property.fractional_slots) {
-//         return res.status(400).json({ message: 'Not enough fractional slots available' });
-//       }
-
-//       amount = property.price_per_slot * slots;
-//     } else if (payment_type === "installment" && property.isInstallment) {
-//       if (property.is_fractional) {
-//         // Fractional with part-payment logic
-//         if (!property.price_per_slot || !property.fractional_slots) {
-//           return res.status(400).json({ message: 'Invalid fractional installment setup' });
-//         }
-
-//         if (slots > property.fractional_slots) {
-//           return res.status(400).json({ message: 'Not enough fractional slots available' });
-//         }
-
-//         amount = property.price_per_slot * slots; // Full slot cost
-//       } else {
-//         // Standard monthly installment logic
-//         if (!property.duration || property.duration <= 0) {
-//           return res.status(400).json({ message: 'Invalid installment setup' });
-//         }
-
-//         amount = property.price / property.duration;
-//         console.log(amount);
-//       }
-//     }
-
-//     const amountInKobo = Math.round(amount * 100); // Convert to kobo for Paystack
-
-//     const response = await axios.post(
-//       "https://api.paystack.co/transaction/initialize",
-//       {
-//         email: user.email,
-//         amount: amountInKobo,
-//         currency: "NGN",
-//         callback_url: `https://ajeku-developing.vercel.app/payment-success?propertyId=${property.id}`,
-//         metadata: {
-//           user_id: user.id,
-//           property_id: property.id,
-//           payment_type,
-//           slots
-//         }
-//       },
-//       {
-//         headers: {
-//           Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-//           "Content-Type": "application/json"
-//         }
-//       }
-//     );
-
-//     res.status(200).json({
-//       paymentUrl: response.data.data.authorization_url,
-//       reference: response.data.data.reference
-//     });
-//   } catch (error) {
-//     console.error("Payment Initialization Error:", error.response ? error.response.data : error.message);
-//     res.status(500).json({ message: 'Error initializing payment', error });
-//   }
-// };
-
 exports.initializePayment = async (req, res) => {
   try {
-    const { propertyId, userId, slots = 1, payment_type } = req.body;
+    const { user_id, property_id, payment_type, slots = 1 } = req.body;
 
-    if (!propertyId || !userId || !payment_type) {
-      return res.status(400).json({ message: "Missing required fields" });
-    }
+    // Fetch the user
+    const user = await User.findByPk(user_id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const property = await Property.findByPk(propertyId);
+    // Fetch the property
+    const property = await Property.findByPk(property_id);
+    if (!property) return res.status(404).json({ message: 'Property not found' });
 
-    if (!property) {
-      return res.status(404).json({ message: "Property not found" });
-    }
+    let amount = property.price;
 
-    let amount = 0;
-
-    // --- Fractional (Installment or Outright) ---
-    if (property.is_fractional) {
+    if (payment_type === "fractional" && property.is_fractional) {
       if (!property.price_per_slot || !property.fractional_slots) {
-        return res.status(400).json({ message: "Fractional property configuration is invalid" });
+        return res.status(400).json({ message: 'Invalid fractional property setup' });
       }
 
-      if (slots > property.available_slots) {
-        return res.status(400).json({ message: "Not enough available slots" });
+      if (slots > property.fractional_slots) {
+        return res.status(400).json({ message: 'Not enough fractional slots available' });
       }
 
-      if (payment_type === "installment") {
-        // 🧠 Fractional Installment Logic
-        if (!property.isFractionalInstallment || !property.isFractionalDuration) {
-          return res.status(400).json({ message: "Fractional installment not properly configured" });
+      amount = property.price_per_slot * slots;
+    } else if (payment_type === "installment" && property.isInstallment) {
+      if (property.is_fractional) {
+        // Fractional with part-payment logic
+        if (!property.price_per_slot || !property.fractional_slots) {
+          return res.status(400).json({ message: 'Invalid fractional installment setup' });
         }
 
-        amount = (property.price_per_slot * slots) / property.isFractionalDuration;
-      } else if (payment_type === "full") {
-        amount = property.price_per_slot * slots;
-      } else {
-        return res.status(400).json({ message: "Invalid payment type for fractional property" });
-      }
-    }
+        if (slots > property.fractional_slots) {
+          return res.status(400).json({ message: 'Not enough fractional slots available' });
+        }
 
-    // --- Non-Fractional (Installment or Outright) ---
-    else {
-      if (payment_type === "installment") {
-        if (!property.isInstallment || !property.duration || property.duration <= 0) {
-          return res.status(400).json({ message: "Installment not supported or misconfigured for this property" });
+        amount = property.price_per_slot * slots; // Full slot cost
+      } else {
+        // Standard monthly installment logic
+        if (!property.duration || property.duration <= 0) {
+          return res.status(400).json({ message: 'Invalid installment setup' });
         }
 
         amount = property.price / property.duration;
-      } else if (payment_type === "full") {
-        amount = property.price;
-      } else {
-        return res.status(400).json({ message: "Invalid payment type for non-fractional property" });
+        console.log(amount);
       }
     }
 
-    // Convert amount to kobo
-    const paystackAmount = Math.round(amount * 100);
+    const amountInKobo = Math.round(amount * 100); // Convert to kobo for Paystack
 
-    const paymentInit = await initializePaystackTransaction({
-      amount: paystackAmount,
-      email: req.user.email, // assumes you're attaching user info to the request
-      metadata: {
-        userId,
-        propertyId,
-        slots,
-        payment_type,
-        isFractional: property.is_fractional,
+    const response = await axios.post(
+      "https://api.paystack.co/transaction/initialize",
+      {
+        email: user.email,
+        amount: amountInKobo,
+        currency: "NGN",
+        callback_url: `https://ajeku-developing.vercel.app/payment-success?propertyId=${property.id}`,
+        metadata: {
+          user_id: user.id,
+          property_id: property.id,
+          payment_type,
+          slots
+        }
       },
-    });
-
-    // Optionally: Save to Transaction model here
-    // await Transaction.create({ ... });
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
 
     res.status(200).json({
-      authorization_url: paymentInit.data.authorization_url,
-      access_code: paymentInit.data.access_code,
-      reference: paymentInit.data.reference,
+      paymentUrl: response.data.data.authorization_url,
+      reference: response.data.data.reference
     });
   } catch (error) {
-    console.error("Error initializing payment:", error);
-    res.status(500).json({ message: "Error initializing payment", error: error.message });
+    console.error("Payment Initialization Error:", error.response ? error.response.data : error.message);
+    res.status(500).json({ message: 'Error initializing payment', error });
   }
 };
-
 
 // exports.verifyPayment = async (req, res) => {
 //   try {
