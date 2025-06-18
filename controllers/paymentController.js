@@ -231,94 +231,90 @@ const {
 // };
 
 
+const { Property, Transaction } = require('../models');
+const { initializePaystackTransaction } = require('../utils/paystack');
+
 exports.initializePayment = async (req, res) => {
   try {
-    const { user_id, property_id, payment_type, slots = 1 } = req.body;
+    const { propertyId, userId, slots = 1, payment_type } = req.body;
 
-    // Fetch the user
-    const user = await User.findByPk(user_id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!propertyId || !userId || !payment_type) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
 
-    // Fetch the property
-    const property = await Property.findByPk(property_id);
-    if (!property) return res.status(404).json({ message: 'Property not found' });
+    const property = await Property.findByPk(propertyId);
 
-    let amount = property.price;
+    if (!property) {
+      return res.status(404).json({ message: "Property not found" });
+    }
 
-    if (payment_type === "fractional" && property.is_fractional) {
-      // Outright fractional payment (no installment)
+    let amount = 0;
+
+    // --- Fractional (Installment or Outright) ---
+    if (property.is_fractional) {
       if (!property.price_per_slot || !property.fractional_slots) {
-        return res.status(400).json({ message: 'Invalid fractional property setup' });
+        return res.status(400).json({ message: "Fractional property configuration is invalid" });
       }
 
-      if (slots > property.fractional_slots) {
-        return res.status(400).json({ message: 'Not enough fractional slots available' });
+      if (slots > property.available_slots) {
+        return res.status(400).json({ message: "Not enough available slots" });
       }
 
-      amount = property.price_per_slot * slots;
-
-    } else if (payment_type === "installment" && property.isInstallment) {
-      if (property.is_fractional) {
-        // Fractional with installment logic (can be standard or duration-based)
-        if (!property.price_per_slot || !property.fractional_slots) {
-          return res.status(400).json({ message: 'Invalid fractional installment setup' });
+      if (payment_type === "installment") {
+        // 🧠 Fractional Installment Logic
+        if (!property.isFractionalInstallment || !property.isFractionalDuration) {
+          return res.status(400).json({ message: "Fractional installment not properly configured" });
         }
 
-        if (slots > property.fractional_slots) {
-          return res.status(400).json({ message: 'Not enough fractional slots available' });
-        }
-
-        // Check for fractional duration
-        if (property.isFractionalDuration && property.fractionalDuration && property.fractionalDuration > 0) {
-          // Pay in parts over fractionalDuration months
-          const monthlySlotPayment = property.price_per_slot / property.fractionalDuration;
-          amount = monthlySlotPayment * slots;
-        } else {
-          // Default full slot cost (part payment without duration)
-          amount = property.price_per_slot * slots;
-        }
-
+        amount = (property.price_per_slot * slots) / property.isFractionalDuration;
+      } else if (payment_type === "full") {
+        amount = property.price_per_slot * slots;
       } else {
-        // Standard property installment (monthly)
-        if (!property.duration || property.duration <= 0) {
-          return res.status(400).json({ message: 'Invalid installment setup' });
-        }
-
-        amount = property.price / property.duration;
+        return res.status(400).json({ message: "Invalid payment type for fractional property" });
       }
     }
 
-    const amountInKobo = Math.round(amount * 100); // Convert to kobo for Paystack
+    // --- Non-Fractional (Installment or Outright) ---
+    else {
+      if (payment_type === "installment") {
+        if (!property.isInstallment || !property.duration || property.duration <= 0) {
+          return res.status(400).json({ message: "Installment not supported or misconfigured for this property" });
+        }
 
-    const response = await axios.post(
-      "https://api.paystack.co/transaction/initialize",
-      {
-        email: user.email,
-        amount: amountInKobo,
-        currency: "NGN",
-        callback_url: `https://ajeku-developing.vercel.app/payment-success?propertyId=${property.id}`,
-        metadata: {
-          user_id: user.id,
-          property_id: property.id,
-          payment_type,
-          slots
-        }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-          "Content-Type": "application/json"
-        }
+        amount = property.price / property.duration;
+      } else if (payment_type === "full") {
+        amount = property.price;
+      } else {
+        return res.status(400).json({ message: "Invalid payment type for non-fractional property" });
       }
-    );
+    }
+
+    // Convert amount to kobo
+    const paystackAmount = Math.round(amount * 100);
+
+    const paymentInit = await initializePaystackTransaction({
+      amount: paystackAmount,
+      email: req.user.email, // assumes you're attaching user info to the request
+      metadata: {
+        userId,
+        propertyId,
+        slots,
+        payment_type,
+        isFractional: property.is_fractional,
+      },
+    });
+
+    // Optionally: Save to Transaction model here
+    // await Transaction.create({ ... });
 
     res.status(200).json({
-      paymentUrl: response.data.data.authorization_url,
-      reference: response.data.data.reference
+      authorization_url: paymentInit.data.authorization_url,
+      access_code: paymentInit.data.access_code,
+      reference: paymentInit.data.reference,
     });
   } catch (error) {
-    console.error("Payment Initialization Error:", error.response ? error.response.data : error.message);
-    res.status(500).json({ message: 'Error initializing payment', error });
+    console.error("Error initializing payment:", error);
+    res.status(500).json({ message: "Error initializing payment", error: error.message });
   }
 };
 
