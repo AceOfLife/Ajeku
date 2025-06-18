@@ -230,10 +230,6 @@ const {
 //   }
 // };
 
-
-const { Property, Transaction } = require('../models');
-const { initializePaystackTransaction } = require('../utils/paystack');
-
 exports.initializePayment = async (req, res) => {
   try {
     const { propertyId, userId, slots = 1, payment_type } = req.body;
