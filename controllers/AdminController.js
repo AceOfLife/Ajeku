@@ -1,6 +1,7 @@
-const { User } = require('../models'); 
+const { Property, User, Transaction } = require('../models'); 
 const bcryptjs = require('bcryptjs');
 const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
+const { Op } = require('sequelize');
 
 
 exports.updateProfile = async (req, res) => {
@@ -145,3 +146,41 @@ exports.getProfile = async (req, res) => {
       res.status(500).json({ message: 'Error fetching profile', error });
     }
   };
+
+module.exports = {
+  async getAdminStats(req, res) {
+    try {
+      const [totalProperties, totalRevenueData, totalAgents, totalCustomers] = await Promise.all([
+        Property.count(),
+
+        Transaction.sum('price', {
+          where: {
+            status: 'success',
+          },
+        }),
+
+        User.count({
+          where: {
+            role: 'agent',
+          },
+        }),
+
+        User.count({
+          where: {
+            role: 'client',
+          },
+        }),
+      ]);
+
+      res.status(200).json({
+        totalProperties,
+        totalRevenue: totalRevenueData || 0,
+        totalAgents,
+        totalCustomers,
+      });
+    } catch (error) {
+      console.error('Error fetching admin stats:', error);
+      res.status(500).json({ message: 'Failed to fetch admin statistics', error });
+    }
+  },
+};

@@ -94,6 +94,9 @@ router.post('/reviews', authenticate, ReviewController.createReview);
 router.put('/reviews/:id', authenticate, ReviewController.updateReview);
 router.delete('/reviews/:id', authenticate, authorizeAdmin, ReviewController.deleteReview);
 
+// Get Stats Route
+router.get('/stats/summary', authenticate, authorizeAdmin, AdminController.getAdminStats);
+
 // User signup route (no authentication required for signup)
 router.post('/signup', UserController.createUser);
 
