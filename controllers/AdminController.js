@@ -425,7 +425,8 @@ AdminController.getSalesGoalsProgress = async (req, res) => {
 
     for (const tx of transactions) {
       const property = tx.property;
-      const amount = tx.price;
+      // const amount = tx.price;
+      const amount = Number(tx.price);
 
       if (property.type === 'land') {
         landTotal += amount;
