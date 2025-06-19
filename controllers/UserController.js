@@ -1,29 +1,3 @@
-// const { User } = require('../models');
-// // const bcrypt = require('bcrypt');
-// const bcrypt = require('bcryptjs');
-
-// exports.createUser = async (req, res) => {
-//   try {
-//     const { name, email, password, role } = req.body;
-
-//     // 1. Hash the password before saving
-//     const hashedPassword = await bcrypt.hash(password, 10);
-
-//     // 2. Create the new user with the hashed password
-//     const newUser = await User.create({
-//       name,
-//       email,
-//       password: hashedPassword,
-//       role
-//     });
-
-//     res.status(201).json(newUser);
-//   } catch (error) {
-//     res.status(400).json({ message: 'Error creating user', error });
-//   }
-// };
-
-
 // User controller with edit
 
 const { User } = require('../models');
@@ -34,7 +8,7 @@ const { sendEmail } = require('../config/emailService'); // Assuming email servi
 
 // Create user (Sign Up)
 exports.createUser = async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, referralSource } = req.body;
 
   try {
     // Hash the password before saving it
@@ -46,6 +20,7 @@ exports.createUser = async (req, res) => {
       email,
       password: hashedPassword,
       role: role || 'client', // Default role is 'client'
+      referralSource,
     });
 
     // Generate JWT token
