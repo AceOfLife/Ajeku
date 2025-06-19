@@ -417,7 +417,7 @@ AdminController.getSalesGoalsProgress = async (req, res) => {
       include: {
         model: Property,
         as: 'property',
-        attributes: ['id', 'property_type', 'isRental']
+        attributes: ['id', 'type', 'isRental']
       }
     });
 
@@ -427,7 +427,7 @@ AdminController.getSalesGoalsProgress = async (req, res) => {
       const property = tx.property;
       const amount = tx.price;
 
-      if (property.property_type === 'land') {
+      if (property.type === 'land') {
         landTotal += amount;
       } else if (property.isRental) {
         rentTotal += amount;
