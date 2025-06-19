@@ -190,7 +190,7 @@
 
 // 18th June update 
 
-const { Property, User, Transaction } = require('../models'); 
+const { Property, User, Transaction, SalesGoal } = require('../models'); 
 const bcryptjs = require('bcryptjs');
 const { uploadImagesToCloudinary } = require('../config/multerConfig');
 const { Op } = require('sequelize');
@@ -362,6 +362,103 @@ AdminController.getReferralStats = async (req, res) => {
   } catch (error) {
     console.error('Error getting referral stats:', error);
     res.status(500).json({ message: 'Failed to get referral stats', error });
+  }
+};
+
+exports.setSalesGoals = async (req, res) => {
+  try {
+    const { month, year, goal_land = 0, goal_building = 0, goal_rent = 0 } = req.body;
+
+    if (!month || !year) {
+      return res.status(400).json({ message: "Month and year are required." });
+    }
+
+    const [goal, created] = await SalesGoal.findOrCreate({
+      where: { month, year },
+      defaults: { goal_land, goal_building, goal_rent }
+    });
+
+    if (!created) {
+      goal.goal_land = goal_land;
+      goal.goal_building = goal_building;
+      goal.goal_rent = goal_rent;
+      await goal.save();
+    }
+
+    return res.status(200).json({ message: "Sales goals set successfully", goal });
+  } catch (error) {
+    console.error("Error setting sales goals:", error);
+    return res.status(500).json({ message: "Internal server error", error });
+  }
+};
+
+exports.getSalesGoalsProgress = async (req, res) => {
+  try {
+    const { month, year } = req.query;
+
+    if (!month || !year) {
+      return res.status(400).json({ message: "Month and year are required in query" });
+    }
+
+    const goal = await SalesGoal.findOne({ where: { month, year } });
+    if (!goal) {
+      return res.status(404).json({ message: "Sales goal not set for this period." });
+    }
+
+    const startDate = new Date(`${year}-${month}-01`);
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + 1);
+
+    const transactions = await Transaction.findAll({
+      where: {
+        status: 'success',
+        createdAt: { [Op.between]: [startDate, endDate] }
+      },
+      include: {
+        model: Property,
+        as: 'property',
+        attributes: ['id', 'property_type', 'isRental']
+      }
+    });
+
+    let landTotal = 0, rentTotal = 0, buildingTotal = 0;
+
+    for (const tx of transactions) {
+      const property = tx.property;
+      const amount = tx.price;
+
+      if (property.property_type === 'land') {
+        landTotal += amount;
+      } else if (property.isRental) {
+        rentTotal += amount;
+        buildingTotal += amount;
+      } else {
+        buildingTotal += amount;
+      }
+    }
+
+    const result = {
+      land: {
+        goal: goal.goal_land,
+        achieved: landTotal,
+        percentage: goal.goal_land ? Math.round((landTotal / goal.goal_land) * 100) : 0
+      },
+      rent: {
+        goal: goal.goal_rent,
+        achieved: rentTotal,
+        percentage: goal.goal_rent ? Math.round((rentTotal / goal.goal_rent) * 100) : 0
+      },
+      building: {
+        goal: goal.goal_building,
+        achieved: buildingTotal,
+        percentage: goal.goal_building ? Math.round((buildingTotal / goal.goal_building) * 100) : 0
+      }
+    };
+
+    return res.status(200).json({ message: "Sales progress fetched", result });
+  } catch (error) {
+    console.error("Error fetching sales progress:", error);
+    return res.status(500).json({ message: "Internal server error", error });
   }
 };
 

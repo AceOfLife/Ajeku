@@ -98,6 +98,10 @@ router.delete('/reviews/:id', authenticate, authorizeAdmin, ReviewController.del
 router.get('/stats/summary', authenticate, authorizeAdmin, AdminController.getAdminStats);
 router.get('/stats/referrals', authenticate, authorizeAdmin, AdminController.getReferralStats);
 
+// Routes for Goals
+router.post('/sales-goals', authenticate, authorizeAdmin, AdminController.setSalesGoals);
+router.get('/sales-goals/progress', authenticate, authorizeAdmin, AdminController.getSalesGoalsProgress);
+
 
 // User signup route (no authentication required for signup)
 router.post('/signup', UserController.createUser);
