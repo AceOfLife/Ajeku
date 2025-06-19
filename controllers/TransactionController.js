@@ -267,9 +267,6 @@ exports.getCustomerMap = async (req, res) => {
 //   }
 // };
 
-const { Op } = require("sequelize");
-const { Transaction, User, Property } = require('../models');
-
 exports.getRecentCustomers = async (req, res) => {
   try {
     const twoWeeksAgo = new Date();
