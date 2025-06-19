@@ -365,7 +365,7 @@ AdminController.getReferralStats = async (req, res) => {
   }
 };
 
-exports.setSalesGoals = async (req, res) => {
+AdminController.setSalesGoals = async (req, res) => {
   try {
     const { month, year, goal_land = 0, goal_building = 0, goal_rent = 0 } = req.body;
 
@@ -392,7 +392,7 @@ exports.setSalesGoals = async (req, res) => {
   }
 };
 
-exports.getSalesGoalsProgress = async (req, res) => {
+AdminController.getSalesGoalsProgress = async (req, res) => {
   try {
     const { month, year } = req.query;
 
