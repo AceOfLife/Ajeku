@@ -442,17 +442,19 @@ AdminController.getSalesGoalsProgress = async (req, res) => {
       land: {
         goal: goal.goal_land,
         achieved: landTotal,
-        percentage: goal.goal_land ? Math.round((landTotal / goal.goal_land) * 100) : 0
+        percentage: goal.goal_land ? Math.min(100, Math.round((landTotal / goal.goal_land) * 100)) : 0
       },
       rent: {
         goal: goal.goal_rent,
         achieved: rentTotal,
-        percentage: goal.goal_rent ? Math.round((rentTotal / goal.goal_rent) * 100) : 0
+        percentage: goal.goal_rent ? Math.min(100, Math.round((rentTotal / goal.goal_rent) * 100))
+          : 0
       },
       building: {
         goal: goal.goal_building,
         achieved: buildingTotal,
-        percentage: goal.goal_building ? Math.round((buildingTotal / goal.goal_building) * 100) : 0
+        percentage: goal.goal_building ? Math.min(100, Math.round((buildingTotal / goal.goal_building) * 100))
+          : 0
       }
     };
 
