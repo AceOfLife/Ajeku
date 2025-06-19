@@ -272,40 +272,36 @@ exports.getRecentCustomers = async (req, res) => {
     const twoWeeksAgo = new Date();
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
-    // Find users created within the last 2 weeks who have at least one successful transaction
-    const users = await User.findAll({
+    const transactions = await Transaction.findAll({
       where: {
-        role: 'client',
+        status: "success",
         createdAt: {
           [Op.gte]: twoWeeksAgo,
         },
       },
       include: [
         {
-          model: Transaction,
-          as: "transactions",
-          where: { status: "success" },
-          required: true,
-          include: [
-            {
-              model: Property,
-              as: "property",
-              attributes: ["id", "name", "location"]
-            }
-          ]
-        }
+          model: User,
+          as: "user",
+          attributes: ["id", "name", "email"],
+        },
+        {
+          model: Property,
+          as: "property",
+          attributes: ["id", "name", "location"],
+        },
       ],
-      attributes: ["id", "name", "email", "createdAt"],
       order: [["createdAt", "DESC"]],
-      limit: 10
+      limit: 10,
     });
 
-    return res.status(200).json({ success: true, data: users });
+    return res.status(200).json({ success: true, data: transactions });
   } catch (error) {
     console.error("Error fetching recent customers:", error);
     return res.status(500).json({ message: "Error fetching recent customers", error });
   }
 };
+
 
 
 // exports.getTransactionHistory = async (req, res) => {
