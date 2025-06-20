@@ -35,5 +35,8 @@ router.get('/properties/recent', PropertyController.getRecentProperties);
 // Top 6 most viewed properties
 router.get('/properties/most-viewed', PropertyController.getMostViewedProperties);
 
+// User properties
+router.get('/properties/user', authenticate, PropertyController.getUserProperties);
+
 
 module.exports = router;

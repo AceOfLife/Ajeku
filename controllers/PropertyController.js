@@ -999,4 +999,64 @@ exports.getMostViewedProperties = async (req, res) => {
   }
 };
 
+exports.getUserProperties = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Outright properties (via Transactions)
+    const outright = await Property.findAll({
+      include: [
+        { model: Transaction, where: { user_id: userId, status: 'success' }, required: true },
+        { model: PropertyImage, as: 'images' }
+      ]
+    });
+
+    // 2. Fractional ownerships
+    const fractionalIds = await FractionalOwnership.findAll({
+      where: { user_id: userId },
+      attributes: ['property_id'],
+      raw: true
+    });
+
+    const fractional = await Property.findAll({
+      where: {
+        id: fractionalIds.map(f => f.property_id)
+      },
+      include: [{ model: PropertyImage, as: 'images' }]
+    });
+
+    // 3. Installment ownerships
+    const installmentIds = await InstallmentOwnership.findAll({
+      where: { user_id: userId },
+      attributes: ['property_id'],
+      raw: true
+    });
+
+    const installments = await Property.findAll({
+      where: {
+        id: installmentIds.map(i => i.property_id)
+      },
+      include: [{ model: PropertyImage, as: 'images' }]
+    });
+
+    // Combine and remove duplicates
+    const allPropertiesMap = new Map();
+
+    [...outright, ...fractional, ...installments].forEach((prop) => {
+      allPropertiesMap.set(prop.id, prop); // overwrite duplicates
+    });
+
+    const uniqueProperties = Array.from(allPropertiesMap.values());
+
+    return res.status(200).json({
+      message: 'User properties fetched successfully',
+      properties: uniqueProperties
+    });
+
+  } catch (error) {
+    console.error('Error fetching user properties:', error);
+    return res.status(500).json({ message: 'Failed to fetch user properties', error });
+  }
+};
+
   
