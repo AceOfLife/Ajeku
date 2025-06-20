@@ -33,7 +33,7 @@ router.put('/change-password', authenticate, ClientController.changePassword);
 router.get('/properties/recent', PropertyController.getRecentProperties);
 
 // Top 6 most viewed properties
-router.get('/properties/top-viewed', PropertyController.getTopViewedProperties);
+router.get('/properties/most-viewed', PropertyController.getMostViewedProperties);
 
 
 module.exports = router;
