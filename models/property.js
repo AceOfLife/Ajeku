@@ -162,7 +162,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.FLOAT,
       allowNull: true,
       defaultValue: null, // Default value for non-fractional properties
-    }
+    },
+    views: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
   });
 
   Property.associate = function(models) {

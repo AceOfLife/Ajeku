@@ -731,13 +731,17 @@ exports.getPropertyById = async (req, res) => {
       return res.status(404).json({ message: 'Property not found' });
     }
 
+    // ✅ Increment views
+    await property.increment('views');
+
+    // Update last checked
     await property.update({ last_checked: new Date() });
 
     let installmentProgress = null;
     const parsedUserId = parseInt(userId);
     const parsedPropertyId = parseInt(id);
 
-    // 🧠 User-specific (Option 2 - already working)
+    // 🧠 User-specific (Option 2)
     if (parsedUserId && property.isInstallment && !property.is_fractional) {
       const ownership = await InstallmentOwnership.findOne({
         where: { user_id: parsedUserId, property_id: parsedPropertyId }
@@ -796,6 +800,7 @@ exports.getPropertyById = async (req, res) => {
     res.status(500).json({ message: 'Error retrieving property', error });
   }
 };
+
 
 
 
@@ -892,68 +897,6 @@ exports.getFilteredProperties = async (req, res) => {
     }
 };
 
-// 11/04/2025 Works
-
-// exports.getPropertySlots = async (req, res) => {
-//     try {
-//       const { property_id } = req.params;
-//       const { user_id } = req.query;
-  
-//       const property = await Property.findByPk(property_id);
-//       if (!property) {
-//         return res.status(404).json({ message: 'Property not found' });
-//       }
-  
-//       // Fetch all ownerships for the property
-//       const allOwnerships = await FractionalOwnership.findAll({
-//         where: { property_id }
-//       });
-  
-//       // Calculate total purchased slots across all users
-//       const totalPurchasedSlots = allOwnerships.reduce(
-//         (sum, record) => sum + record.slots_purchased,
-//         0
-//       );
-  
-//       // Calculate total slots (available + purchased)
-//       const totalSlots = property.fractional_slots + totalPurchasedSlots;
-  
-//       // If user_id is provided, get user's specific purchased slots
-//       if (user_id) {
-//         const userPurchasedSlots = allOwnerships
-//           .filter(record => record.user_id.toString() === user_id.toString())
-//           .reduce((sum, record) => sum + record.slots_purchased, 0);
-  
-//         return res.status(200).json({
-//           property_id: property.id,
-//           name: property.name,
-//           available_slots: property.fractional_slots,
-//           purchased_slots: userPurchasedSlots,
-//           total_slots: totalSlots
-//         });
-//       }
-  
-//       // Return for admin (all users)
-//       return res.status(200).json({
-//         property_id: property.id,
-//         name: property.name,
-//         available_slots: property.fractional_slots,
-//         total_purchased_slots: totalPurchasedSlots,
-//         total_slots: totalSlots
-//       });
-  
-//     } catch (error) {
-//       console.error("Error fetching property slots:", error.message);
-//       res.status(500).json({
-//         message: 'Error fetching property slot information',
-//         error: error.message
-//       });
-//     }
-//   };
-  
-  
-  
-  
 // 13/04/2025
 
 exports.getPropertySlots = async (req, res) => {
@@ -1038,6 +981,21 @@ exports.getPropertySlots = async (req, res) => {
   } catch (error) {
     console.error("Error fetching recent properties:", error);
     res.status(500).json({ message: "Failed to fetch recent properties", error });
+  }
+};
+
+exports.getMostViewedProperties = async (req, res) => {
+  try {
+    const properties = await Property.findAll({
+      order: [['views', 'DESC']],
+      limit: 6,
+      include: [{ model: PropertyImage, as: 'images' }]
+    });
+
+    res.status(200).json({ properties });
+  } catch (error) {
+    console.error('Error fetching most viewed properties:', error);
+    res.status(500).json({ message: 'Failed to fetch most viewed properties', error });
   }
 };
 
