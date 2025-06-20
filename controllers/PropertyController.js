@@ -1025,4 +1025,20 @@ exports.getPropertySlots = async (req, res) => {
       });
     }
   };
+
+  exports.getRecentProperties = async (req, res) => {
+  try {
+    const properties = await Property.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 6,
+      include: [{ model: PropertyImage, as: 'images' }]
+    });
+
+    res.status(200).json({ properties });
+  } catch (error) {
+    console.error("Error fetching recent properties:", error);
+    res.status(500).json({ message: "Failed to fetch recent properties", error });
+  }
+};
+
   

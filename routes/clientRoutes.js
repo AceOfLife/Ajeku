@@ -28,4 +28,7 @@ router.get('/profile', authenticate, ClientController.getClient);
 // Route for users to change their password
 router.put('/change-password', authenticate, ClientController.changePassword);
 
+// Get Recent Properties
+router.get('/properties/recent', PropertyController.getRecentProperties);
+
 module.exports = router;
