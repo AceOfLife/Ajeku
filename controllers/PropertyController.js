@@ -602,7 +602,7 @@ exports.getAllProperties = async (req, res) => {
   }
 };
 
-
+// June 20 2025
 // exports.getPropertyById = async (req, res) => {
 //   try {
 //     const { id } = req.params;
@@ -652,6 +652,71 @@ exports.getAllProperties = async (req, res) => {
 
 
 // option 1:
+// exports.getPropertyById = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { userId } = req.query;
+
+//     const property = await Property.findOne({
+//       where: { id },
+//       include: [{ model: PropertyImage, as: 'images' }]
+//     });
+
+//     if (!property) {
+//       return res.status(404).json({ message: 'Property not found' });
+//     }
+
+//     await property.update({ last_checked: new Date() });
+
+//     let installmentProgress = null;
+//     const parsedUserId = parseInt(userId);
+//     const parsedPropertyId = parseInt(id);
+
+//     // 🧠 User-specific (Option 2 - already working)
+//     if (parsedUserId && property.isInstallment && !property.is_fractional) {
+//       const ownership = await InstallmentOwnership.findOne({
+//         where: { user_id: parsedUserId, property_id: parsedPropertyId }
+//       });
+
+//       if (ownership) {
+//         installmentProgress = {
+//           totalMonths: ownership.total_months,
+//           paidMonths: ownership.months_paid,
+//           remainingMonths: ownership.total_months - ownership.months_paid,
+//           status: ownership.status
+//         };
+//       }
+//     }
+
+//     // ✅ Option 1: Admin call with no userId — aggregate view
+//     if (!parsedUserId && property.isInstallment && !property.is_fractional) {
+//       const ownerships = await InstallmentOwnership.findAll({
+//         where: { property_id: parsedPropertyId }
+//       });
+
+//       const totalUsers = ownerships.length;
+
+//       if (totalUsers > 0) {
+//         const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
+//         const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
+
+//         installmentProgress = {
+//           totalUsers,
+//           totalMonths,
+//           paidMonths,
+//           // averagePaidMonths: (paidMonths / totalUsers).toFixed(2),
+//           remainingMonths: totalMonths - paidMonths,
+//         };
+//       }
+//     }
+
+//     return res.status(200).json({ property, installmentProgress });
+//   } catch (error) {
+//     console.error("Error in getPropertyById:", error);
+//     res.status(500).json({ message: 'Error retrieving property', error });
+//   }
+// };
+
 exports.getPropertyById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -704,18 +769,34 @@ exports.getPropertyById = async (req, res) => {
           totalUsers,
           totalMonths,
           paidMonths,
-          // averagePaidMonths: (paidMonths / totalUsers).toFixed(2),
           remainingMonths: totalMonths - paidMonths,
         };
       }
     }
 
-    return res.status(200).json({ property, installmentProgress });
+    // ✅ Dynamically compute available_slots if fractional
+    let availableSlots = null;
+    if (property.is_fractional) {
+      const ownerships = await FractionalOwnership.findAll({
+        where: { property_id: property.id }
+      });
+
+      const totalPurchased = ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
+      availableSlots = property.fractional_slots - totalPurchased;
+    }
+
+    const propertyData = {
+      ...property.toJSON(),
+      available_slots: property.is_fractional ? availableSlots : undefined
+    };
+
+    return res.status(200).json({ property: propertyData, installmentProgress });
   } catch (error) {
     console.error("Error in getPropertyById:", error);
     res.status(500).json({ message: 'Error retrieving property', error });
   }
 };
+
 
 
 

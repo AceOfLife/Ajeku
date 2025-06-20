@@ -683,8 +683,8 @@ exports.verifyPayment = async (req, res) => {
         slots_purchased: slots
       });
 
-      property.fractional_slots -= slots;
-      await property.save();
+      // property.fractional_slots -= slots;
+      // await property.save();
 
       return res.status(200).json({
         message: "Fractional payment verified successfully",
