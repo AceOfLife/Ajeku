@@ -64,51 +64,113 @@ exports.getBankSummary = async (req, res) => {
 };
 
 // Update Bank of Heaven data
+// exports.updateBankSummary = async (req, res) => {
+//   try {
+//     const { expenses } = req.body; // Only accepting expenses as input
+//     const now = new Date();
+//     const lastWeek = new Date();
+//     lastWeek.setDate(now.getDate() - 7);
+
+//     // Calculate total income in the last 7 days
+//     const income_per_week = await Transaction.sum('price', {
+//       where: {
+//         transaction_date: {
+//           [Op.between]: [lastWeek, now],
+//         },
+//       },
+//     }) || 0;
+
+//     // Calculate total expenses in the last 7 days
+//     const expenses_per_week = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+
+//     // Calculate total income from all transactions
+//     const total_income = await Transaction.sum('price') || 0;
+
+//     // Calculate total expenses from all recorded expenses
+//     const total_expenses = await BankOfHeaven.sum('expenses_per_week') || 0;
+
+//     // Calculate current balance
+//     const current_balance = total_income - total_expenses;
+
+//     let bankSummary = await BankOfHeaven.findOne();
+
+//     if (!bankSummary) {
+//       // Create a new record if it doesn't exist
+//       bankSummary = await BankOfHeaven.create({
+//         current_balance,
+//         expenses_per_week,
+//         income_per_week,
+//         transactions: expenses, // Store the new expenses
+//       });
+//     } else {
+//       // Update existing record
+//       await bankSummary.update({
+//         current_balance,
+//         expenses_per_week,
+//         income_per_week,
+//         transactions: expenses, // Store the new expenses
+//       });
+//     }
+
+//     res.status(200).json({ message: 'Bank summary updated successfully', bankSummary });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Error updating Bank of Heaven data' });
+//   }
+// };
+
 exports.updateBankSummary = async (req, res) => {
   try {
-    const { expenses } = req.body; // Only accepting expenses as input
+    const { expenses } = req.body;
     const now = new Date();
     const lastWeek = new Date();
     lastWeek.setDate(now.getDate() - 7);
 
-    // Calculate total income in the last 7 days
-    const income_per_week = await Transaction.sum('price', {
+    // 🔁 Filter transactions only for rental properties
+    const rentalTransactions = await Transaction.findAll({
       where: {
         transaction_date: {
           [Op.between]: [lastWeek, now],
         },
       },
-    }) || 0;
+      include: [{
+        model: Property,
+        where: { isRental: true },
+      }]
+    });
 
-    // Calculate total expenses in the last 7 days
-    const expenses_per_week = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+    const income_per_week = rentalTransactions.reduce((sum, tx) => sum + tx.price, 0);
 
-    // Calculate total income from all transactions
-    const total_income = await Transaction.sum('price') || 0;
+    // All-time rental income
+    const allRentalTransactions = await Transaction.findAll({
+      include: [{
+        model: Property,
+        where: { isRental: true },
+      }]
+    });
 
-    // Calculate total expenses from all recorded expenses
+    const total_income = allRentalTransactions.reduce((sum, tx) => sum + tx.price, 0);
+
+    const expenses_per_week = expenses.reduce((sum, e) => sum + e.amount, 0);
+
     const total_expenses = await BankOfHeaven.sum('expenses_per_week') || 0;
-
-    // Calculate current balance
     const current_balance = total_income - total_expenses;
 
     let bankSummary = await BankOfHeaven.findOne();
 
     if (!bankSummary) {
-      // Create a new record if it doesn't exist
       bankSummary = await BankOfHeaven.create({
         current_balance,
         expenses_per_week,
         income_per_week,
-        transactions: expenses, // Store the new expenses
+        transactions: expenses,
       });
     } else {
-      // Update existing record
       await bankSummary.update({
         current_balance,
         expenses_per_week,
         income_per_week,
-        transactions: expenses, // Store the new expenses
+        transactions: expenses,
       });
     }
 
