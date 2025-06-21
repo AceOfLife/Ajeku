@@ -366,7 +366,7 @@ exports.createProperty = async (req, res) => {
         interior_area, parking, material, date_on_market,
         ownership, kitchen, heating, cooling, type_and_style, lot,
         percentage, duration, is_fractional, fractional_slots,
-        isRental, isInstallment, isFractionalInstallment, isFractionalDuration
+        isRental, isInstallment, isFractionalInstallment, isFractionalDuration, annual_rent,
       } = req.body;
 
       // === Typecasting and validation ===
@@ -434,7 +434,8 @@ exports.createProperty = async (req, res) => {
         cooling: splitToArray(cooling),
         type_and_style: splitToArray(type_and_style),
         lot: splitToArray(lot),
-        parking: splitToArray(parking)
+        parking: splitToArray(parking),
+        annual_rent,
       };
 
       const newProperty = await Property.create(newPropertyData);

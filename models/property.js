@@ -12,6 +12,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
+    annual_rent: {
+      type: DataTypes.FLOAT,
+      allowNull: true
+    },
     agent_id: {
       type: DataTypes.INTEGER,
       references: {
