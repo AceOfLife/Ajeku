@@ -16,6 +16,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.FLOAT,
       allowNull: true
     },
+    monthly_expense: {
+      type: DataTypes.FLOAT,
+      allowNull: true
+    },
+    estimated_value: {
+      type: DataTypes.FLOAT,
+      allowNull: true, // optional during creation
+    },
     agent_id: {
       type: DataTypes.INTEGER,
       references: {
