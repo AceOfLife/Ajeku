@@ -1059,4 +1059,126 @@ exports.getUserProperties = async (req, res) => {
   }
 };
 
+exports.updateMonthlyExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { monthly_expense } = req.body;
+
+    const property = await Property.findByPk(id);
+
+    if (!property) {
+      return res.status(404).json({ message: 'Property not found' });
+    }
+
+    if (typeof monthly_expense !== 'number' || monthly_expense < 0) {
+      return res.status(400).json({ message: 'monthly_expense must be a valid number' });
+    }
+
+    property.monthly_expense = monthly_expense;
+    await property.save();
+
+    return res.status(200).json({
+      message: 'Monthly expense updated successfully',
+      property
+    });
+  } catch (error) {
+    console.error('Error updating monthly expense:', error);
+    return res.status(500).json({ message: 'Error updating monthly expense', error });
+  }
+};
+
+exports.updateEstimatedValue = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { estimated_value } = req.body;
+
+    const property = await Property.findByPk(id);
+
+    if (!property) {
+      return res.status(404).json({ message: 'Property not found' });
+    }
+
+    if (typeof estimated_value !== 'number' || estimated_value <= 0) {
+      return res.status(400).json({ message: 'Estimated value must be a valid number' });
+    }
+
+    property.estimated_value = estimated_value;
+    await property.save();
+
+    return res.status(200).json({
+      message: 'Estimated value updated successfully',
+      property
+    });
+  } catch (error) {
+    console.error('Error updating estimated value:', error);
+    return res.status(500).json({ message: 'Error updating estimated value', error });
+  }
+};
+
+exports.getPropertyAnalytics = async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const { userId } = req.query;
+
+    const property = await Property.findByPk(propertyId);
+    if (!property || !property.isRental) {
+      return res.status(404).json({ message: 'Rental property not found' });
+    }
+
+    const annual_rent = parseFloat(property.annual_rent || 0);
+    const monthly_rent = annual_rent / 12;
+
+    const monthly_expense = parseFloat(property.monthly_expense || 0);
+    const annual_expense = monthly_expense * 12;
+
+    const estimated_value = parseFloat(property.estimated_value || property.price || 0);
+
+    const annual_income = await Transaction.sum('price', {
+      where: {
+        property_id: property.id,
+        payment_type: 'rent'
+      }
+    }) || 0;
+
+    let outstanding_balance = 0;
+    if (userId) {
+      const ownership = await InstallmentOwnership.findOne({
+        where: { user_id: userId, property_id: property.id }
+      });
+
+      if (ownership) {
+        const total_months = ownership.total_months || 0;
+        const months_paid = ownership.months_paid || 0;
+        const monthly_installment = property.price / total_months;
+        outstanding_balance = monthly_installment * (total_months - months_paid);
+      }
+    }
+
+    const potential_equity = estimated_value - outstanding_balance;
+
+    const gross_yield = estimated_value ? (annual_income / estimated_value) * 100 : 0;
+    const net_yield = estimated_value ? ((annual_income - annual_expense) / estimated_value) * 100 : 0;
+
+    const analytics = {
+      monthly_rent,
+      annual_expense,
+      annual_income,
+      outstanding_balance,
+      estimated_value,
+      potential_equity,
+      gross_yield: parseFloat(gross_yield.toFixed(2)),
+      net_yield: parseFloat(net_yield.toFixed(2))
+    };
+
+    return res.status(200).json({
+      message: 'Property analytics retrieved',
+      analytics
+    });
+  } catch (error) {
+    console.error("Error fetching property analytics:", error);
+    return res.status(500).json({ message: "Error retrieving analytics", error });
+  }
+};
+
+
   

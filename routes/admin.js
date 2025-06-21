@@ -58,6 +58,9 @@ router.post('/properties', authenticate, authorizeAdmin, PropertyController.crea
 router.put('/properties/:id', authenticate, authorizeAdmin, PropertyController.updateProperty);
 router.delete('/properties/:id', authenticate, authorizeAdmin, PropertyController.deleteProperty);
 router.get('/properties/:id', PropertyController.getPropertyById);
+router.post('/properties/:id/monthly-expense', authenticate, authorizeAdmin, PropertyController.updateMonthlyExpense);
+router.put('/properties/:id/estimated-value', authenticate, authorizeAdmin, PropertyController.updateEstimatedValue);
+
 
 
 // Route for Fetching Property Slots
