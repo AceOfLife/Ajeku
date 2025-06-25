@@ -184,6 +184,7 @@ module.exports = (sequelize, DataTypes) => {
   Property.associate = function(models) {
     // Each property belongs to a user (agent)
     Property.belongsTo(models.User, { foreignKey: 'agent_id', as: 'agent' });
+    Property.hasMany(models.Transaction, { foreignKey: 'property_id' });
 
     // Each property can have many images
     Property.hasMany(models.PropertyImage, {
