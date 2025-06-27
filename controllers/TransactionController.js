@@ -401,7 +401,7 @@ exports.getRecentCustomers = async (req, res) => {
         {
           model: User,
           as: "user",
-          attributes: ["name", "role", "profile_image"], // Only essential user fields
+          attributes: ["name", "role", "profileImage"], // Only essential user fields
         }
       ],
       order: [["createdAt", "DESC"]],
