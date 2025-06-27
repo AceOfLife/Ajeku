@@ -348,6 +348,42 @@ exports.getCustomerMap = async (req, res) => {
   }
 };
 
+// 27th June 2025
+
+// exports.getRecentCustomers = async (req, res) => {
+//   try {
+//     const twoWeeksAgo = new Date();
+//     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+//     const transactions = await Transaction.findAll({
+//       where: {
+//         status: "success",
+//         createdAt: {
+//           [Op.gte]: twoWeeksAgo,
+//         },
+//       },
+//       include: [
+//         {
+//           model: User,
+//           as: "user",
+//           attributes: ["id", "name", "email"],
+//         },
+//         {
+//           model: Property,
+//           as: "property",
+//           attributes: ["id", "name", "location"],
+//         },
+//       ],
+//       order: [["createdAt", "DESC"]],
+//       limit: 10,
+//     });
+
+//     return res.status(200).json({ success: true, data: transactions });
+//   } catch (error) {
+//     console.error("Error fetching recent customers:", error);
+//     return res.status(500).json({ message: "Error fetching recent customers", error });
+//   }
+// };
 
 exports.getRecentCustomers = async (req, res) => {
   try {
@@ -365,24 +401,25 @@ exports.getRecentCustomers = async (req, res) => {
         {
           model: User,
           as: "user",
-          attributes: ["id", "name", "email"],
-        },
-        {
-          model: Property,
-          as: "property",
-          attributes: ["id", "name", "location"],
-        },
+          attributes: ["name", "role", "profile_image"], // Only essential user fields
+        }
       ],
       order: [["createdAt", "DESC"]],
       limit: 10,
     });
 
-    return res.status(200).json({ success: true, data: transactions });
+    // Extract only user data
+    const users = transactions
+      .map(t => t.user)
+      .filter((u, index, self) => u && self.findIndex(x => x.name === u.name && x.role === u.role) === index); // Deduplicate
+
+    return res.status(200).json({ success: true, data: users });
   } catch (error) {
     console.error("Error fetching recent customers:", error);
     return res.status(500).json({ message: "Error fetching recent customers", error });
   }
 };
+
 
 
 
