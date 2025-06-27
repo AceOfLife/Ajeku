@@ -271,78 +271,77 @@ exports.getRevenueStats = async (req, res) => {
 
 exports.getCustomerMap = async (req, res) => {
   try {
-    const { Op, fn, col, literal, Sequelize } = require("sequelize");
-    const { Transaction } = require("../models"); // adjust path if necessary
+    const { Op, fn, col, literal } = require("sequelize");
+    const { Transaction } = require("../models");
 
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth(); // 0-indexed (June = 5)
 
-    // 1. Daily counts for the current month
-    const startOfMonth = new Date(year, month, 1);
-    const endOfMonth = new Date(year, month + 1, 0);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-    const daily = await Transaction.findAll({
-      attributes: [
-        [fn("DATE", col("transaction_date")), "day"],
-        [fn("COUNT", col("id")), "count"]
-      ],
-      where: {
-        status: "success",
-        transaction_date: {
-          [Op.between]: [startOfMonth, endOfMonth]
-        }
-      },
-      group: [fn("DATE", col("transaction_date"))],
-      order: [[fn("DATE", col("transaction_date")), "ASC"]],
-      raw: true
-    });
+    // === Daily Transactions for current month ===
+    const daily = await Promise.all(
+      Array.from({ length: daysInMonth }, async (_, i) => {
+        const day = i + 1;
+        const start = new Date(year, month, day);
+        const end = new Date(year, month, day + 1);
 
-    // 2. Weekly counts for current month
-    const weekly = await Transaction.findAll({
-      attributes: [
-        [fn("date_trunc", "week", col("transaction_date")), "week"],
-        [fn("COUNT", col("id")), "count"]
-      ],
-      where: {
-        status: "success",
-        transaction_date: {
-          [Op.between]: [startOfMonth, endOfMonth]
-        }
-      },
-      group: [fn("date_trunc", "week", col("transaction_date"))],
-      order: [[fn("date_trunc", "week", col("transaction_date")), "ASC"]],
-      raw: true
-    });
+        const count = await Transaction.count({
+          where: {
+            status: "success",
+            transaction_date: {
+              [Op.gte]: start,
+              [Op.lt]: end
+            }
+          }
+        });
+        return count;
+      })
+    );
 
-    // 3. Monthly counts for current year
-    const startOfYear = new Date(year, 0, 1);
-    const endOfYear = new Date(year, 11, 31);
+    // === Weekly Transactions for current month ===
+    const firstDayOfMonth = new Date(year, month, 1);
+    const weeksInMonth = Math.ceil((firstDayOfMonth.getDay() + daysInMonth) / 7);
 
-    const monthly = await Transaction.findAll({
-      attributes: [
-        [fn("date_trunc", "month", col("transaction_date")), "month"],
-        [fn("COUNT", col("id")), "count"]
-      ],
-      where: {
-        status: "success",
-        transaction_date: {
-          [Op.between]: [startOfYear, endOfYear]
-        }
-      },
-      group: [fn("date_trunc", "month", col("transaction_date"))],
-      order: [[fn("date_trunc", "month", col("transaction_date")), "ASC"]],
-      raw: true
-    });
+    const weekly = await Promise.all(
+      Array.from({ length: weeksInMonth }, async (_, i) => {
+        const start = new Date(year, month, 1 + i * 7);
+        const end = new Date(year, month, 1 + (i + 1) * 7);
 
-    return res.json({
-      success: true,
-      data: {
-        daily,
-        weekly,
-        monthly
-      }
-    });
+        const count = await Transaction.count({
+          where: {
+            status: "success",
+            transaction_date: {
+              [Op.gte]: start,
+              [Op.lt]: end
+            }
+          }
+        });
+        return count;
+      })
+    );
+
+    // === Monthly Transactions for current year ===
+    const monthly = await Promise.all(
+      Array.from({ length: 12 }, async (_, i) => {
+        const start = new Date(year, i, 1);
+        const end = new Date(year, i + 1, 1);
+
+        const count = await Transaction.count({
+          where: {
+            status: "success",
+            transaction_date: {
+              [Op.gte]: start,
+              [Op.lt]: end
+            }
+          }
+        });
+        return count;
+      })
+    );
+
+    return res.json({ success: true, data: { daily, weekly, monthly: monthly.slice(0, month + 1) } });
   } catch (error) {
     console.error("Error fetching customer map:", error);
     res.status(500).json({ message: "Error fetching customer map", error });
