@@ -177,37 +177,129 @@ exports.getTransactionById = async (req, res) => {
 // };
 
 
-// For date 
+// 27th June 2025
+
+// exports.getRevenueStats = async (req, res) => {
+//   try {
+//     const { period } = req.query;
+
+//     if (!["daily", "weekly", "monthly"].includes(period)) {
+//       return res.status(400).json({ message: "Invalid period. Use daily, weekly, or monthly." });
+//     }
+
+//     let dateTrunc;
+//     if (period === "daily") dateTrunc = "day";
+//     else if (period === "weekly") dateTrunc = "week";
+//     else dateTrunc = "month"; // Default to monthly
+
+//     const revenueData = await Transaction.findAll({
+//       attributes: [
+//         [sequelize.fn("DATE_TRUNC", dateTrunc, sequelize.col("transaction_date")), "date"],
+//         [sequelize.fn("SUM", sequelize.col("price")), "total_revenue"],
+//       ],
+//       where: { status: "success" },
+//       group: [sequelize.fn("DATE_TRUNC", dateTrunc, sequelize.col("transaction_date"))],
+//       order: [[sequelize.fn("DATE_TRUNC", dateTrunc, sequelize.col("transaction_date")), "ASC"]],
+//     });
+
+//     return res.json({ success: true, data: revenueData });
+//   } catch (error) {
+//     console.error("Error fetching revenue stats:", error);
+//     res.status(500).json({ message: "Error fetching transaction", error });
+//   }
+// };
 
 exports.getRevenueStats = async (req, res) => {
   try {
+    const { Op } = require("sequelize");
     const { period } = req.query;
+    const now = new Date();
 
     if (!["daily", "weekly", "monthly"].includes(period)) {
       return res.status(400).json({ message: "Invalid period. Use daily, weekly, or monthly." });
     }
 
-    let dateTrunc;
-    if (period === "daily") dateTrunc = "day";
-    else if (period === "weekly") dateTrunc = "week";
-    else dateTrunc = "month"; // Default to monthly
+    let data = [];
 
-    const revenueData = await Transaction.findAll({
-      attributes: [
-        [sequelize.fn("DATE_TRUNC", dateTrunc, sequelize.col("transaction_date")), "date"],
-        [sequelize.fn("SUM", sequelize.col("price")), "total_revenue"],
-      ],
-      where: { status: "success" },
-      group: [sequelize.fn("DATE_TRUNC", dateTrunc, sequelize.col("transaction_date"))],
-      order: [[sequelize.fn("DATE_TRUNC", dateTrunc, sequelize.col("transaction_date")), "ASC"]],
-    });
+    if (period === "daily") {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const transactions = await Transaction.findAll({
+        where: {
+          status: "success",
+          transaction_date: { [Op.gte]: startOfMonth },
+        },
+        attributes: [
+          [sequelize.fn("DATE", sequelize.col("transaction_date")), "date"],
+          [sequelize.fn("SUM", sequelize.col("price")), "total"]
+        ],
+        group: [sequelize.fn("DATE", sequelize.col("transaction_date"))],
+        raw: true,
+      });
 
-    return res.json({ success: true, data: revenueData });
+      const dateMap = {};
+      transactions.forEach(t => {
+        dateMap[new Date(t.date).getDate()] = parseFloat(t.total);
+      });
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        data.push(dateMap[day] || 0);
+      }
+    }
+
+    else if (period === "weekly") {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const transactions = await Transaction.findAll({
+        where: {
+          status: "success",
+          transaction_date: { [Op.gte]: startOfMonth },
+        },
+        attributes: [
+          [sequelize.fn("DATE_TRUNC", "week", sequelize.col("transaction_date")), "week"],
+          [sequelize.fn("SUM", sequelize.col("price")), "total"]
+        ],
+        group: [sequelize.fn("DATE_TRUNC", "week", sequelize.col("transaction_date"))],
+        order: [[sequelize.fn("DATE_TRUNC", "week", sequelize.col("transaction_date")), "ASC"]],
+        raw: true,
+      });
+
+      data = transactions.map(t => parseFloat(t.total));
+    }
+
+    else if (period === "monthly") {
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const transactions = await Transaction.findAll({
+        where: {
+          status: "success",
+          transaction_date: { [Op.gte]: startOfYear },
+        },
+        attributes: [
+          [sequelize.fn("DATE_TRUNC", "month", sequelize.col("transaction_date")), "month"],
+          [sequelize.fn("SUM", sequelize.col("price")), "total"]
+        ],
+        group: [sequelize.fn("DATE_TRUNC", "month", sequelize.col("transaction_date"))],
+        order: [[sequelize.fn("DATE_TRUNC", "month", sequelize.col("transaction_date")), "ASC"]],
+        raw: true,
+      });
+
+      const monthMap = {};
+      transactions.forEach(t => {
+        const monthIndex = new Date(t.month).getMonth();
+        monthMap[monthIndex] = parseFloat(t.total);
+      });
+
+      for (let m = 0; m <= now.getMonth(); m++) {
+        data.push(monthMap[m] || 0);
+      }
+    }
+
+    return res.json({ success: true, data });
   } catch (error) {
     console.error("Error fetching revenue stats:", error);
     res.status(500).json({ message: "Error fetching transaction", error });
   }
 };
+
 
 // 27th June 2025
 
