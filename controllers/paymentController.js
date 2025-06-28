@@ -144,7 +144,9 @@ const {
   User,
   FractionalOwnership,
   InstallmentOwnership,
-  InstallmentPayment
+  InstallmentPayment,
+  PropertyImage,
+  Notification
 } = require('../models');
 
 // Revert June 18th
@@ -671,7 +673,7 @@ exports.verifyPayment = async (req, res) => {
       payment_type
     });
 
-    // === FRACTIONAL SLOT OUTRIGHT PAYMENT ===
+    // === FRACTIONAL OUTRIGHT PAYMENT ===
     if (payment_type === "fractional" && property.is_fractional) {
       if (slots > property.fractional_slots) {
         return res.status(400).json({ message: 'Not enough fractional slots available (post-payment)' });
@@ -682,9 +684,6 @@ exports.verifyPayment = async (req, res) => {
         property_id,
         slots_purchased: slots
       });
-
-      // property.fractional_slots -= slots;
-      // await property.save();
 
       return res.status(200).json({
         message: "Fractional payment verified successfully",
@@ -705,6 +704,7 @@ exports.verifyPayment = async (req, res) => {
       });
 
       if (!ownership) {
+        // First time payment
         ownership = await InstallmentOwnership.create({
           user_id,
           property_id,
@@ -713,7 +713,16 @@ exports.verifyPayment = async (req, res) => {
           months_paid: 1,
           status: property.isFractionalDuration === 1 ? "completed" : "ongoing"
         });
+
+        // ✅ Track the slot immediately on first payment
+        await FractionalOwnership.create({
+          user_id,
+          property_id,
+          slots_purchased: slots
+        });
+
       } else {
+        // Monthly continuation
         ownership.months_paid += 1;
         if (ownership.months_paid >= ownership.total_months) {
           ownership.status = "completed";
