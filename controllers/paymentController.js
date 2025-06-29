@@ -703,8 +703,17 @@ exports.verifyPayment = async (req, res) => {
         where: { user_id, property_id }
       });
 
+      // Get total slots already allocated
+      const totalAllocated = await FractionalOwnership.sum("slots_purchased", {
+        where: { property_id }
+      });
+
+      const remainingSlots = property.fractional_slots - (totalAllocated || 0);
+      if (slots > remainingSlots) {
+        return res.status(400).json({ message: "Not enough fractional slots available" });
+      }
+
       if (!ownership) {
-        // First time payment
         ownership = await InstallmentOwnership.create({
           user_id,
           property_id,
@@ -713,16 +722,7 @@ exports.verifyPayment = async (req, res) => {
           months_paid: 1,
           status: property.isFractionalDuration === 1 ? "completed" : "ongoing"
         });
-
-        // ✅ Track the slot immediately on first payment
-        await FractionalOwnership.create({
-          user_id,
-          property_id,
-          slots_purchased: slots
-        });
-
       } else {
-        // Monthly continuation
         ownership.months_paid += 1;
         if (ownership.months_paid >= ownership.total_months) {
           ownership.status = "completed";
@@ -738,6 +738,22 @@ exports.verifyPayment = async (req, res) => {
         payment_month: month,
         payment_year: year
       });
+
+      // ✅ Always track slots
+      let fractional = await FractionalOwnership.findOne({
+        where: { user_id, property_id }
+      });
+
+      if (!fractional) {
+        await FractionalOwnership.create({
+          user_id,
+          property_id,
+          slots_purchased: slots
+        });
+      } else {
+        fractional.slots_purchased += slots;
+        await fractional.save();
+      }
 
       return res.status(200).json({
         message: "Fractional installment payment verified successfully",
