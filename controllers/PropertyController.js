@@ -819,66 +819,62 @@ exports.getPropertyById = async (req, res) => {
     await property.increment('views');
     await property.update({ last_checked: new Date() });
 
-    let installmentProgress = null;
     const parsedUserId = parseInt(userId);
     const parsedPropertyId = parseInt(id);
 
-    // === 🧠 User-specific progress ===
-    if (parsedUserId) {
-      // Standard Installment
-      if (property.isInstallment && !property.is_fractional) {
-        const ownership = await InstallmentOwnership.findOne({
-          where: { user_id: parsedUserId, property_id: parsedPropertyId }
-        });
+    let installmentProgress = null;
 
-        if (ownership) {
-          installmentProgress = {
-            totalMonths: ownership.total_months,
-            paidMonths: ownership.months_paid,
-            remainingMonths: ownership.total_months - ownership.months_paid,
-            status: ownership.status
-          };
-        }
-      }
+    // === ✅ 1. Standard Installment (User-specific)
+    if (parsedUserId && property.isInstallment && !property.is_fractional) {
+      const ownership = await InstallmentOwnership.findOne({
+        where: { user_id: parsedUserId, property_id: parsedPropertyId }
+      });
 
-      // ✅ Fractional Installment
-      if (property.is_fractional && property.isFractionalInstallment) {
-        const ownership = await InstallmentOwnership.findOne({
-          where: { user_id: parsedUserId, property_id: parsedPropertyId }
-        });
-
-        if (ownership) {
-          installmentProgress = {
-            totalMonths: ownership.total_months,
-            paidMonths: ownership.months_paid,
-            remainingMonths: ownership.total_months - ownership.months_paid,
-            status: ownership.status
-          };
-        }
+      if (ownership) {
+        installmentProgress = {
+          totalMonths: ownership.total_months,
+          paidMonths: ownership.months_paid,
+          remainingMonths: ownership.total_months - ownership.months_paid,
+          status: ownership.status
+        };
       }
     }
 
-    // === ✅ Admin aggregate view for standard installment ===
+    // === ✅ 2. Fractional Installment (User-specific)
+    if (parsedUserId && property.is_fractional && property.isFractionalInstallment) {
+      const ownership = await InstallmentOwnership.findOne({
+        where: { user_id: parsedUserId, property_id: parsedPropertyId }
+      });
+
+      if (ownership) {
+        installmentProgress = {
+          totalMonths: ownership.total_months,
+          paidMonths: ownership.months_paid,
+          remainingMonths: ownership.total_months - ownership.months_paid,
+          status: ownership.status
+        };
+      }
+    }
+
+    // === ✅ 3. Admin aggregate for standard installment
     if (!parsedUserId && property.isInstallment && !property.is_fractional) {
       const ownerships = await InstallmentOwnership.findAll({
         where: { property_id: parsedPropertyId }
       });
 
-      const totalUsers = ownerships.length;
-      if (totalUsers > 0) {
-        const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
-        const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
+      const totalOwnerships = ownerships.length;
+      const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
+      const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
 
-        installmentProgress = {
-          totalUsers,
-          totalMonths,
-          paidMonths,
-          remainingMonths: totalMonths - paidMonths,
-        };
-      }
+      installmentProgress = {
+        totalOwnerships,
+        totalMonths,
+        paidMonths,
+        remainingMonths: totalMonths - paidMonths
+      };
     }
 
-    // === 🧮 Available slots for fractional properties ===
+    // === ✅ 4. Dynamically compute available_slots
     let availableSlots = null;
     if (property.is_fractional) {
       const ownerships = await FractionalOwnership.findAll({
