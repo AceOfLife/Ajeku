@@ -434,6 +434,59 @@ exports.deleteProperty = async (req, res) => {
     }
 };
 
+// June 29, 2025
+
+// exports.getAllProperties = async (req, res) => {
+//   try {
+//     const properties = await Property.findAll({
+//       include: [
+//         {
+//           model: PropertyImage,
+//           as: 'images',
+//           attributes: ['image_url']
+//         }
+//       ]
+//     });
+
+//     // Get all installment ownerships once
+//     const allOwnerships = await InstallmentOwnership.findAll();
+
+//     // Group ownerships by property_id
+//     const ownershipMap = {};
+//     allOwnerships.forEach(ownership => {
+//       if (!ownershipMap[ownership.property_id]) {
+//         ownershipMap[ownership.property_id] = [];
+//       }
+//       ownershipMap[ownership.property_id].push(ownership);
+//     });
+
+//     // Attach installmentProgress to each property
+//     for (const property of properties) {
+//       if (property.isInstallment && !property.is_fractional) {
+//         const ownerships = ownershipMap[property.id] || [];
+
+//         const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
+//         const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
+//         const remainingMonths = totalMonths - paidMonths;
+
+//         property.dataValues.installmentProgress = {
+//           totalOwnerships: ownerships.length,
+//           totalMonths,
+//           paidMonths,
+//           remainingMonths
+//         };
+//       } else {
+//         property.dataValues.installmentProgress = null;
+//       }
+//     }
+
+//     res.status(200).json(properties);
+//   } catch (error) {
+//     console.error("Error in getAllProperties:", error);
+//     res.status(500).json({ message: 'Error retrieving properties', error });
+//   }
+// };
+
 exports.getAllProperties = async (req, res) => {
   try {
     const properties = await Property.findAll({
@@ -446,35 +499,53 @@ exports.getAllProperties = async (req, res) => {
       ]
     });
 
-    // Get all installment ownerships once
-    const allOwnerships = await InstallmentOwnership.findAll();
+    // Get all ownership data in parallel
+    const [allInstallmentOwnerships, allFractionalOwnerships] = await Promise.all([
+      InstallmentOwnership.findAll(),
+      FractionalOwnership.findAll()
+    ]);
 
-    // Group ownerships by property_id
-    const ownershipMap = {};
-    allOwnerships.forEach(ownership => {
-      if (!ownershipMap[ownership.property_id]) {
-        ownershipMap[ownership.property_id] = [];
+    // Create lookup maps
+    const installmentOwnershipMap = {};
+    const fractionalOwnershipMap = {};
+
+    allInstallmentOwnerships.forEach(ownership => {
+      if (!installmentOwnershipMap[ownership.property_id]) {
+        installmentOwnershipMap[ownership.property_id] = [];
       }
-      ownershipMap[ownership.property_id].push(ownership);
+      installmentOwnershipMap[ownership.property_id].push(ownership);
     });
 
-    // Attach installmentProgress to each property
-    for (const property of properties) {
-      if (property.isInstallment && !property.is_fractional) {
-        const ownerships = ownershipMap[property.id] || [];
+    allFractionalOwnerships.forEach(ownership => {
+      if (!fractionalOwnershipMap[ownership.property_id]) {
+        fractionalOwnershipMap[ownership.property_id] = [];
+      }
+      fractionalOwnershipMap[ownership.property_id].push(ownership);
+    });
 
+    // Process each property
+    for (const property of properties) {
+      // Keep existing installment progress logic
+      if (property.isInstallment && !property.is_fractional) {
+        const ownerships = installmentOwnershipMap[property.id] || [];
         const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
         const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
-        const remainingMonths = totalMonths - paidMonths;
-
+        
         property.dataValues.installmentProgress = {
           totalOwnerships: ownerships.length,
           totalMonths,
           paidMonths,
-          remainingMonths
+          remainingMonths: totalMonths - paidMonths
         };
       } else {
         property.dataValues.installmentProgress = null;
+      }
+
+      // NEW: Add available_slots calculation for fractional properties
+      if (property.is_fractional) {
+        const fractionalOwnerships = fractionalOwnershipMap[property.id] || [];
+        const totalPurchased = fractionalOwnerships.reduce((sum, o) => sum + o.slots_purchased, 0);
+        property.dataValues.available_slots = property.fractional_slots - totalPurchased;
       }
     }
 
