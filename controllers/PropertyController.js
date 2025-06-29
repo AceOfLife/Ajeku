@@ -230,101 +230,29 @@ exports.createProperty = async (req, res) => {
 
 
 
-// Update an existing property 29th June, 2025
-// exports.updateProperty = async (req, res) => {
-//     try {
-//         const { id } = req.params;
-//         const propertyData = req.body;
+// Update an existing property
+exports.updateProperty = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const propertyData = req.body;
 
-//         // Ensure listing_updated field is updated on every update
-//         propertyData.listing_updated = new Date(); // Set current date for listing_updated
+        // Ensure listing_updated field is updated on every update
+        propertyData.listing_updated = new Date(); // Set current date for listing_updated
 
-//         // Update the property in the database
-//         const [updated] = await Property.update(propertyData, {
-//             where: { id }
-//         });
+        // Update the property in the database
+        const [updated] = await Property.update(propertyData, {
+            where: { id }
+        });
 
-//         if (updated) {
-//             const updatedProperty = await Property.findOne({ where: { id } });
-//             return res.status(200).json(updatedProperty);
-//         }
-
-//         throw new Error('Property not found');
-//     } catch (error) {
-//         res.status(400).json({ message: 'Error updating property', error });
-//     }
-// };
-
-exports.getAllProperties = async (req, res) => {
-  try {
-    const properties = await Property.findAll({
-      include: [
-        {
-          model: PropertyImage,
-          as: 'images',
-          attributes: ['image_url']
+        if (updated) {
+            const updatedProperty = await Property.findOne({ where: { id } });
+            return res.status(200).json(updatedProperty);
         }
-      ]
-    });
 
-    // Get all ownership data in single queries
-    const [allInstallmentOwnerships, allFractionalOwnerships] = await Promise.all([
-      InstallmentOwnership.findAll(),
-      FractionalOwnership.findAll()
-    ]);
-
-    // Create lookup maps for ownerships
-    const installmentOwnershipMap = {};
-    const fractionalOwnershipMap = {};
-    
-    allInstallmentOwnerships.forEach(ownership => {
-      if (!installmentOwnershipMap[ownership.property_id]) {
-        installmentOwnershipMap[ownership.property_id] = [];
-      }
-      installmentOwnershipMap[ownership.property_id].push(ownership);
-    });
-
-    allFractionalOwnerships.forEach(ownership => {
-      if (!fractionalOwnershipMap[ownership.property_id]) {
-        fractionalOwnershipMap[ownership.property_id] = [];
-      }
-      fractionalOwnershipMap[ownership.property_id].push(ownership);
-    });
-
-    // Process each property
-    for (const property of properties) {
-      // === Installment Progress (standard properties only) ===
-      if (property.isInstallment && !property.is_fractional) {
-        const ownerships = installmentOwnershipMap[property.id] || [];
-        
-        const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
-        const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
-        
-        property.dataValues.installmentProgress = {
-          totalOwnerships: ownerships.length,
-          totalMonths,
-          paidMonths,
-          remainingMonths: totalMonths - paidMonths
-        };
-      } else {
-        property.dataValues.installmentProgress = null;
-      }
-
-      // === Available Slots (fractional properties only) ===
-      if (property.is_fractional) {
-        const ownerships = fractionalOwnershipMap[property.id] || [];
-        const totalPurchased = ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
-        property.dataValues.available_slots = property.fractional_slots - totalPurchased;
-      } else {
-        property.dataValues.available_slots = undefined;
-      }
+        throw new Error('Property not found');
+    } catch (error) {
+        res.status(400).json({ message: 'Error updating property', error });
     }
-
-    res.status(200).json(properties);
-  } catch (error) {
-    console.error("Error in getAllProperties:", error);
-    res.status(500).json({ message: 'Error retrieving properties', error });
-  }
 };
 
 
