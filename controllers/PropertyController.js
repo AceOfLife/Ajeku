@@ -102,253 +102,6 @@ const splitToArray = (field) => {
 const axios = require("axios");  
 
 
-// May 23 2025 Update - Using till May 31 2025
-// exports.createProperty = async (req, res) => {
-//     upload(req, res, async (err) => {
-//       if (err) {
-//         console.error("Multer error:", err);
-//         return res.status(400).json({ message: "Error uploading images", error: err });
-//       }
-  
-//       console.log("=== Raw req.body ===");
-//       console.dir(req.body, { depth: null });
-//       console.log("Raw isInstallment:", req.body.isInstallment, typeof req.body.isInstallment);
-//       console.log("Raw duration:", req.body.duration, typeof req.body.duration);
-  
-//       try {
-//         const {
-//           name, size, price, agent_id, type, location, area,
-//           number_of_baths, number_of_rooms, address, description,
-//           payment_plan, year_built, special_features, appliances, features,
-//           interior_area, parking, material, date_on_market,
-//           ownership, kitchen, heating, cooling, type_and_style, lot,
-//           percentage, duration, is_fractional, fractional_slots, isRental,
-//           isInstallment
-//         } = req.body;
-  
-//         // Typecasting
-//         const parsedFractional = ["true", "1", true].includes(is_fractional);
-//         const parsedFractionalSlots = parsedFractional ? parseInt(fractional_slots, 10) || 0 : null;
-//         const parsedPrice = parseFloat(price) || 0;
-//         const parsedIsInstallment = ["true", "1", true].includes(isInstallment);
-//         const parsedDuration = duration != null ? parseInt(duration, 10) : null;
-  
-//         // Validation
-//         if (isInstallment === undefined) {
-//           return res.status(400).json({ message: "isInstallment is required" });
-//         }
-//         if (parsedIsInstallment && (parsedDuration == null || isNaN(parsedDuration) || parsedDuration <= 0)) {
-//           return res.status(400).json({ message: "Duration must be a positive integer when isInstallment is true" });
-//         }
-  
-//         console.log("Parsed isInstallment:", parsedIsInstallment);
-//         console.log("Parsed duration:", parsedDuration);
-  
-//         const newPropertyData = {
-//           name,
-//           size: parseInt(size, 10) || 0,
-//           price: parsedPrice,
-//           agent_id: parseInt(agent_id, 10) || null,
-//           type,
-//           location: location || "",
-//           area: area || "",
-//           address: address || "",
-//           number_of_baths: parseInt(number_of_baths, 10) || 0,
-//           number_of_rooms: parseInt(number_of_rooms, 10) || 0,
-//           listed_by: "Admin",
-//           description: description || "",
-//           payment_plan: payment_plan || "",
-//           year_built: parseInt(year_built, 10) || 0,
-//           special_features: splitToArray(special_features),
-//           appliances: splitToArray(appliances),
-//           features: splitToArray(features),
-//           interior_area: interior_area ? interior_area.toString() : null,
-//           material: splitToArray(material),
-//           date_on_market: date_on_market ? new Date(date_on_market).toISOString() : new Date().toISOString(),
-//           ownership: ownership || "",
-//           percentage: percentage || "",
-//           duration: parsedDuration,
-//           isInstallment: parsedIsInstallment,
-//           is_fractional: parsedFractional,
-//           fractional_slots: parsedFractionalSlots,
-//           price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
-//           available_slots: parsedFractional ? parsedFractionalSlots : null,
-//           isRental: ["true", "1", true].includes(isRental),
-//           kitchen: splitToArray(kitchen),
-//           heating: splitToArray(heating),
-//           cooling: splitToArray(cooling),
-//           type_and_style: splitToArray(type_and_style),
-//           lot: splitToArray(lot),
-//           parking: splitToArray(parking)
-//         };
-  
-//         // Debug array fields
-//         [
-//           "material",
-//           "parking",
-//           "lot",
-//           "type_and_style",
-//           "special_features",
-//           "interior_area"
-//         ].forEach((field) => {
-//           console.log(`${field}:`, newPropertyData[field], "Type:", typeof newPropertyData[field]);
-//         });
-  
-//         // Create the property record
-//         const newProperty = await Property.create(newPropertyData);
-  
-//         // Immediately reload the property from DB to get all updated fields
-//         const property = await Property.findByPk(newProperty.id);
-  
-//         // Upload Images to Cloudinary
-//         let imageUrls = [];
-//         if (req.files && req.files.length > 0) {
-//           imageUrls = await uploadImagesToCloudinary(req.files);
-  
-//           if (!Array.isArray(imageUrls)) {
-//             imageUrls = [imageUrls];
-//           }
-  
-//           await PropertyImage.create({
-//             property,
-//             property_id: newProperty.id,
-//             image_url: imageUrls
-//           });
-//         }
-  
-//         const savedImageRecord = await PropertyImage.findOne({
-//           where: { property_id: newProperty.id },
-//           attributes: ["image_url"]
-//         });
-  
-//         res.status(201).json({
-//           property: newProperty,
-//           images: savedImageRecord?.image_url || [],
-//           documentUrl: null
-//         });
-//       } catch (error) {
-//         console.error("Error creating property:", error);
-//         res.status(500).json({ message: "Error creating property", error });
-//       }
-//     });
-//   };
-
-// NTest for isFractionalInstallment
-
-// exports.createProperty = async (req, res) => {
-//   upload(req, res, async (err) => {
-//     if (err) {
-//       console.error("Multer error:", err);
-//       return res.status(400).json({ message: "Error uploading images", error: err });
-//     }
-
-//     console.log("=== Raw req.body ===");
-//     console.dir(req.body, { depth: null });
-
-//     try {
-//       const {
-//         name, size, price, agent_id, type, location, area,
-//         number_of_baths, number_of_rooms, address, description,
-//         payment_plan, year_built, special_features, appliances, features,
-//         interior_area, parking, material, date_on_market,
-//         ownership, kitchen, heating, cooling, type_and_style, lot,
-//         percentage, duration, is_fractional, fractional_slots,
-//         isRental, isInstallment, isFractionalInstallment
-//       } = req.body;
-
-//       // === Typecasting and validation ===
-//       const parsedFractional = ["true", "1", true].includes(is_fractional);
-//       const parsedFractionalSlots = parsedFractional ? parseInt(fractional_slots, 10) || 0 : null;
-//       const parsedPrice = parseFloat(price) || 0;
-//       const parsedIsInstallment = ["true", "1", true].includes(isInstallment);
-//       const parsedDuration = duration != null ? parseInt(duration, 10) : null;
-//       const parsedIsFractionalInstallment = parsedFractional
-//         ? ["true", "1", true].includes(isFractionalInstallment)
-//         : false; // only meaningful if property is fractional
-
-//       // === Validation ===
-//       if (!parsedFractional && isInstallment === undefined) {
-//         return res.status(400).json({ message: "isInstallment is required for non-fractional properties" });
-//       }
-//       if (!parsedFractional && parsedIsInstallment && (parsedDuration == null || isNaN(parsedDuration) || parsedDuration <= 0)) {
-//         return res.status(400).json({ message: "Duration must be a positive integer when isInstallment is true" });
-//       }
-
-//       const newPropertyData = {
-//         name,
-//         size: parseInt(size, 10) || 0,
-//         price: parsedPrice,
-//         agent_id: parseInt(agent_id, 10) || null,
-//         type,
-//         location: location || "",
-//         area: area || "",
-//         address: address || "",
-//         number_of_baths: parseInt(number_of_baths, 10) || 0,
-//         number_of_rooms: parseInt(number_of_rooms, 10) || 0,
-//         listed_by: "Admin",
-//         description: description || "",
-//         payment_plan: payment_plan || "",
-//         year_built: parseInt(year_built, 10) || 0,
-//         special_features: splitToArray(special_features),
-//         appliances: splitToArray(appliances),
-//         features: splitToArray(features),
-//         interior_area: interior_area ? interior_area.toString() : null,
-//         material: splitToArray(material),
-//         date_on_market: date_on_market ? new Date(date_on_market).toISOString() : new Date().toISOString(),
-//         ownership: ownership || "",
-//         percentage: percentage || "",
-//         duration: parsedFractional ? null : parsedDuration, // duration only relevant for non-fractional
-//         isInstallment: parsedFractional ? false : parsedIsInstallment,
-//         is_fractional: parsedFractional,
-//         fractional_slots: parsedFractionalSlots,
-//         price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
-//         available_slots: parsedFractional ? parsedFractionalSlots : null,
-//         isRental: ["true", "1", true].includes(isRental),
-//         isFractionalInstallment: parsedIsFractionalInstallment,
-//         kitchen: splitToArray(kitchen),
-//         heating: splitToArray(heating),
-//         cooling: splitToArray(cooling),
-//         type_and_style: splitToArray(type_and_style),
-//         lot: splitToArray(lot),
-//         parking: splitToArray(parking)
-//       };
-
-//       const newProperty = await Property.create(newPropertyData);
-
-//       const property = await Property.findByPk(newProperty.id);
-
-//       let imageUrls = [];
-//       if (req.files && req.files.length > 0) {
-//         imageUrls = await uploadImagesToCloudinary(req.files);
-
-//         if (!Array.isArray(imageUrls)) {
-//           imageUrls = [imageUrls];
-//         }
-
-//         await PropertyImage.create({
-//           property,
-//           property_id: newProperty.id,
-//           image_url: imageUrls
-//         });
-//       }
-
-//       const savedImageRecord = await PropertyImage.findOne({
-//         where: { property_id: newProperty.id },
-//         attributes: ["image_url"]
-//       });
-
-//       res.status(201).json({
-//         property: newProperty,
-//         images: savedImageRecord?.image_url || [],
-//         documentUrl: null
-//       });
-//     } catch (error) {
-//       console.error("Error creating property:", error);
-//       res.status(500).json({ message: "Error creating property", error });
-//     }
-//   });
-// };
-
 // New CreateProperty for isFractionalDuration:
 
 exports.createProperty = async (req, res) => {
@@ -822,20 +575,33 @@ exports.getPropertyById = async (req, res) => {
     const parsedUserId = parseInt(userId);
     const parsedPropertyId = parseInt(id);
     let installmentProgress = null;
+    let userSlotsOwned = 0; // Initialize variable for user's owned slots
 
     // === ✅ User-specific progress (fractionalInstallment or standard installment)
     if (parsedUserId) {
-      const ownership = await InstallmentOwnership.findOne({
+      // Check for standard installment ownership
+      const installmentOwnership = await InstallmentOwnership.findOne({
         where: { user_id: parsedUserId, property_id: parsedPropertyId }
       });
 
-      if (ownership) {
+      if (installmentOwnership) {
         installmentProgress = {
-          totalMonths: ownership.total_months,
-          paidMonths: ownership.months_paid,
-          remainingMonths: ownership.total_months - ownership.months_paid,
-          status: ownership.status
+          totalMonths: installmentOwnership.total_months,
+          paidMonths: installmentOwnership.months_paid,
+          remainingMonths: installmentOwnership.total_months - installmentOwnership.months_paid,
+          status: installmentOwnership.status
         };
+      }
+
+      // Check for fractional ownership slots
+      if (property.is_fractional) {
+        const fractionalOwnership = await FractionalOwnership.findOne({
+          where: { user_id: parsedUserId, property_id: parsedPropertyId }
+        });
+
+        if (fractionalOwnership) {
+          userSlotsOwned = fractionalOwnership.slots_purchased;
+        }
       }
     }
 
@@ -870,16 +636,19 @@ exports.getPropertyById = async (req, res) => {
 
     const propertyData = {
       ...property.toJSON(),
-      available_slots: property.is_fractional ? availableSlots : undefined
+      available_slots: property.is_fractional ? availableSlots : undefined,
+      user_slots_owned: property.is_fractional && parsedUserId ? userSlotsOwned : undefined
     };
 
-    return res.status(200).json({ property: propertyData, installmentProgress });
+    return res.status(200).json({ 
+      property: propertyData, 
+      installmentProgress 
+    });
   } catch (error) {
     console.error("Error in getPropertyById:", error);
     res.status(500).json({ message: 'Error retrieving property', error });
   }
 };
-
 
 
 
