@@ -673,9 +673,17 @@ exports.verifyPayment = async (req, res) => {
       payment_type
     });
 
+    // Helper: compute available slots dynamically
+    const getAvailableFractionalSlots = async (propertyId) => {
+      const ownerships = await FractionalOwnership.findAll({ where: { property_id: propertyId } });
+      const totalPurchased = ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
+      return property.fractional_slots - totalPurchased;
+    };
+
     // === FRACTIONAL OUTRIGHT PAYMENT ===
     if (payment_type === "fractional" && property.is_fractional) {
-      if (slots > property.fractional_slots) {
+      const availableSlots = await getAvailableFractionalSlots(property.id);
+      if (slots > availableSlots) {
         return res.status(400).json({ message: 'Not enough fractional slots available (post-payment)' });
       }
 
@@ -689,7 +697,7 @@ exports.verifyPayment = async (req, res) => {
         message: "Fractional payment verified successfully",
         transaction,
         slotsPurchased: slots,
-        availableSlots: property.fractional_slots
+        availableSlots: availableSlots - slots
       });
     }
 
@@ -703,17 +711,14 @@ exports.verifyPayment = async (req, res) => {
         where: { user_id, property_id }
       });
 
-      // Get total slots already allocated
-      const totalAllocated = await FractionalOwnership.sum("slots_purchased", {
-        where: { property_id }
-      });
-
-      const remainingSlots = property.fractional_slots - (totalAllocated || 0);
-      if (slots > remainingSlots) {
-        return res.status(400).json({ message: "Not enough fractional slots available" });
-      }
-
       if (!ownership) {
+        // First time payment — check availability before reserving
+        const availableSlots = await getAvailableFractionalSlots(property.id);
+        if (slots > availableSlots) {
+          return res.status(400).json({ message: 'Not enough fractional slots available (post-payment)' });
+        }
+
+        // Create ownership & reserve slot
         ownership = await InstallmentOwnership.create({
           user_id,
           property_id,
@@ -722,7 +727,15 @@ exports.verifyPayment = async (req, res) => {
           months_paid: 1,
           status: property.isFractionalDuration === 1 ? "completed" : "ongoing"
         });
+
+        await FractionalOwnership.create({
+          user_id,
+          property_id,
+          slots_purchased: slots
+        });
+
       } else {
+        // Continuing monthly installment (slot already reserved)
         ownership.months_paid += 1;
         if (ownership.months_paid >= ownership.total_months) {
           ownership.status = "completed";
@@ -739,28 +752,15 @@ exports.verifyPayment = async (req, res) => {
         payment_year: year
       });
 
-      // ✅ Always track slots
-      let fractional = await FractionalOwnership.findOne({
-        where: { user_id, property_id }
-      });
-
-      if (!fractional) {
-        await FractionalOwnership.create({
-          user_id,
-          property_id,
-          slots_purchased: slots
-        });
-      } else {
-        fractional.slots_purchased += slots;
-        await fractional.save();
-      }
+      const availableSlots = await getAvailableFractionalSlots(property.id);
 
       return res.status(200).json({
         message: "Fractional installment payment verified successfully",
         transaction,
         monthsPaid: ownership.months_paid,
         monthsRemaining: ownership.total_months - ownership.months_paid,
-        status: ownership.status
+        status: ownership.status,
+        availableSlots
       });
     }
 
@@ -810,6 +810,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
+    // Default case
     return res.status(200).json({
       message: "Payment verified, but no specific ownership type was processed",
       transaction
