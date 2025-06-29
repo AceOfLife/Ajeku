@@ -821,11 +821,10 @@ exports.getPropertyById = async (req, res) => {
 
     const parsedUserId = parseInt(userId);
     const parsedPropertyId = parseInt(id);
-
     let installmentProgress = null;
 
-    // === ✅ 1. Standard Installment (User-specific)
-    if (parsedUserId && property.isInstallment && !property.is_fractional) {
+    // === ✅ User-specific progress (fractionalInstallment or standard installment)
+    if (parsedUserId) {
       const ownership = await InstallmentOwnership.findOne({
         where: { user_id: parsedUserId, property_id: parsedPropertyId }
       });
@@ -840,23 +839,7 @@ exports.getPropertyById = async (req, res) => {
       }
     }
 
-    // === ✅ 2. Fractional Installment (User-specific)
-    if (parsedUserId && property.is_fractional && property.isFractionalInstallment) {
-      const ownership = await InstallmentOwnership.findOne({
-        where: { user_id: parsedUserId, property_id: parsedPropertyId }
-      });
-
-      if (ownership) {
-        installmentProgress = {
-          totalMonths: ownership.total_months,
-          paidMonths: ownership.months_paid,
-          remainingMonths: ownership.total_months - ownership.months_paid,
-          status: ownership.status
-        };
-      }
-    }
-
-    // === ✅ 3. Admin aggregate for standard installment
+    // === ✅ Admin aggregate (only for standard installment properties)
     if (!parsedUserId && property.isInstallment && !property.is_fractional) {
       const ownerships = await InstallmentOwnership.findAll({
         where: { property_id: parsedPropertyId }
@@ -874,7 +857,7 @@ exports.getPropertyById = async (req, res) => {
       };
     }
 
-    // === ✅ 4. Dynamically compute available_slots
+    // === ✅ Compute available_slots if fractional
     let availableSlots = null;
     if (property.is_fractional) {
       const ownerships = await FractionalOwnership.findAll({
@@ -896,6 +879,7 @@ exports.getPropertyById = async (req, res) => {
     res.status(500).json({ message: 'Error retrieving property', error });
   }
 };
+
 
 
 
