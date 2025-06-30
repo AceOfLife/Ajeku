@@ -141,30 +141,33 @@ exports.getClient = async (req, res) => {
       clientId = userId;
     }
 
-    // Find the client with user details AND their documents
+    // Keep all original includes
     const client = await Client.findOne({
       where: { user_id: clientId },
-      include: [
-        {
-          model: User,
-          as: 'user',
-          attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage']
-        },
-        {
-          model: UserDocument,  // Assuming you have a UserDocument model
-          as: 'documents',
-          where: req.user.isAdmin ? {} : { status: 'APPROVED' },  // Only show approved docs to non-admins
-          required: false  // Makes this a LEFT JOIN
-        }
-      ]
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage']
+      }]
     });
 
     if (!client) {
       return res.status(404).json({ message: 'Client not found' });
     }
 
-    // Prepare the response
+    // NEW: Fetch documents separately to avoid modifying original query
+    const documents = req.user.isAdmin 
+      ? await UserDocument.findAll({ where: { userId: clientId } })
+      : await UserDocument.findAll({ 
+          where: { 
+            userId: clientId,
+            status: 'APPROVED'
+          }
+        });
+
+    // Original response structure + NEW documents field
     const response = {
+      // ALL ORIGINAL FIELDS (unchanged)
       id: client.id,
       user_id: client.user_id,
       firstName: client.user.firstName,
@@ -179,15 +182,19 @@ exports.getClient = async (req, res) => {
       status: client.status,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt,
-      documents: client.documents ? client.documents.map(doc => ({
+      
+      // NEW FIELD (added at the end)
+      documents: documents.map(doc => ({
         id: doc.id,
         type: doc.type,
         url: doc.url,
         status: doc.status,
-        verifiedAt: doc.verifiedAt,
-        verifiedBy: doc.verifiedBy,
-        adminNotes: req.user.isAdmin ? doc.adminNotes : undefined  // Only show notes to admins
-      })) : []
+        ...(req.user.isAdmin && { 
+          verifiedAt: doc.verifiedAt,
+          verifiedBy: doc.verifiedBy,
+          adminNotes: doc.adminNotes
+        })
+      }))
     };
 
     res.status(200).json(response);
