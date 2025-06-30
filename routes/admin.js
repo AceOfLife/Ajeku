@@ -13,6 +13,7 @@ const ReviewController = require('../controllers/ReviewController');
 const UserController = require('../controllers/UserController');
 const AdminController = require('../controllers/AdminController');
 // const EscrowController = require('../controllers/EscrowController');
+const DocumentController = require('../controllers/documentController');
 
 // Import middleware for authentication and authorization
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
@@ -111,5 +112,12 @@ router.post('/signup', UserController.createUser);
 
 // Admin-only user creation route (requires authentication)
 router.post('/users', authenticate, authorizeAdmin, UserController.createUser);
+
+// Verify Identification Documents
+router.patch('/documents/verify/:documentId', 
+  authenticate, 
+  authorizeAdmin,
+  DocumentController.verifyDocument
+);
 
 module.exports = router;
