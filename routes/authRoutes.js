@@ -11,4 +11,7 @@ router.post('/login', AuthController.login); // Use the login method from AuthCo
 // Signup route
 router.post('/signup', AuthController.signup); // Use the signup method from AuthController
 
+// Refresh token route
+router.post('/refresh-token', AuthController.refreshToken);
+
 module.exports = router;

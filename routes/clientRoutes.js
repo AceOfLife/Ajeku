@@ -4,6 +4,7 @@ const ClientController = require('../controllers/ClientController');
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
 const { upload } = require('../config/multerConfig');
 const PropertyController = require('../controllers/PropertyController');
+const NotificationController = require('../controllers/NotificationController');
 
 // Client registration (no authentication)
 router.post('/register', ClientController.createClient);
@@ -38,6 +39,11 @@ router.get('/properties/most-viewed', PropertyController.getMostViewedProperties
 // User properties
 router.get('/properties/user', authenticate, PropertyController.getUserProperties);
 router.get('/property-analytics/:propertyId', authenticate, PropertyController.getPropertyAnalytics);
+
+// Notification
+router.post('/notifications', authenticate, NotificationController.createNotification);
+router.get('/notifications', authenticate, NotificationController.getUserNotifications);
+router.put('/notifications/:id/read', authenticate, NotificationController.markAsRead);
 
 
 module.exports = router;
