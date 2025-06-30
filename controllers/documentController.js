@@ -53,12 +53,16 @@ exports.verifyDocument = async (req, res) => {
     const { documentId } = req.params;
     const { status, adminNotes } = req.body;
 
-    // Input validation
-    const allowedStatuses = ['verified', 'rejected'];
-    if (!allowedStatuses.includes(status)) {
+    // Match EXACTLY what's in your database enum (uppercase)
+    const allowedStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
+    
+    // Convert input to uppercase to match enum
+    const statusUpperCase = status.toUpperCase();
+    
+    if (!allowedStatuses.includes(statusUpperCase)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid status. Allowed values: verified, rejected'
+        message: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}`
       });
     }
 
@@ -70,16 +74,17 @@ exports.verifyDocument = async (req, res) => {
       });
     }
 
-    // Update and save
-    document.status = status;
-    document.adminNotes = adminNotes || null;
-    document.verifiedBy = req.user.id; // Track which admin verified
-    document.verifiedAt = new Date();
-    await document.save();
+    // Update using the uppercase status
+    await document.update({
+      status: statusUpperCase,  // Must be 'APPROVED' or 'REJECTED'
+      adminNotes: adminNotes || null,
+      verifiedBy: req.user.id,
+      verifiedAt: new Date()
+    });
 
     return res.json({
       success: true,
-      message: `Document ${status}`,
+      message: `Document ${statusUpperCase}`,
       document: {
         id: document.id,
         status: document.status,
