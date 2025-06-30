@@ -1,5 +1,5 @@
 // controllers/ClientController.js
-const { Client, User } = require('../models');
+const { Client, User, UserDocument } = require('../models');
 const bcrypt = require('bcryptjs');
 const { check, validationResult } = require('express-validator');
 const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
