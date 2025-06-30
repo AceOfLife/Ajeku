@@ -141,9 +141,9 @@ exports.getClient = async (req, res) => {
       clientId = userId;
     }
 
-    // Keep all original includes
-    const client = await Client.findOne({
-      where: { user_id: clientId },
+    // First try to find by client ID (primary key)
+    let client = await Client.findOne({
+      where: { id: clientId },
       include: [{
         model: User,
         as: 'user',
@@ -151,16 +151,28 @@ exports.getClient = async (req, res) => {
       }]
     });
 
+    // If not found by ID, try by user_id
+    if (!client) {
+      client = await Client.findOne({
+        where: { user_id: clientId },
+        include: [{
+          model: User,
+          as: 'user',
+          attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage']
+        }]
+      });
+    }
+
     if (!client) {
       return res.status(404).json({ message: 'Client not found' });
     }
 
     // NEW: Fetch documents separately to avoid modifying original query
     const documents = req.user.isAdmin 
-      ? await UserDocument.findAll({ where: { userId: clientId } })
+      ? await UserDocument.findAll({ where: { userId: client.user_id } })
       : await UserDocument.findAll({ 
           where: { 
-            userId: clientId,
+            userId: client.user_id,
             status: 'APPROVED'
           }
         });
@@ -206,7 +218,6 @@ exports.getClient = async (req, res) => {
     });
   }
 };
-
 
 exports.createClient = [
   // Validation middleware
