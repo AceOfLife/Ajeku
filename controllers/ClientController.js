@@ -4,18 +4,102 @@ const bcrypt = require('bcryptjs');
 const { check, validationResult } = require('express-validator');
 const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
 
+
+// 30th June 2025
+// exports.getAllClients = async (req, res) => {
+//   try {
+//     // Include the associated User model to fetch the user's profile fields
+//     const clients = await Client.findAll({
+//       include: [{
+//         model: User,
+//         as: 'user',  // as defined in the Client.associate method
+//         attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage' ] // Include all new fields
+//       }]
+//     });
+
+//     // Map over the clients to include user details in the response
+//     const clientsWithUserDetails = clients.map(client => ({
+//       id: client.id,
+//       user_id: client.user_id,
+//       firstName: client.user.firstName,
+//       lastName: client.user.lastName,
+//       email: client.user.email,
+//       address: client.user.address,
+//       contactNumber: client.user.contactNumber,
+//       city: client.user.city,
+//       state: client.user.state,
+//       gender: client.user.gender,
+//       profileImage: client.user.profileImage,
+//       status: client.status,  // Add the status here
+//       createdAt: client.createdAt,
+//       updatedAt: client.updatedAt
+//     }));
+
+//     res.status(200).json(clientsWithUserDetails);
+//   } catch (error) {
+//     res.status(500).json({ message: 'Error retrieving clients', error });
+//   }
+// };
+
 exports.getAllClients = async (req, res) => {
   try {
     // Include the associated User model to fetch the user's profile fields
     const clients = await Client.findAll({
       include: [{
         model: User,
-        as: 'user',  // as defined in the Client.associate method
-        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage' ] // Include all new fields
+        as: 'user',
+        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage']
       }]
     });
 
-    // Map over the clients to include user details in the response
+    // Get all client user IDs for batch document fetching
+    const clientUserIds = clients.map(client => client.user_id);
+
+    // Fetch all documents for these users in one query (if model exists)
+    let userDocuments = [];
+    if (UserDocument && clientUserIds.length > 0) {
+      try {
+        const whereCondition = {};
+        
+        if (!req.user.isAdmin) {
+          whereCondition.status = 'APPROVED';
+        }
+
+        userDocuments = await UserDocument.findAll({
+          where: {
+            userId: clientUserIds,
+            ...whereCondition
+          },
+          attributes: req.user.isAdmin 
+            ? ['id', 'userId', 'type', 'url', 'status', 'verifiedAt', 'verifiedBy', 'adminNotes']
+            : ['id', 'userId', 'type', 'url', 'status']
+        });
+      } catch (docError) {
+        console.error('Note: Error fetching documents -', docError.message);
+      }
+    }
+
+    // Group documents by user ID for efficient lookup
+    const documentsByUserId = {};
+    userDocuments.forEach(doc => {
+      if (!documentsByUserId[doc.userId]) {
+        documentsByUserId[doc.userId] = [];
+      }
+      const docData = {
+        id: doc.id,
+        type: doc.type,
+        url: doc.url,
+        status: doc.status
+      };
+      if (req.user.isAdmin) {
+        docData.verifiedAt = doc.verifiedAt;
+        docData.verifiedBy = doc.verifiedBy;
+        docData.adminNotes = doc.adminNotes;
+      }
+      documentsByUserId[doc.userId].push(docData);
+    });
+
+    // Map over the clients to include user details and documents
     const clientsWithUserDetails = clients.map(client => ({
       id: client.id,
       user_id: client.user_id,
@@ -28,14 +112,19 @@ exports.getAllClients = async (req, res) => {
       state: client.user.state,
       gender: client.user.gender,
       profileImage: client.user.profileImage,
-      status: client.status,  // Add the status here
+      status: client.status,
       createdAt: client.createdAt,
-      updatedAt: client.updatedAt
+      updatedAt: client.updatedAt,
+      documents: documentsByUserId[client.user_id] || [] // Add documents array
     }));
 
     res.status(200).json(clientsWithUserDetails);
   } catch (error) {
-    res.status(500).json({ message: 'Error retrieving clients', error });
+    console.error('Error retrieving clients:', error);
+    res.status(500).json({ 
+      message: 'Error retrieving clients',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
