@@ -71,6 +71,9 @@ app.use('/auth', authRoutes); // Assuming auth routes exist
 // Admin Routes
 app.use('/admin', adminRoutes); // Admin route for /admin/signup
 
+// User Routes
+app.use('/api/documents', require('./routes/documentRoutes'));
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
