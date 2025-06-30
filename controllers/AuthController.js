@@ -121,50 +121,30 @@ const login = async (req, res) => {
         role: user.role 
       },
       process.env.JWT_SECRET,
-      { expiresIn: ACCESS_TOKEN_EXPIRY }
+      { expiresIn: '15m' }
     );
 
     const refreshToken = jwt.sign(
       { id: user.id },
       process.env.JWT_REFRESH_SECRET,
-      { expiresIn: REFRESH_TOKEN_EXPIRY }
+      { expiresIn: '7d' }
     );
 
-    // 4. Store refresh token (with transaction for safety)
-    const transaction = await sequelize.transaction();
-    try {
-      const [affectedCount] = await User.update(
-        { refresh_token: refreshToken },
-        { 
-          where: { id: user.id },
-          transaction
-        }
-      );
-
-      if (affectedCount === 0) {
-        throw new Error('Failed to update refresh token in database');
-      }
-
-      await transaction.commit();
-      
-      // Debug log
-      console.log(`Refresh token stored for user ${user.id}`);
-    } catch (dbError) {
-      await transaction.rollback();
-      console.error('Database update failed:', dbError);
-      throw dbError;
-    }
+    // 4. Store refresh token (simplified without transaction)
+    await User.update(
+      { refresh_token: refreshToken },
+      { where: { id: user.id } }
+    );
 
     // 5. Set cookie
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'none', // Changed from 'strict' for cross-domain support
-      domain: process.env.NODE_ENV === 'production' ? '.ajeku-mu.vercel.app' : undefined,
+      sameSite: 'none',
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
-    // 6. Respond with tokens
+    // 6. Respond
     res.json({
       accessToken,
       user: {
@@ -172,9 +152,6 @@ const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role
-      },
-      debug: {
-        refreshTokenStored: true // Simple confirmation
       }
     });
 
