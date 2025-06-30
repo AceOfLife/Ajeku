@@ -159,9 +159,13 @@ const login = async (req, res) => {
 
 // Add this new refresh token endpoint
 const refreshToken = async (req, res) => {
-  const { refreshToken } = req.cookies;
+  // Get token from either cookies or body
+  const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+  
   if (!refreshToken) {
-    return res.status(401).json({ message: 'Refresh token missing' });
+    return res.status(401).json({ 
+      message: 'Refresh token missing. Please provide it in cookies or request body.' 
+    });
   }
 
   try {
@@ -172,7 +176,6 @@ const refreshToken = async (req, res) => {
       return res.status(403).json({ message: 'Invalid refresh token' });
     }
 
-    // Generate new access token
     const newAccessToken = jwt.sign(
       { 
         id: user.id,

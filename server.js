@@ -13,11 +13,13 @@ const paymentRoutes = require("./routes/paymentRoutes");
 const transactionRoutes = require('./routes/transactionRoutes');
 const bankOfHeavenRoutes = require('./routes/bankOfHeavenRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 app.use(cors()); // Enable CORS for cross-origin requests
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Database connection check (important for debugging)
 sequelize.authenticate()
