@@ -4,22 +4,11 @@ const DocumentController = require('../controllers/documentController');
 const { authenticate } = require('../middlewares/authMiddleware');
 const { upload } = require('../config/multerConfig'); // Destructure the pre-configured middleware
 
-// For document uploads (using the existing images upload config)
+// Use the pre-configured upload middleware directly
 router.post('/upload', 
   authenticate,
-  (req, res, next) => {
-    // Temporarily change the field name expectation
-    req.body.images = req.body.documents; // Map documents field to images
-    next();
-  },
-  upload, // Use the pre-configured middleware
-  (req, res, next) => {
-    // Map back to expected field name if needed
-    req.files = req.files.map(file => ({
-      ...file,
-      fieldname: 'documents' // Change fieldname back if your controller expects it
-    }));
-    next();
-  },
+  upload, // No .array() needed - it's already configured
   DocumentController.uploadDocuments
 );
+
+module.exports = router;
