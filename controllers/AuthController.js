@@ -89,6 +89,7 @@
 const { User } = require('../models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { sequelize } = require('../models');
 require('dotenv').config();
 
 // Token expiration times
@@ -99,17 +100,19 @@ const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    // 1. Find user
     const user = await User.findOne({ where: { email } });
     if (!user) {
       return res.status(400).json({ message: 'Invalid email or password' });
     }
 
+    // 2. Verify password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid email or password' });
     }
 
-    // Generate access token (short-lived)
+    // 3. Generate tokens
     const accessToken = jwt.sign(
       { 
         id: user.id, 
@@ -121,27 +124,47 @@ const login = async (req, res) => {
       { expiresIn: ACCESS_TOKEN_EXPIRY }
     );
 
-    // Generate refresh token (long-lived)
     const refreshToken = jwt.sign(
       { id: user.id },
       process.env.JWT_REFRESH_SECRET,
       { expiresIn: REFRESH_TOKEN_EXPIRY }
     );
 
-    // Store refresh token in database
-    await User.update(
-      { refresh_token: refreshToken },
-      { where: { id: user.id } }
-    );
+    // 4. Store refresh token (with transaction for safety)
+    const transaction = await sequelize.transaction();
+    try {
+      const [affectedCount] = await User.update(
+        { refresh_token: refreshToken },
+        { 
+          where: { id: user.id },
+          transaction
+        }
+      );
 
-    // Set secure HTTP-only cookie for refresh token
+      if (affectedCount === 0) {
+        throw new Error('Failed to update refresh token in database');
+      }
+
+      await transaction.commit();
+      
+      // Debug log
+      console.log(`Refresh token stored for user ${user.id}`);
+    } catch (dbError) {
+      await transaction.rollback();
+      console.error('Database update failed:', dbError);
+      throw dbError;
+    }
+
+    // 5. Set cookie
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      sameSite: 'none', // Changed from 'strict' for cross-domain support
+      domain: process.env.NODE_ENV === 'production' ? '.ajeku-mu.vercel.app' : undefined,
+      maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
+    // 6. Respond with tokens
     res.json({
       accessToken,
       user: {
@@ -149,11 +172,18 @@ const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role
+      },
+      debug: {
+        refreshTokenStored: true // Simple confirmation
       }
     });
 
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
+    console.error('Login error:', error);
+    res.status(500).json({ 
+      message: 'Login failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
