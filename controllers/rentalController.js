@@ -38,3 +38,8 @@ exports.bookRental = async (req, res) => {
     res.status(500).json({ message: "Failed to book rental", error });
   }
 };
+
+exports.getAllRentalBookings = async (req, res) => {
+  const bookings = await RentalBooking.findAll({ include: [User, Property] });
+  res.status(200).json(bookings);
+};
