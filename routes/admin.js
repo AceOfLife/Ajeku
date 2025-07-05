@@ -14,6 +14,7 @@ const UserController = require('../controllers/UserController');
 const AdminController = require('../controllers/AdminController');
 // const EscrowController = require('../controllers/EscrowController');
 const DocumentController = require('../controllers/documentController');
+const rentalController = require('../controllers/rentalController');
 
 // Import middleware for authentication and authorization
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
@@ -55,6 +56,7 @@ router.delete('/agents/:id', authenticate, authorizeAdmin, AgentController.delet
 // Property routes
 router.get('/properties', authenticate, PropertyController.getAllProperties);
 router.get('/properties/filter', authenticate, PropertyController.getFilteredProperties);
+router.get('/rental-bookings', authenticateAdmin, rentalController.getAllRentalBookings);
 router.post('/properties', authenticate, authorizeAdmin, PropertyController.createProperty); // Admin-only route
 router.put('/properties/:id', authenticate, authorizeAdmin, PropertyController.updateProperty);
 router.delete('/properties/:id', authenticate, authorizeAdmin, PropertyController.deleteProperty);
