@@ -643,18 +643,6 @@ exports.getPropertyById = async (req, res) => {
       user_slots_owned: property.is_fractional && parsedUserId ? userSlotsOwned : undefined
     };
 
-    if (property.isRental && property.number_of_rooms) {
-      const booked = await RentalBooking.sum('rooms_booked', {
-        where: { property_id: property.id }
-      });
-
-      const bookedRooms = booked || 0;
-      const availableRooms = property.number_of_rooms - bookedRooms;
-
-      propertyData.rooms_booked = bookedRooms;
-      propertyData.available_rooms = availableRooms;
-    }
-
     return res.status(200).json({ 
       property: propertyData, 
       installmentProgress 
