@@ -173,18 +173,18 @@ exports.getAllClients = async (req, res) => {
 
 exports.getClient = async (req, res) => {
   try {
-    const isAdmin = req.user.isAdmin;
-    const paramId = req.params.id;
-    const userId = req.user.id;
+    const userId = req.params.userId;
 
     const client = await Client.findOne({
-      where: isAdmin
-        ? { id: paramId } // Admins query Client.id directly
-        : { user_id: userId }, // Users get their own client info
+      where: { user_id: userId }, // ← now correctly uses user_id
       include: [{
         model: User,
         as: 'user',
-        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage']
+        attributes: [
+          'firstName', 'lastName', 'email',
+          'address', 'contactNumber', 'city',
+          'state', 'gender', 'profileImage'
+        ]
       }]
     });
 
@@ -211,9 +211,11 @@ exports.getClient = async (req, res) => {
 
     res.status(200).json(clientWithUserDetails);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: 'Error retrieving client', error });
   }
 };
+
 
 
 
