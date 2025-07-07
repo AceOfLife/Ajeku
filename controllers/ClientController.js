@@ -173,10 +173,9 @@ exports.getAllClients = async (req, res) => {
 
 exports.getClient = async (req, res) => {
   try {
-    const userId = req.params.userId;
+    const clientId = req.params.id;
 
-    const client = await Client.findOne({
-      where: { user_id: userId }, // ← now correctly uses user_id
+    const client = await Client.findByPk(clientId, {
       include: [{
         model: User,
         as: 'user',
@@ -192,7 +191,7 @@ exports.getClient = async (req, res) => {
       return res.status(404).json({ message: 'Client not found' });
     }
 
-    const clientWithUserDetails = {
+    res.status(200).json({
       id: client.id,
       user_id: client.user_id,
       firstName: client.user.firstName,
@@ -207,15 +206,11 @@ exports.getClient = async (req, res) => {
       status: client.status,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt
-    };
-
-    res.status(200).json(clientWithUserDetails);
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error retrieving client', error });
+    res.status(500).json({ message: 'Error retrieving client', error: error.message });
   }
 };
-
 
 
 

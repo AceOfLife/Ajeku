@@ -37,13 +37,26 @@ router.put('/change-password', authenticate, authorizeAdmin, AdminController.cha
 router.get('/clients', authenticate, authorizeAdmin, ClientController.getAllClients);
 // router.post('/clients', authenticate, authorizeAdmin, ClientController.createClient);
 // router.put('/clients/:id', authenticate, authorizeAdmin, ClientController.updateClient);
-router.get('/clients/:userId', authenticate, (req, res, next) => {
-    if (req.user.role === 'admin' || req.user.id.toString() === req.params.userId) {
-      next(); // Proceed if the user is an admin or the client ID matches the user's ID
+router.get('/clients/:id', authenticate, (req, res, next) => {
+  const isAdmin = req.user.role === 'admin';
+  
+  // Fetch the client first
+  Client.findByPk(req.params.id).then(client => {
+    if (!client) {
+      return res.status(404).json({ message: 'Client not found' });
+    }
+
+    if (isAdmin || req.user.id === client.user_id) {
+      req.client = client; // Pass client forward if needed
+      next();
     } else {
       res.status(403).json({ message: 'Access denied' });
     }
-  }, ClientController.getClient);
+  }).catch(err => {
+    res.status(500).json({ message: 'Error fetching client', error: err.message });
+  });
+}, ClientController.getClient);
+
 router.delete('/clients/:id', authenticate, authorizeAdmin, ClientController.deleteClient);
 router.use('/clients', clientRoutes);
 
