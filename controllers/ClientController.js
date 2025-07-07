@@ -173,24 +173,17 @@ exports.getAllClients = async (req, res) => {
 
 exports.getClient = async (req, res) => {
   try {
-    let clientWhere = {};
-    const requestedId = req.params.id;
-    const userId = req.user.id;
+    const clientId = req.params.id;
 
-    if (req.user.isAdmin) {
-      // Admin: use Client's primary key (id)
-      clientWhere.id = requestedId;
-    } else {
-      // Regular user: only allow fetching own client profile via user_id
-      clientWhere.user_id = userId;
-    }
-
-    const client = await Client.findOne({
-      where: clientWhere,
+    const client = await Client.findByPk(clientId, {
       include: [{
         model: User,
         as: 'user',
-        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage']
+        attributes: [
+          'firstName', 'lastName', 'email',
+          'address', 'contactNumber', 'city',
+          'state', 'gender', 'profileImage'
+        ]
       }]
     });
 
@@ -198,29 +191,7 @@ exports.getClient = async (req, res) => {
       return res.status(404).json({ message: 'Client not found' });
     }
 
-    // Include user documents
-    let userDocuments = [];
-    if (UserDocument) {
-      try {
-        const whereCondition = {
-          userId: client.user_id
-        };
-        if (!req.user.isAdmin) {
-          whereCondition.status = 'APPROVED';
-        }
-
-        userDocuments = await UserDocument.findAll({
-          where: whereCondition,
-          attributes: req.user.isAdmin
-            ? ['id', 'userId', 'type', 'url', 'status', 'verifiedAt', 'verifiedBy', 'adminNotes']
-            : ['id', 'userId', 'type', 'url', 'status']
-        });
-      } catch (docError) {
-        console.error('Error fetching user documents:', docError.message);
-      }
-    }
-
-    const clientWithUserDetails = {
+    res.status(200).json({
       id: client.id,
       user_id: client.user_id,
       firstName: client.user.firstName,
@@ -234,17 +205,12 @@ exports.getClient = async (req, res) => {
       profileImage: client.user.profileImage,
       status: client.status,
       createdAt: client.createdAt,
-      updatedAt: client.updatedAt,
-      documents: userDocuments
-    };
-
-    res.status(200).json(clientWithUserDetails);
+      updatedAt: client.updatedAt
+    });
   } catch (error) {
-    console.error('Error retrieving client:', error);
-    res.status(500).json({ message: 'Error retrieving client', error });
+    res.status(500).json({ message: 'Error retrieving client', error: error.message });
   }
 };
-
 
 
 
