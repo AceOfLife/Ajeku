@@ -128,101 +128,101 @@ exports.getAllClients = async (req, res) => {
   }
 };
 
-// 07/07/2025
-// exports.getClient = async (req, res) => {
-//   try {
-//     const { id } = req.params;
 
-//     // Find the client by ID, including the associated user details
-//     const client = await Client.findOne({
-//       where: { id },
-//       include: [{
-//         model: User,
-//         as: 'user',
-//         attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state'] // Fetching all the new fields from User
-//       }]
-//     });
+exports.getClient = async (req, res) => {
+  try {
+    const { id } = req.params;
 
-//     if (!client) {
-//       return res.status(404).json({ message: 'Client not found' });
-//     }
+    // Find the client by ID, including the associated user details
+    const client = await Client.findOne({
+      where: { id },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state'] // Fetching all the new fields from User
+      }]
+    });
 
-//     // Prepare the response, including the client's user details
-//     const clientWithUserDetails = {
-//       id: client.id,
-//       user_id: client.user_id,
-//       firstName: client.user.firstName,
-//       lastName: client.user.lastName,
-//       email: client.user.email,
-//       address: client.user.address,
-//       contactNumber: client.user.contactNumber,
-//       city: client.user.city,
-//       state: client.user.state,
-//       status: client.status,  // Add the status here
-//       createdAt: client.createdAt,
-//       updatedAt: client.updatedAt
-//     };
+    if (!client) {
+      return res.status(404).json({ message: 'Client not found' });
+    }
 
-//     res.status(200).json(clientWithUserDetails);
-//   } catch (error) {
-//     res.status(500).json({ message: 'Error retrieving client', error });
-//   }
-// };
+    // Prepare the response, including the client's user details
+    const clientWithUserDetails = {
+      id: client.id,
+      user_id: client.user_id,
+      firstName: client.user.firstName,
+      lastName: client.user.lastName,
+      email: client.user.email,
+      address: client.user.address,
+      contactNumber: client.user.contactNumber,
+      city: client.user.city,
+      state: client.user.state,
+      status: client.status,  // Add the status here
+      createdAt: client.createdAt,
+      updatedAt: client.updatedAt
+    };
 
-// 30/06/2025
+    res.status(200).json(clientWithUserDetails);
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving client', error });
+  }
+};
 
-// exports.getClient = async (req, res) => {
-//   try {
-//     let clientId = req.params.id; // Extract client ID from URL
-//     const userId = req.user.id;   // Assuming you're using a session or token to store the logged-in user's info
+30/06/2025
+
+exports.getClient = async (req, res) => {
+  try {
+    let clientId = req.params.id; // Extract client ID from URL
+    const userId = req.user.id;   // Assuming you're using a session or token to store the logged-in user's info
     
-//     // If the user is an admin, they can fetch any client's profile by ID
-//     // If not, we'll automatically fetch their own profile based on their user ID
-//     if (!req.user.isAdmin) {
-//       // If the user is not an admin, set clientId to their own user_id (for self-profile)
-//       clientId = userId;
-//     }
+    // If the user is an admin, they can fetch any client's profile by ID
+    // If not, we'll automatically fetch their own profile based on their user ID
+    if (!req.user.isAdmin) {
+      // If the user is not an admin, set clientId to their own user_id (for self-profile)
+      clientId = userId;
+    }
 
-//     // Find the client by ID, including the associated user details
-//     const client = await Client.findOne({
-//       where: { user_id: clientId },
-//       include: [{
-//         model: User,
-//         as: 'user',
-//         attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage'] // Fetching user details
-//       }]
-//     });
+    // Find the client by ID, including the associated user details
+    const client = await Client.findOne({
+      where: { user_id: clientId },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage'] // Fetching user details
+      }]
+    });
 
-//     if (!client) {
-//       return res.status(404).json({ message: 'Client not found' });
-//     }
+    if (!client) {
+      return res.status(404).json({ message: 'Client not found' });
+    }
 
-//     // Prepare the response, including the client's user details
-//     const clientWithUserDetails = {
-//       id: client.id,
-//       user_id: client.user_id,
-//       firstName: client.user.firstName,
-//       lastName: client.user.lastName,
-//       email: client.user.email,
-//       address: client.user.address,
-//       contactNumber: client.user.contactNumber,
-//       city: client.user.city,
-//       state: client.user.state,
-//       gender: client.user.gender,
-//       profileImage: client.user.profileImage,
-//       status: client.status,
-//       createdAt: client.createdAt,
-//       updatedAt: client.updatedAt
-//     };
+    // Prepare the response, including the client's user details
+    const clientWithUserDetails = {
+      id: client.id,
+      user_id: client.user_id,
+      firstName: client.user.firstName,
+      lastName: client.user.lastName,
+      email: client.user.email,
+      address: client.user.address,
+      contactNumber: client.user.contactNumber,
+      city: client.user.city,
+      state: client.user.state,
+      gender: client.user.gender,
+      profileImage: client.user.profileImage,
+      status: client.status,
+      createdAt: client.createdAt,
+      updatedAt: client.updatedAt
+    };
 
-//     res.status(200).json(clientWithUserDetails);
-//   } catch (error) {
-//     res.status(500).json({ message: 'Error retrieving client', error });
-//   }
-// };
+    res.status(200).json(clientWithUserDetails);
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving client', error });
+  }
+};
 
 
-// 07/07/2025
+// 07/07/
 // exports.getClient = async (req, res) => {
 //   try {
 //     let clientId = req.params.id;
