@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const clientRoutes = require('./clientRoutes');
 const messageRoutes = require('./messageRoutes');
+const { Client } = require('../models'); 
 
 // Import the controllers
 const ClientController = require('../controllers/ClientController');
