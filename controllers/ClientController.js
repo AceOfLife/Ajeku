@@ -173,25 +173,65 @@ exports.getAllClients = async (req, res) => {
 
 exports.getClient = async (req, res) => {
   try {
-    const clientId = req.params.id;
+    let clientId = req.params.id; // Extract client ID from URL
+    const userId = req.user.id;
 
-    const client = await Client.findByPk(clientId, {
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: [
-          'firstName', 'lastName', 'email',
-          'address', 'contactNumber', 'city',
-          'state', 'gender', 'profileImage'
-        ]
-      }]
+    if (!req.user.isAdmin) {
+      clientId = userId;
+    }
+
+    // Find the client by user_id
+    const client = await Client.findOne({
+      where: { user_id: clientId },
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage']
+        }
+      ]
     });
 
     if (!client) {
       return res.status(404).json({ message: 'Client not found' });
     }
 
-    res.status(200).json({
+    // Fetch documents for the user
+    let documents = [];
+    if (UserDocument) {
+      try {
+        const whereCondition = { userId: client.user_id };
+        if (!req.user.isAdmin) {
+          whereCondition.status = 'APPROVED';
+        }
+
+        const userDocs = await UserDocument.findAll({
+          where: whereCondition,
+          attributes: req.user.isAdmin
+            ? ['id', 'userId', 'type', 'url', 'status', 'verifiedAt', 'verifiedBy', 'adminNotes']
+            : ['id', 'userId', 'type', 'url', 'status']
+        });
+
+        documents = userDocs.map(doc => {
+          const docData = {
+            id: doc.id,
+            type: doc.type,
+            url: doc.url,
+            status: doc.status
+          };
+          if (req.user.isAdmin) {
+            docData.verifiedAt = doc.verifiedAt;
+            docData.verifiedBy = doc.verifiedBy;
+            docData.adminNotes = doc.adminNotes;
+          }
+          return docData;
+        });
+      } catch (docError) {
+        console.error('Error fetching documents:', docError.message);
+      }
+    }
+
+    const clientWithUserDetails = {
       id: client.id,
       user_id: client.user_id,
       firstName: client.user.firstName,
@@ -205,13 +245,16 @@ exports.getClient = async (req, res) => {
       profileImage: client.user.profileImage,
       status: client.status,
       createdAt: client.createdAt,
-      updatedAt: client.updatedAt
-    });
+      updatedAt: client.updatedAt,
+      documents
+    };
+
+    res.status(200).json(clientWithUserDetails);
   } catch (error) {
-    res.status(500).json({ message: 'Error retrieving client', error: error.message });
+    console.error('Error retrieving client:', error);
+    res.status(500).json({ message: 'Error retrieving client', error });
   }
 };
-
 
 
 // 07/07/
