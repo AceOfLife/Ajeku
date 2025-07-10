@@ -5,7 +5,7 @@ const { Property, User, PropertyImage, FractionalOwnership, InstallmentOwnership
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
-const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
+const { upload, uploadImagesToCloudinary} = require('../config/multerConfig');
 
 
 // Document upload 30/12/2024
@@ -558,6 +558,103 @@ exports.getAllProperties = async (req, res) => {
 
 
 
+// exports.getPropertyById = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { userId } = req.query;
+
+//     const property = await Property.findOne({
+//       where: { id },
+//       include: [{ model: PropertyImage, as: 'images' }]
+//     });
+
+//     if (!property) {
+//       return res.status(404).json({ message: 'Property not found' });
+//     }
+
+//     await property.increment('views');
+//     await property.update({ last_checked: new Date() });
+
+//     const parsedUserId = parseInt(userId);
+//     const parsedPropertyId = parseInt(id);
+//     let installmentProgress = null;
+//     let userSlotsOwned = 0; // Initialize variable for user's owned slots
+
+//     // === ✅ User-specific progress (fractionalInstallment or standard installment)
+//     if (parsedUserId) {
+//       // Check for standard installment ownership
+//       const installmentOwnership = await InstallmentOwnership.findOne({
+//         where: { user_id: parsedUserId, property_id: parsedPropertyId }
+//       });
+
+//       if (installmentOwnership) {
+//         installmentProgress = {
+//           totalMonths: installmentOwnership.total_months,
+//           paidMonths: installmentOwnership.months_paid,
+//           remainingMonths: installmentOwnership.total_months - installmentOwnership.months_paid,
+//           status: installmentOwnership.status
+//         };
+//       }
+
+//       // Check for fractional ownership slots
+//       if (property.is_fractional) {
+//         const fractionalOwnership = await FractionalOwnership.findOne({
+//           where: { user_id: parsedUserId, property_id: parsedPropertyId }
+//         });
+
+//         if (fractionalOwnership) {
+//           userSlotsOwned = fractionalOwnership.slots_purchased;
+//         }
+//       }
+//     }
+
+//     // === ✅ Admin aggregate (only for standard installment properties)
+//     if (!parsedUserId && property.isInstallment && !property.is_fractional) {
+//       const ownerships = await InstallmentOwnership.findAll({
+//         where: { property_id: parsedPropertyId }
+//       });
+
+//       const totalOwnerships = ownerships.length;
+//       const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
+//       const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
+
+//       installmentProgress = {
+//         totalOwnerships,
+//         totalMonths,
+//         paidMonths,
+//         remainingMonths: totalMonths - paidMonths
+//       };
+//     }
+
+//     // === ✅ Compute available_slots if fractional
+//     let availableSlots = null;
+//     if (property.is_fractional) {
+//       const ownerships = await FractionalOwnership.findAll({
+//         where: { property_id: property.id }
+//       });
+
+//       const totalPurchased = ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
+//       availableSlots = property.fractional_slots - totalPurchased;
+//     }
+
+//     const propertyData = {
+//       ...property.toJSON(),
+//       available_slots: property.is_fractional ? availableSlots : undefined,
+//       user_slots_owned: property.is_fractional && parsedUserId ? userSlotsOwned : undefined
+//     };
+
+//     return res.status(200).json({ 
+//       property: propertyData, 
+//       installmentProgress 
+//     });
+//   } catch (error) {
+//     console.error("Error in getPropertyById:", error);
+//     res.status(500).json({ message: 'Error retrieving property', error });
+//   }
+// };
+
+// 10/07/2025
+
 exports.getPropertyById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -578,11 +675,10 @@ exports.getPropertyById = async (req, res) => {
     const parsedUserId = parseInt(userId);
     const parsedPropertyId = parseInt(id);
     let installmentProgress = null;
-    let userSlotsOwned = 0; // Initialize variable for user's owned slots
+    let userSlotsOwned = 0;
 
-    // === ✅ User-specific progress (fractionalInstallment or standard installment)
+    // === User-specific progress === (EXISTING CODE - UNCHANGED)
     if (parsedUserId) {
-      // Check for standard installment ownership
       const installmentOwnership = await InstallmentOwnership.findOne({
         where: { user_id: parsedUserId, property_id: parsedPropertyId }
       });
@@ -596,19 +692,17 @@ exports.getPropertyById = async (req, res) => {
         };
       }
 
-      // Check for fractional ownership slots
       if (property.is_fractional) {
         const fractionalOwnership = await FractionalOwnership.findOne({
           where: { user_id: parsedUserId, property_id: parsedPropertyId }
         });
-
         if (fractionalOwnership) {
           userSlotsOwned = fractionalOwnership.slots_purchased;
         }
       }
     }
 
-    // === ✅ Admin aggregate (only for standard installment properties)
+    // === Admin aggregate === (EXISTING CODE - UNCHANGED)
     if (!parsedUserId && property.isInstallment && !property.is_fractional) {
       const ownerships = await InstallmentOwnership.findAll({
         where: { property_id: parsedPropertyId }
@@ -626,33 +720,41 @@ exports.getPropertyById = async (req, res) => {
       };
     }
 
-    // === ✅ Compute available_slots if fractional
-    let availableSlots = null;
+    // === NEW: Fractional Progress Tracking === (ONLY ADDITION)
+    let fractionalProgress = null;
     if (property.is_fractional) {
-      const ownerships = await FractionalOwnership.findAll({
+      const fractionalOwnerships = await FractionalOwnership.findAll({
         where: { property_id: property.id }
       });
 
-      const totalPurchased = ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
-      availableSlots = property.fractional_slots - totalPurchased;
+      const totalPurchased = fractionalOwnerships.reduce((sum, o) => sum + o.slots_purchased, 0);
+      
+      fractionalProgress = {
+        totalSlots: property.fractional_slots,
+        purchasedSlots: totalPurchased,
+        availableSlots: property.fractional_slots - totalPurchased,
+        totalInvestors: fractionalOwnerships.length
+      };
     }
 
+    // Prepare response (EXISTING CODE - UNCHANGED)
     const propertyData = {
       ...property.toJSON(),
-      available_slots: property.is_fractional ? availableSlots : undefined,
+      available_slots: property.is_fractional ? fractionalProgress?.availableSlots : undefined,
       user_slots_owned: property.is_fractional && parsedUserId ? userSlotsOwned : undefined
     };
 
     return res.status(200).json({ 
       property: propertyData, 
-      installmentProgress 
+      installmentProgress,
+      fractionalProgress // NEW: Added to response
     });
+
   } catch (error) {
     console.error("Error in getPropertyById:", error);
     res.status(500).json({ message: 'Error retrieving property', error });
   }
 };
-
 
 
 
