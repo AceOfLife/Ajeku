@@ -48,6 +48,61 @@ exports.uploadDocuments = async (req, res) => {
   }
 };
 
+// exports.verifyDocument = async (req, res) => {
+//   try {
+//     const { documentId } = req.params;
+//     const { status, adminNotes } = req.body;
+
+//     // Match EXACTLY what's in your database enum (uppercase)
+//     const allowedStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
+    
+//     // Convert input to uppercase to match enum
+//     const statusUpperCase = status.toUpperCase();
+    
+//     if (!allowedStatuses.includes(statusUpperCase)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}`
+//       });
+//     }
+
+//     const document = await UserDocument.findByPk(documentId);
+//     if (!document) {
+//       return res.status(404).json({ 
+//         success: false, 
+//         message: 'Document not found' 
+//       });
+//     }
+
+//     // Update using the uppercase status
+//     await document.update({
+//       status: statusUpperCase,  // Must be 'APPROVED' or 'REJECTED'
+//       adminNotes: adminNotes || null,
+//       verifiedBy: req.user.id,
+//       verifiedAt: new Date()
+//     });
+
+//     return res.json({
+//       success: true,
+//       message: `Document ${statusUpperCase}`,
+//       document: {
+//         id: document.id,
+//         status: document.status,
+//         verifiedBy: document.verifiedBy,
+//         verifiedAt: document.verifiedAt
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Admin document verification error:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Verification failed',
+//       error: process.env.NODE_ENV === 'development' ? error.message : undefined
+//     });
+//   }
+// };   10/07/2025 revert here
+
 exports.verifyDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
@@ -66,7 +121,13 @@ exports.verifyDocument = async (req, res) => {
       });
     }
 
-    const document = await UserDocument.findByPk(documentId);
+    const document = await UserDocument.findByPk(documentId, {
+      include: [{
+        model: Client,
+        as: 'client' // or whatever your association is called
+      }]
+    });
+
     if (!document) {
       return res.status(404).json({ 
         success: false, 
@@ -74,13 +135,22 @@ exports.verifyDocument = async (req, res) => {
       });
     }
 
-    // Update using the uppercase status
+    // Update document
     await document.update({
-      status: statusUpperCase,  // Must be 'APPROVED' or 'REJECTED'
+      status: statusUpperCase,
       adminNotes: adminNotes || null,
       verifiedBy: req.user.id,
       verifiedAt: new Date()
     });
+
+    // Only update client status if document is APPROVED
+    if (statusUpperCase === 'APPROVED') {
+      const client = document.client; // Assuming the association exists
+      if (client) {
+        client.status = 'Verified';
+        await client.save();
+      }
+    }
 
     return res.json({
       success: true,
@@ -90,7 +160,14 @@ exports.verifyDocument = async (req, res) => {
         status: document.status,
         verifiedBy: document.verifiedBy,
         verifiedAt: document.verifiedAt
-      }
+      },
+      // Include client status in response if updated
+      ...(statusUpperCase === 'APPROVED' && document.client ? {
+        client: {
+          id: document.client.id,
+          status: document.client.status
+        }
+      } : {})
     });
 
   } catch (error) {
