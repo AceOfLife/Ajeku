@@ -109,8 +109,112 @@ const {
 //   }
 // };
 
-// Adding Rental payment
+// Added rental
+exports.initializePayment = async (req, res) => {
+  try {
+    const { user_id, property_id, payment_type, slots = 1 } = req.body;
 
+    // Fetch the user
+    const user = await User.findByPk(user_id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Fetch the property
+    const property = await Property.findByPk(property_id);
+    if (!property) return res.status(404).json({ message: 'Property not found' });
+
+    let amount = property.price;
+
+    // Outright or per-slot payment
+    if (payment_type === "fractional" && property.is_fractional) {
+      if (!property.price_per_slot || !property.fractional_slots) {
+        return res.status(400).json({ message: 'Invalid fractional property setup' });
+      }
+
+      if (slots > property.fractional_slots) {
+        return res.status(400).json({ message: 'Not enough fractional slots available' });
+      }
+
+      amount = property.price_per_slot * slots;
+    }
+
+    // Standard Installment (Non-fractional)
+    else if (payment_type === "installment" && property.isInstallment) {
+      if (property.is_fractional) {
+        // Fractional with part-payment logic
+        if (!property.price_per_slot || !property.fractional_slots) {
+          return res.status(400).json({ message: 'Invalid fractional installment setup' });
+        }
+
+        if (slots > property.fractional_slots) {
+          return res.status(400).json({ message: 'Not enough fractional slots available' });
+        }
+
+        amount = property.price_per_slot * slots; // Full slot cost
+      } else {
+        // Standard monthly installment logic
+        if (!property.duration || property.duration <= 0) {
+          return res.status(400).json({ message: 'Invalid installment setup' });
+        }
+
+        amount = property.price / property.duration;
+      }
+    }
+
+    // Fractional Installment Logic
+    else if (payment_type === "fractionalInstallment" && property.is_fractional && property.isFractionalInstallment) {
+      if (!property.price_per_slot || !property.isFractionalDuration || !property.fractional_slots) {
+        return res.status(400).json({ message: 'Invalid fractional installment duration setup' });
+      }
+
+      if (slots > property.fractional_slots) {
+        return res.status(400).json({ message: 'Not enough fractional slots available' });
+      }
+
+      amount = (property.price_per_slot * slots) / property.isFractionalDuration;
+    }
+
+    // ✅ NEW: Rental Payment Logic
+    else if (payment_type === "rental" && property.isRental) {
+      if (!property.annual_rent || property.annual_rent <= 0) {
+        return res.status(400).json({ message: 'Invalid rental setup - annual rent not specified' });
+      }
+      amount = property.annual_rent; // Full annual rent amount
+    }
+
+    // Convert amount to kobo
+    const amountInKobo = Math.round(amount * 100);
+
+    const response = await axios.post(
+      "https://api.paystack.co/transaction/initialize",
+      {
+        email: user.email,
+        amount: amountInKobo,
+        currency: "NGN",
+        callback_url: `https://ajeku-developing.vercel.app/payment-success?propertyId=${property.id}`,
+        metadata: {
+          user_id: user.id,
+          property_id: property.id,
+          payment_type,
+          slots
+        }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    res.status(200).json({
+      paymentUrl: response.data.data.authorization_url,
+      reference: response.data.data.reference
+    });
+  } catch (error) {
+    console.error("Payment Initialization Error:", error.response?.data || error.message);
+    res.status(500).json({ message: 'Error initializing payment', error });
+  }
+};
 
 
 // Updated with isFractionalInstallment 18th June
@@ -478,8 +582,7 @@ const {
 //   }
 // };
 
-
-// Adding rental
+// Added Rental
 
 exports.verifyPayment = async (req, res) => {
   try {
@@ -732,6 +835,7 @@ exports.verifyPayment = async (req, res) => {
     return res.status(500).json({ message: "Error verifying payment", error: error.message });
   }
 };
+
 
 
 // Get installment status for a specific property
