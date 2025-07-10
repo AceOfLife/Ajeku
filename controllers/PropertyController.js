@@ -558,6 +558,200 @@ exports.getAllProperties = async (req, res) => {
 
 
 
+// exports.getPropertyById = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { userId } = req.query;
+
+//     const property = await Property.findOne({
+//       where: { id },
+//       include: [{ model: PropertyImage, as: 'images' }]
+//     });
+
+//     if (!property) {
+//       return res.status(404).json({ message: 'Property not found' });
+//     }
+
+//     await property.increment('views');
+//     await property.update({ last_checked: new Date() });
+
+//     const parsedUserId = parseInt(userId);
+//     const parsedPropertyId = parseInt(id);
+//     let installmentProgress = null;
+//     let userSlotsOwned = 0; // Initialize variable for user's owned slots
+
+//     // === ✅ User-specific progress (fractionalInstallment or standard installment)
+//     if (parsedUserId) {
+//       // Check for standard installment ownership
+//       const installmentOwnership = await InstallmentOwnership.findOne({
+//         where: { user_id: parsedUserId, property_id: parsedPropertyId }
+//       });
+
+//       if (installmentOwnership) {
+//         installmentProgress = {
+//           totalMonths: installmentOwnership.total_months,
+//           paidMonths: installmentOwnership.months_paid,
+//           remainingMonths: installmentOwnership.total_months - installmentOwnership.months_paid,
+//           status: installmentOwnership.status
+//         };
+//       }
+
+//       // Check for fractional ownership slots
+//       if (property.is_fractional) {
+//         const fractionalOwnership = await FractionalOwnership.findOne({
+//           where: { user_id: parsedUserId, property_id: parsedPropertyId }
+//         });
+
+//         if (fractionalOwnership) {
+//           userSlotsOwned = fractionalOwnership.slots_purchased;
+//         }
+//       }
+//     }
+
+//     // === ✅ Admin aggregate (only for standard installment properties)
+//     if (!parsedUserId && property.isInstallment && !property.is_fractional) {
+//       const ownerships = await InstallmentOwnership.findAll({
+//         where: { property_id: parsedPropertyId }
+//       });
+
+//       const totalOwnerships = ownerships.length;
+//       const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
+//       const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
+
+//       installmentProgress = {
+//         totalOwnerships,
+//         totalMonths,
+//         paidMonths,
+//         remainingMonths: totalMonths - paidMonths
+//       };
+//     }
+
+//     // === ✅ Compute available_slots if fractional
+//     let availableSlots = null;
+//     if (property.is_fractional) {
+//       const ownerships = await FractionalOwnership.findAll({
+//         where: { property_id: property.id }
+//       });
+
+//       const totalPurchased = ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
+//       availableSlots = property.fractional_slots - totalPurchased;
+//     }
+
+//     const propertyData = {
+//       ...property.toJSON(),
+//       available_slots: property.is_fractional ? availableSlots : undefined,
+//       user_slots_owned: property.is_fractional && parsedUserId ? userSlotsOwned : undefined
+//     };
+
+//     return res.status(200).json({ 
+//       property: propertyData, 
+//       installmentProgress 
+//     });
+//   } catch (error) {
+//     console.error("Error in getPropertyById:", error);
+//     res.status(500).json({ message: 'Error retrieving property', error });
+//   }
+// };
+
+
+
+
+
+
+// const { Op } = require('sequelize');
+
+// exports.getFilteredProperties = async (req, res) => {
+//     const { name, number_of_baths, number_of_rooms, type } = req.query;
+
+//     // Log query parameters
+//     console.log("Query received:", req.query);
+
+//     // Validate the name parameter
+//     if (!name && !number_of_baths && !number_of_rooms && !type) {
+//         console.log("At least one filter parameter is required.");
+//         return res.status(400).json({ message: "At least one filter parameter is required" });
+//     }
+
+//     try {
+//         // Prepare the filter for the WHERE clause
+//         const filter = {};
+
+//         if (name && name.trim() !== "") {
+//             filter.name = {
+//                 [Op.iLike]: `%${name.trim()}%`, // Case-insensitive partial match
+//             };
+//         }
+
+//         if (number_of_baths) {
+//             // Assuming number_of_baths is a string like "2,3,4" for 2 or 3 or 4 bathrooms
+//             const bathsArray = number_of_baths.split(',').map(num => parseInt(num.trim(), 10));
+//             filter.number_of_baths = {
+//                 [Op.in]: bathsArray
+//             };
+//         }
+
+//         if (number_of_rooms) {
+//             // Similar handling for number_of_rooms
+//             const roomsArray = number_of_rooms.split(',').map(num => parseInt(num.trim(), 10));
+//             filter.number_of_rooms = {
+//                 [Op.in]: roomsArray
+//             };
+//         }
+
+//         if (type) {
+//             // Assuming type is a string like "Residential,Commercial" for Residential or Commercial
+//             // const typesArray = type.split(',').map(str => str.trim());
+//             // filter.type = {
+//             //     [Op.in]: typesArray
+//             // };
+//             const typesArray = type.split(',').map(str => {
+//                 const trimmed = str.trim();
+//                 return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+//             });
+
+//             filter.type = {
+//                 [Op.in]: typesArray
+//             };
+//         }
+
+//         // Log the SQL query before execution
+//         try {
+//             const sqlQuery = await Property.sequelize.queryInterface.queryGenerator.selectQuery('Property', {
+//                 where: filter,
+//                 include: [{ model: PropertyImage, as: 'images' }]
+//             });
+//             console.log("SQL Query being executed:", sqlQuery.sql);
+//         } catch (queryGenerationError) {
+//             console.error("Error generating SQL query:", queryGenerationError);
+//         }
+
+//         // Execute the query with the WHERE clause
+//         const properties = await Property.findAll({
+//             where: filter, 
+//             include: [{ model: PropertyImage, as: 'images' }], // Include associated images with alias
+//         });
+
+//         // Log the result of the query
+//         console.log("Query result:", properties);
+
+//         // Return a 404 if no properties are found
+//         if (properties.length === 0) {
+//             return res.status(404).json({ message: 'No properties found' });
+//         }
+
+//         // Return the filtered properties
+//         res.status(200).json(properties);
+//     } catch (error) {
+//         console.error("Error retrieving properties:", error);
+//         res.status(500).json({
+//             message: 'Error retrieving properties',
+//             error: error.message,
+//         });
+//     }
+// };
+
+// 10/07/2025
+
 exports.getPropertyById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -578,11 +772,12 @@ exports.getPropertyById = async (req, res) => {
     const parsedUserId = parseInt(userId);
     const parsedPropertyId = parseInt(id);
     let installmentProgress = null;
-    let userSlotsOwned = 0; // Initialize variable for user's owned slots
+    let userSlotsOwned = 0;
+    let fractionalProgress = null; // NEW: For tracking fractional progress
 
-    // === ✅ User-specific progress (fractionalInstallment or standard installment)
+    // === User-specific progress ===
     if (parsedUserId) {
-      // Check for standard installment ownership
+      // Standard installment check
       const installmentOwnership = await InstallmentOwnership.findOne({
         where: { user_id: parsedUserId, property_id: parsedPropertyId }
       });
@@ -596,7 +791,7 @@ exports.getPropertyById = async (req, res) => {
         };
       }
 
-      // Check for fractional ownership slots
+      // Fractional ownership check
       if (property.is_fractional) {
         const fractionalOwnership = await FractionalOwnership.findOne({
           where: { user_id: parsedUserId, property_id: parsedPropertyId }
@@ -608,31 +803,55 @@ exports.getPropertyById = async (req, res) => {
       }
     }
 
-    // === ✅ Admin aggregate (only for standard installment properties)
-    if (!parsedUserId && property.isInstallment && !property.is_fractional) {
-      const ownerships = await InstallmentOwnership.findAll({
-        where: { property_id: parsedPropertyId }
-      });
+    // === Admin aggregate data ===
+    if (!parsedUserId) {
+      // For standard installment properties
+      if (property.isInstallment && !property.is_fractional) {
+        const ownerships = await InstallmentOwnership.findAll({
+          where: { property_id: parsedPropertyId }
+        });
 
-      const totalOwnerships = ownerships.length;
-      const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
-      const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
+        const totalOwnerships = ownerships.length;
+        const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
+        const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
 
-      installmentProgress = {
-        totalOwnerships,
-        totalMonths,
-        paidMonths,
-        remainingMonths: totalMonths - paidMonths
-      };
+        installmentProgress = {
+          totalOwnerships,
+          totalMonths,
+          paidMonths,
+          remainingMonths: totalMonths - paidMonths
+        };
+      }
+
+      // NEW: For fractional properties (admin view)
+      if (property.is_fractional) {
+        const fractionalOwnerships = await FractionalOwnership.findAll({
+          where: { property_id: parsedPropertyId }
+        });
+
+        const totalPurchased = fractionalOwnerships.reduce((sum, o) => sum + o.slots_purchased, 0);
+        const totalInvestors = fractionalOwnerships.length;
+
+        fractionalProgress = { // NEW: Fractional progress object
+          totalSlots: property.fractional_slots,
+          purchasedSlots: totalPurchased,
+          availableSlots: property.fractional_slots - totalPurchased,
+          totalInvestors,
+          ownerships: fractionalOwnerships.map(o => ({
+            userId: o.user_id,
+            slotsPurchased: o.slots_purchased,
+            purchaseDate: o.createdAt
+          }))
+        };
+      }
     }
 
-    // === ✅ Compute available_slots if fractional
+    // NEW: Compute available slots (for both user and admin)
     let availableSlots = null;
     if (property.is_fractional) {
       const ownerships = await FractionalOwnership.findAll({
         where: { property_id: property.id }
       });
-
       const totalPurchased = ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
       availableSlots = property.fractional_slots - totalPurchased;
     }
@@ -645,109 +864,13 @@ exports.getPropertyById = async (req, res) => {
 
     return res.status(200).json({ 
       property: propertyData, 
-      installmentProgress 
+      installmentProgress,
+      fractionalProgress // NEW: Include fractional progress in response
     });
   } catch (error) {
     console.error("Error in getPropertyById:", error);
     res.status(500).json({ message: 'Error retrieving property', error });
   }
-};
-
-
-
-
-
-
-const { Op } = require('sequelize');
-
-exports.getFilteredProperties = async (req, res) => {
-    const { name, number_of_baths, number_of_rooms, type } = req.query;
-
-    // Log query parameters
-    console.log("Query received:", req.query);
-
-    // Validate the name parameter
-    if (!name && !number_of_baths && !number_of_rooms && !type) {
-        console.log("At least one filter parameter is required.");
-        return res.status(400).json({ message: "At least one filter parameter is required" });
-    }
-
-    try {
-        // Prepare the filter for the WHERE clause
-        const filter = {};
-
-        if (name && name.trim() !== "") {
-            filter.name = {
-                [Op.iLike]: `%${name.trim()}%`, // Case-insensitive partial match
-            };
-        }
-
-        if (number_of_baths) {
-            // Assuming number_of_baths is a string like "2,3,4" for 2 or 3 or 4 bathrooms
-            const bathsArray = number_of_baths.split(',').map(num => parseInt(num.trim(), 10));
-            filter.number_of_baths = {
-                [Op.in]: bathsArray
-            };
-        }
-
-        if (number_of_rooms) {
-            // Similar handling for number_of_rooms
-            const roomsArray = number_of_rooms.split(',').map(num => parseInt(num.trim(), 10));
-            filter.number_of_rooms = {
-                [Op.in]: roomsArray
-            };
-        }
-
-        if (type) {
-            // Assuming type is a string like "Residential,Commercial" for Residential or Commercial
-            // const typesArray = type.split(',').map(str => str.trim());
-            // filter.type = {
-            //     [Op.in]: typesArray
-            // };
-            const typesArray = type.split(',').map(str => {
-                const trimmed = str.trim();
-                return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
-            });
-
-            filter.type = {
-                [Op.in]: typesArray
-            };
-        }
-
-        // Log the SQL query before execution
-        try {
-            const sqlQuery = await Property.sequelize.queryInterface.queryGenerator.selectQuery('Property', {
-                where: filter,
-                include: [{ model: PropertyImage, as: 'images' }]
-            });
-            console.log("SQL Query being executed:", sqlQuery.sql);
-        } catch (queryGenerationError) {
-            console.error("Error generating SQL query:", queryGenerationError);
-        }
-
-        // Execute the query with the WHERE clause
-        const properties = await Property.findAll({
-            where: filter, 
-            include: [{ model: PropertyImage, as: 'images' }], // Include associated images with alias
-        });
-
-        // Log the result of the query
-        console.log("Query result:", properties);
-
-        // Return a 404 if no properties are found
-        if (properties.length === 0) {
-            return res.status(404).json({ message: 'No properties found' });
-        }
-
-        // Return the filtered properties
-        res.status(200).json(properties);
-    } catch (error) {
-        console.error("Error retrieving properties:", error);
-        res.status(500).json({
-            message: 'Error retrieving properties',
-            error: error.message,
-        });
-    }
 };
 
 // 13/04/2025
