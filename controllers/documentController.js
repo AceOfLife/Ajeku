@@ -1,4 +1,4 @@
-const { UserDocument } = require('../models');
+const { UserDocument, Client } = require('../models');
 // const { uploadImagesToCloudinary } = require('../utils/cloudinary');
 const {uploadImagesToCloudinary} = require('../config/multerConfig');
 
