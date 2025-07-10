@@ -126,80 +126,82 @@ exports.updateBankSummary = async (req, res) => {
     const lastWeek = new Date(now);
     lastWeek.setDate(now.getDate() - 7);
 
-    // 1. Get weekly rental income (with proper association alias)
-    const rentalTransactions = await Transaction.findAll({
+    // 1. Get all transactions for rental properties in date range
+    const allTransactions = await Transaction.findAll({
       where: {
-        payment_type: 'rental',
         transaction_date: {
           [Op.between]: [lastWeek, now]
         }
       },
       include: [{
         model: Property,
-        as: 'property', // ← MUST match your association alias
-        where: { isRental: true },
-        attributes: [] // No need to return property data
-      }]
-    });
-
-    const income_per_week = rentalTransactions.reduce(
-      (sum, tx) => sum + parseFloat(tx.price || 0), 
-      0
-    );
-
-    // 2. Get all-time rental income
-    const allRentalTransactions = await Transaction.findAll({
-      where: { payment_type: 'rental' },
-      include: [{
-        model: Property,
-        as: 'property', // ← Same alias as above
+        as: 'property', // Must match your association alias
         where: { isRental: true },
         attributes: []
       }]
     });
 
-    const total_income = allRentalTransactions.reduce(
+    // 2. Filter to only rental payments (checking metadata)
+    const rentalTransactions = allTransactions.filter(tx => 
+      tx.metadata && tx.metadata.payment_type === 'rental'
+    );
+
+    // 3. Calculate weekly income
+    const income_per_week = rentalTransactions.reduce(
       (sum, tx) => sum + parseFloat(tx.price || 0), 
       0
     );
 
-    // 3. Calculate expenses
+    // 4. Get all-time rental income
+    const allTimeTransactions = await Transaction.findAll({
+      include: [{
+        model: Property,
+        as: 'property',
+        where: { isRental: true },
+        attributes: []
+      }]
+    });
+
+    const allTimeRentalTransactions = allTimeTransactions.filter(tx => 
+      tx.metadata && tx.metadata.payment_type === 'rental'
+    );
+
+    const total_income = allTimeRentalTransactions.reduce(
+      (sum, tx) => sum + parseFloat(tx.price || 0), 
+      0
+    );
+
+    // 5. Calculate expenses
     const expenses_per_week = expenses.reduce(
       (sum, e) => sum + parseFloat(e.amount || 0), 
       0
     );
 
+    // 6. Get historical expenses
     const total_expenses = (await BankOfHeaven.sum('expenses_per_week')) || 0;
     const current_balance = total_income - total_expenses;
 
-    // 4. Update or create bank summary
-    let bankSummary = await BankOfHeaven.findOne();
-    if (!bankSummary) {
-      bankSummary = await BankOfHeaven.create({
-        current_balance,
-        expenses_per_week,
-        income_per_week,
-        transactions: expenses
-      });
-    } else {
-      await bankSummary.update({
-        current_balance,
-        expenses_per_week,
-        income_per_week,
-        transactions: expenses
-      });
-    }
+    // 7. Update or create bank summary
+    const [bankSummary] = await BankOfHeaven.upsert({
+      current_balance,
+      expenses_per_week,
+      income_per_week,
+      transactions: expenses
+    }, {
+      returning: true
+    });
 
-    // 5. Return success response
+    // 8. Return success response
     res.status(200).json({
       success: true,
       message: 'Bank summary updated successfully',
       data: {
-        current_balance,
-        weekly_income: income_per_week,
-        weekly_expenses: expenses_per_week,
+        current_balance: bankSummary.current_balance,
+        weekly_income: bankSummary.income_per_week,
+        weekly_expenses: bankSummary.expenses_per_week,
         all_time_income: total_income,
-        all_time_expenses: total_expenses
+        all_time_expenses: total_expenses,
+        updated_at: bankSummary.updatedAt
       }
     });
 
@@ -208,9 +210,10 @@ exports.updateBankSummary = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating bank summary',
-      error: process.env.NODE_ENV === 'development' 
-        ? error.message 
-        : undefined
+      error: process.env.NODE_ENV === 'development' ? {
+        message: error.message,
+        stack: error.stack
+      } : undefined
     });
   }
 };
