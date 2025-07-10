@@ -5,7 +5,7 @@ const { Property, User, PropertyImage, FractionalOwnership, InstallmentOwnership
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
-const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
+const { upload, uploadImagesToCloudinary} = require('../config/multerConfig');
 
 
 // Document upload 30/12/2024
