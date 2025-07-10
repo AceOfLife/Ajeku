@@ -47,7 +47,7 @@
 // };
 
 
-const { BankOfHeaven, Transaction } = require('../models');
+const { BankOfHeaven, Transaction, Property } = require('../models');
 const { Op } = require('sequelize');
 
 // Fetch the current financial data
