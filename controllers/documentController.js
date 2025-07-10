@@ -108,10 +108,8 @@ exports.verifyDocument = async (req, res) => {
     const { documentId } = req.params;
     const { status, adminNotes } = req.body;
 
-    // Match EXACTLY what's in your database enum (uppercase)
+    // Validate status
     const allowedStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
-    
-    // Convert input to uppercase to match enum
     const statusUpperCase = status.toUpperCase();
     
     if (!allowedStatuses.includes(statusUpperCase)) {
@@ -121,17 +119,32 @@ exports.verifyDocument = async (req, res) => {
       });
     }
 
-    const document = await UserDocument.findByPk(documentId, {
+    // Find document with associated user
+    const document = await UserDocument.findOne({
+      where: { id: documentId },
       include: [{
-        model: Client,
-        as: 'client' // or whatever your association is called
+        model: User,
+        as: 'user',
+        required: true
       }]
     });
 
     if (!document) {
       return res.status(404).json({ 
         success: false, 
-        message: 'Document not found' 
+        message: 'Document not found or no associated user' 
+      });
+    }
+
+    // Find the client associated with this user
+    const client = await Client.findOne({
+      where: { user_id: document.user.id }
+    });
+
+    if (!client) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'No client profile found for this user' 
       });
     }
 
@@ -143,13 +156,11 @@ exports.verifyDocument = async (req, res) => {
       verifiedAt: new Date()
     });
 
-    // Only update client status if document is APPROVED
+    // Update client status if document is approved
     if (statusUpperCase === 'APPROVED') {
-      const client = document.client; // Assuming the association exists
-      if (client) {
-        client.status = 'Verified';
-        await client.save();
-      }
+      await client.update({
+        status: 'Verified'
+      });
     }
 
     return res.json({
@@ -161,13 +172,10 @@ exports.verifyDocument = async (req, res) => {
         verifiedBy: document.verifiedBy,
         verifiedAt: document.verifiedAt
       },
-      // Include client status in response if updated
-      ...(statusUpperCase === 'APPROVED' && document.client ? {
-        client: {
-          id: document.client.id,
-          status: document.client.status
-        }
-      } : {})
+      client: statusUpperCase === 'APPROVED' ? {
+        id: client.id,
+        status: client.status
+      } : undefined
     });
 
   } catch (error) {
