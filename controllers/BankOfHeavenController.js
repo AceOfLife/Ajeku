@@ -1,123 +1,50 @@
-// controllers/BankOfHeavenController.js
-
-// const { BankOfHeaven } = require('../models');
-
-// // Fetch the current financial data
-// exports.getBankSummary = async (req, res) => {
-//   try {
-//     const bankSummary = await BankOfHeaven.findOne();
-//     if (!bankSummary) {
-//       return res.status(404).json({ message: 'Bank of Heaven data not found' });
-//     }
-//     res.json(bankSummary);
-//   } catch (error) {
-//     res.status(500).json({ message: 'Error retrieving Bank of Heaven data' });
-//   }
-// };
-
-// // Create or update the financial data (Balance, Expenses, Income)
-// exports.updateBankSummary = async (req, res) => {
-//   try {
-//     const { current_balance, expenses_per_week, income_per_week, transactions } = req.body;
-
-//     let bankSummary = await BankOfHeaven.findOne();
-
-//     if (!bankSummary) {
-//       // Create a new Bank of Heaven entry if it doesn't exist
-//       bankSummary = await BankOfHeaven.create({
-//         current_balance,
-//         expenses_per_week,
-//         income_per_week,
-//         transactions,
-//       });
-//     } else {
-//       // Update existing Bank of Heaven entry
-//       await bankSummary.update({
-//         current_balance,
-//         expenses_per_week,
-//         income_per_week,
-//         transactions,
-//       });
-//     }
-
-//     res.status(200).json({ message: 'Bank summary updated successfully' });
-//   } catch (error) {
-//     res.status(500).json({ message: 'Error updating Bank of Heaven data' });
-//   }
-// };
-
-
 const { BankOfHeaven, Transaction, Property } = require('../models');
 const { Op } = require('sequelize');
 
 // Fetch the current financial data
 exports.getBankSummary = async (req, res) => {
   try {
-    const bankSummary = await BankOfHeaven.findOne();
+    const bankSummary = await BankOfHeaven.findOne({
+      include: [{
+        model: Transaction,
+        as: 'transactions',
+        attributes: ['id', 'price', 'transaction_date', 'payment_type'],
+        limit: 50,
+        order: [['transaction_date', 'DESC']]
+      }]
+    });
+
     if (!bankSummary) {
-      return res.status(404).json({ message: 'Bank of Heaven data not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Bank of Heaven data not found' 
+      });
     }
-    res.json(bankSummary);
+
+    // Calculate totals from all transactions
+    const allTransactions = await Transaction.findAll();
+    const totalIncome = allTransactions.reduce(
+      (sum, tx) => sum + parseFloat(tx.price || 0), 0
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...bankSummary.toJSON(),
+        total_income: totalIncome,
+        transaction_count: allTransactions.length
+      }
+    });
+
   } catch (error) {
-    res.status(500).json({ message: 'Error retrieving Bank of Heaven data' });
+    console.error('Error fetching bank summary:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving Bank of Heaven data',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
-
-// Update Bank of Heaven data
-// exports.updateBankSummary = async (req, res) => {
-//   try {
-//     const { expenses } = req.body; // Only accepting expenses as input
-//     const now = new Date();
-//     const lastWeek = new Date();
-//     lastWeek.setDate(now.getDate() - 7);
-
-//     // Calculate total income in the last 7 days
-//     const income_per_week = await Transaction.sum('price', {
-//       where: {
-//         transaction_date: {
-//           [Op.between]: [lastWeek, now],
-//         },
-//       },
-//     }) || 0;
-
-//     // Calculate total expenses in the last 7 days
-//     const expenses_per_week = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-
-//     // Calculate total income from all transactions
-//     const total_income = await Transaction.sum('price') || 0;
-
-//     // Calculate total expenses from all recorded expenses
-//     const total_expenses = await BankOfHeaven.sum('expenses_per_week') || 0;
-
-//     // Calculate current balance
-//     const current_balance = total_income - total_expenses;
-
-//     let bankSummary = await BankOfHeaven.findOne();
-
-//     if (!bankSummary) {
-//       // Create a new record if it doesn't exist
-//       bankSummary = await BankOfHeaven.create({
-//         current_balance,
-//         expenses_per_week,
-//         income_per_week,
-//         transactions: expenses, // Store the new expenses
-//       });
-//     } else {
-//       // Update existing record
-//       await bankSummary.update({
-//         current_balance,
-//         expenses_per_week,
-//         income_per_week,
-//         transactions: expenses, // Store the new expenses
-//       });
-//     }
-
-//     res.status(200).json({ message: 'Bank summary updated successfully', bankSummary });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Error updating Bank of Heaven data' });
-//   }
-// };
 
 exports.updateBankSummary = async (req, res) => {
   try {
@@ -126,72 +53,54 @@ exports.updateBankSummary = async (req, res) => {
     const lastWeek = new Date(now);
     lastWeek.setDate(now.getDate() - 7);
 
-    // 1. Get all transactions for rental properties in date range
-    const allTransactions = await Transaction.findAll({
+    // 1. Get ALL transactions (not filtered by rental)
+    const weeklyTransactions = await Transaction.findAll({
       where: {
         transaction_date: {
           [Op.between]: [lastWeek, now]
-        }
-      },
-      include: [{
-        model: Property,
-        as: 'property', // Must match your association alias
-        where: { isRental: true },
-        attributes: []
-      }]
+        },
+        status: 'success' // Only count successful transactions
+      }
     });
 
-    // 2. Filter to only rental payments (checking metadata)
-    const rentalTransactions = allTransactions.filter(tx => 
-      tx.metadata && tx.metadata.payment_type === 'rental'
-    );
-
-    // 3. Calculate weekly income
-    const income_per_week = rentalTransactions.reduce(
+    // 2. Calculate weekly income from ALL transactions
+    const income_per_week = weeklyTransactions.reduce(
       (sum, tx) => sum + parseFloat(tx.price || 0), 
       0
     );
 
-    // 4. Get all-time rental income
-    const allTimeTransactions = await Transaction.findAll({
-      include: [{
-        model: Property,
-        as: 'property',
-        where: { isRental: true },
-        attributes: []
-      }]
+    // 3. Get ALL historical transactions
+    const allTransactions = await Transaction.findAll({
+      where: { status: 'success' }
     });
 
-    const allTimeRentalTransactions = allTimeTransactions.filter(tx => 
-      tx.metadata && tx.metadata.payment_type === 'rental'
-    );
-
-    const total_income = allTimeRentalTransactions.reduce(
+    const total_income = allTransactions.reduce(
       (sum, tx) => sum + parseFloat(tx.price || 0), 
       0
     );
 
-    // 5. Calculate expenses
+    // 4. Calculate expenses
     const expenses_per_week = expenses.reduce(
       (sum, e) => sum + parseFloat(e.amount || 0), 
       0
     );
 
-    // 6. Get historical expenses
+    // 5. Get historical expenses
     const total_expenses = (await BankOfHeaven.sum('expenses_per_week')) || 0;
     const current_balance = total_income - total_expenses;
 
-    // 7. Update or create bank summary
+    // 6. Update or create bank summary
     const [bankSummary] = await BankOfHeaven.upsert({
       current_balance,
       expenses_per_week,
       income_per_week,
-      transactions: expenses
+      transactions: expenses,
+      total_transactions: allTransactions.length
     }, {
       returning: true
     });
 
-    // 8. Return success response
+    // 7. Return success response
     res.status(200).json({
       success: true,
       message: 'Bank summary updated successfully',
@@ -201,6 +110,7 @@ exports.updateBankSummary = async (req, res) => {
         weekly_expenses: bankSummary.expenses_per_week,
         all_time_income: total_income,
         all_time_expenses: total_expenses,
+        total_transactions: bankSummary.total_transactions,
         updated_at: bankSummary.updatedAt
       }
     });
