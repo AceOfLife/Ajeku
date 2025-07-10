@@ -4,13 +4,35 @@ const { Op } = require('sequelize');
 // Fetch the current financial data
 exports.getBankSummary = async (req, res) => {
   try {
+    // 1. Get stored bank data
     const bankSummary = await BankOfHeaven.findOne();
     if (!bankSummary) {
       return res.status(404).json({ message: 'Bank of Heaven data not found' });
     }
-    res.json(bankSummary);
+
+    // 2. Calculate current balance (all-time income - all-time expenses)
+    const allTransactions = await Transaction.findAll();
+    const total_income = allTransactions.reduce(
+      (sum, tx) => sum + parseFloat(tx.price || 0), 
+      0
+    );
+
+    const total_expenses = (await BankOfHeaven.sum('expenses_per_month')) || 0;
+    const current_balance = total_income - total_expenses;
+
+    // 3. Return data with calculated balance
+    res.json({
+      ...bankSummary.toJSON(),
+      current_balance, // Override with fresh calculation
+      total_income,
+      total_expenses
+    });
+
   } catch (error) {
-    res.status(500).json({ message: 'Error retrieving Bank of Heaven data' });
+    res.status(500).json({ 
+      message: 'Error retrieving Bank of Heaven data',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
