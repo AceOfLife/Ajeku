@@ -611,7 +611,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    const { user_id, property_id, payment_type, slots = 1 } = paymentData.metadata || {};
+    const { user_id, property_id, payment_type, slots = 1, rooms = 1 } = paymentData.metadata || {};
     if (!user_id || !property_id || !payment_type) {
       return res.status(400).json({ message: "Incomplete payment metadata" });
     }
@@ -633,14 +633,14 @@ exports.verifyPayment = async (req, res) => {
       payment_type
     });
 
-    // Helper: compute available slots dynamically (EXISTING LOGIC - UNCHANGED)
+    // Helper: compute available slots dynamically
     const getAvailableFractionalSlots = async (propertyId) => {
       const ownerships = await FractionalOwnership.findAll({ where: { property_id: propertyId } });
       const totalPurchased = ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
       return property.fractional_slots - totalPurchased;
     };
 
-    // === FRACTIONAL OUTRIGHT PAYMENT === (EXISTING LOGIC - UNCHANGED)
+    // === FRACTIONAL OUTRIGHT PAYMENT ===
     if (payment_type === "fractional" && property.is_fractional) {
       const availableSlots = await getAvailableFractionalSlots(property.id);
       if (slots > availableSlots) {
@@ -661,7 +661,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // === FRACTIONAL INSTALLMENT === (EXISTING LOGIC - UNCHANGED)
+    // === FRACTIONAL INSTALLMENT ===
     if (payment_type === "fractionalInstallment" && property.is_fractional && property.isFractionalInstallment) {
       const today = new Date();
       const month = today.getMonth() + 1;
@@ -721,7 +721,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // === STANDARD INSTALLMENT === (EXISTING LOGIC - UNCHANGED)
+    // === STANDARD INSTALLMENT ===
     if (payment_type === "installment" && property.isInstallment && !property.is_fractional) {
       const totalMonths = parseInt(property.duration);
       const today = new Date();
@@ -767,44 +767,48 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // ✅ NEW: RENTAL PAYMENT HANDLING (ADDED SECTION)
+    // === RENTAL PAYMENT (FIXED VERSION) ===
     if (payment_type === "rental" && property.isRental) {
+      const roomsBooked = parseInt(rooms) || 1;
+      
+      if (property.number_of_rooms < roomsBooked) {
+        await transaction.update({ status: 'refunded' });
+        return res.status(400).json({ 
+          message: `Only ${property.number_of_rooms} room(s) available`
+        });
+      }
+
       const today = new Date();
       const oneYearLater = new Date(today);
       oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
 
-      // Check room availability
-      if (property.number_of_rooms <= 0) {
-        return res.status(400).json({ 
-          message: 'No available rooms for rental in this property' 
-        });
-      }
-
       // Create rental record
-      const rental = await RentalPayment.create({
+      const rental = await RentalBooking.create({
         user_id,
         property_id,
+        rooms_booked: roomsBooked,
         amount_paid: paymentData.amount / 100,
         start_date: today,
-        expiry_date: oneYearLater,
-        status: 'active'
+        end_date: oneYearLater
       });
 
       // Decrement available rooms
-      await property.decrement('number_of_rooms');
+      await property.decrement('number_of_rooms', { by: roomsBooked });
+      await property.reload();
 
       return res.status(200).json({
         message: "Rental payment verified successfully",
         transaction,
         rentalDetails: {
           startDate: rental.start_date,
-          expiryDate: rental.expiry_date,
-          remainingRooms: property.number_of_rooms - 1
+          expiryDate: rental.end_date,
+          roomsBooked: roomsBooked,
+          remainingRooms: property.number_of_rooms
         }
       });
     }
 
-    // Default case (EXISTING LOGIC - UNCHANGED)
+    // Default case
     return res.status(200).json({
       message: "Payment verified, but no specific ownership type was processed",
       transaction
