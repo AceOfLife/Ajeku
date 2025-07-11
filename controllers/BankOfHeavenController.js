@@ -38,23 +38,75 @@ const { Op } = require('sequelize');
 
 exports.getBankSummary = async (req, res) => {
   try {
-    const bankData = await BankOfHeaven.findOne();
-    if (!bankData) return res.status(404).json({ message: 'Not found' });
+    // 1. Get raw data without Sequelize instance methods
+    const bankData = await BankOfHeaven.findOne({
+      where: { id: 1 },
+      raw: true, // Crucial for direct JSON response
+      attributes: [
+        'id',
+        'current_balance',
+        'expenses_per_month',
+        'income_per_month',
+        'transactions',
+        'createdAt',
+        'updatedAt'
+      ]
+    });
 
-    const allTransactions = await Transaction.findAll();
-    const total_income = allTransactions.reduce((sum, tx) => 
-      sum + parseFloat(tx.price), 0);
+    if (!bankData) {
+      return res.status(404).json({
+        success: false,
+        message: 'Bank record not found'
+      });
+    }
+
+    // 2. Calculate all-time income safely
+    let total_income = 0;
+    try {
+      const allTransactions = await Transaction.findAll({
+        attributes: ['price'],
+        raw: true
+      });
+      total_income = allTransactions.reduce((sum, tx) => 
+        sum + parseFloat(tx.price || 0), 0);
+    } catch (calcError) {
+      console.error('Income calculation error:', calcError);
+      // Use stored income if calculation fails
+      total_income = parseFloat(bankData.income_per_month) || 0;
+    }
+
+    // 3. Prepare response with guaranteed number types
+    const response = {
+      ...bankData,
+      current_balance: Number(bankData.current_balance),
+      expenses_per_month: Number(bankData.expenses_per_month),
+      income_per_month: Number(bankData.income_per_month),
+      total_income: Number(total_income.toFixed(2)),
+      total_expenses: Number(bankData.expenses_per_month) // Already includes all-time
+    };
 
     res.json({
-      ...bankData.toJSON(),
-      current_balance: parseFloat(bankData.current_balance.toFixed(2)),
-      expenses_per_month: parseFloat(bankData.expenses_per_month.toFixed(2)),
-      total_income: parseFloat(total_income.toFixed(2)),
-      total_expenses: parseFloat(bankData.expenses_per_month.toFixed(2))
+      success: true,
+      data: response
     });
 
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Server Error:', {
+      message: error.message,
+      stack: error.stack,
+      query: error.sql
+    });
+    
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      ...(process.env.NODE_ENV === 'development' && {
+        debug: {
+          error: error.message,
+          stack: error.stack
+        }
+      })
+    });
   }
 };
 
