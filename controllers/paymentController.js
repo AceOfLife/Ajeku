@@ -583,18 +583,29 @@ exports.initializePayment = async (req, res) => {
 // Added rental
 
 exports.verifyPayment = async (req, res) => {
+  const t = await sequelize.transaction(); // Start transaction for all operations
   try {
     const { reference } = req.query;
-    if (!reference) return res.status(400).json({ message: "Transaction reference is required" });
+    if (!reference) {
+      await t.rollback();
+      return res.status(400).json({ message: "Transaction reference is required" });
+    }
 
-    const existingTransaction = await Transaction.findOne({ where: { reference } });
+    // Check for existing transaction
+    const existingTransaction = await Transaction.findOne({ 
+      where: { reference },
+      transaction: t
+    });
+    
     if (existingTransaction) {
+      await t.commit();
       return res.status(200).json({
         message: "The Payment has been verified already",
         transaction: existingTransaction
       });
     }
 
+    // Verify with Paystack
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
@@ -604,6 +615,7 @@ exports.verifyPayment = async (req, res) => {
 
     const paymentData = response.data.data;
     if (paymentData.status !== "success") {
+      await t.rollback();
       return res.status(400).json({
         message: "Payment not successful",
         status: paymentData.status,
@@ -611,17 +623,27 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
+    // Extract metadata
     const { user_id, property_id, payment_type, slots = 1, rooms = 1 } = paymentData.metadata || {};
     if (!user_id || !property_id || !payment_type) {
+      await t.rollback();
       return res.status(400).json({ message: "Incomplete payment metadata" });
     }
 
-    const user = await User.findByPk(user_id);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    // Get user and property within transaction
+    const [user, property] = await Promise.all([
+      User.findByPk(user_id, { transaction: t }),
+      Property.findByPk(property_id, { transaction: t })
+    ]);
 
-    const property = await Property.findByPk(property_id);
-    if (!property) return res.status(404).json({ message: "Property not found" });
+    if (!user || !property) {
+      await t.rollback();
+      return res.status(404).json({ 
+        message: `${!user ? 'User' : 'Property'} not found` 
+      });
+    }
 
+    // Create transaction record
     const transaction = await Transaction.create({
       user_id,
       property_id,
@@ -631,11 +653,14 @@ exports.verifyPayment = async (req, res) => {
       status: paymentData.status,
       transaction_date: new Date(paymentData.transaction_date),
       payment_type
-    });
+    }, { transaction: t });
 
     // Helper: compute available slots dynamically
     const getAvailableFractionalSlots = async (propertyId) => {
-      const ownerships = await FractionalOwnership.findAll({ where: { property_id: propertyId } });
+      const ownerships = await FractionalOwnership.findAll({ 
+        where: { property_id: propertyId },
+        transaction: t
+      });
       const totalPurchased = ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
       return property.fractional_slots - totalPurchased;
     };
@@ -644,6 +669,7 @@ exports.verifyPayment = async (req, res) => {
     if (payment_type === "fractional" && property.is_fractional) {
       const availableSlots = await getAvailableFractionalSlots(property.id);
       if (slots > availableSlots) {
+        await t.rollback();
         return res.status(400).json({ message: 'Not enough fractional slots available (post-payment)' });
       }
 
@@ -651,8 +677,9 @@ exports.verifyPayment = async (req, res) => {
         user_id,
         property_id,
         slots_purchased: slots
-      });
+      }, { transaction: t });
 
+      await t.commit();
       return res.status(200).json({
         message: "Fractional payment verified successfully",
         transaction,
@@ -668,12 +695,14 @@ exports.verifyPayment = async (req, res) => {
       const year = today.getFullYear();
 
       let ownership = await InstallmentOwnership.findOne({
-        where: { user_id, property_id }
+        where: { user_id, property_id },
+        transaction: t
       });
 
       if (!ownership) {
         const availableSlots = await getAvailableFractionalSlots(property.id);
         if (slots > availableSlots) {
+          await t.rollback();
           return res.status(400).json({ message: 'Not enough fractional slots available (post-payment)' });
         }
 
@@ -684,20 +713,20 @@ exports.verifyPayment = async (req, res) => {
           total_months: property.isFractionalDuration,
           months_paid: 1,
           status: property.isFractionalDuration === 1 ? "completed" : "ongoing"
-        });
+        }, { transaction: t });
 
         await FractionalOwnership.create({
           user_id,
           property_id,
           slots_purchased: slots
-        });
+        }, { transaction: t });
 
       } else {
         ownership.months_paid += 1;
         if (ownership.months_paid >= ownership.total_months) {
           ownership.status = "completed";
         }
-        await ownership.save();
+        await ownership.save({ transaction: t });
       }
 
       await InstallmentPayment.create({
@@ -707,10 +736,11 @@ exports.verifyPayment = async (req, res) => {
         amount_paid: paymentData.amount / 100,
         payment_month: month,
         payment_year: year
-      });
+      }, { transaction: t });
 
       const availableSlots = await getAvailableFractionalSlots(property.id);
 
+      await t.commit();
       return res.status(200).json({
         message: "Fractional installment payment verified successfully",
         transaction,
@@ -729,7 +759,8 @@ exports.verifyPayment = async (req, res) => {
       const year = today.getFullYear();
 
       let ownership = await InstallmentOwnership.findOne({
-        where: { user_id, property_id }
+        where: { user_id, property_id },
+        transaction: t
       });
 
       if (!ownership) {
@@ -740,13 +771,13 @@ exports.verifyPayment = async (req, res) => {
           total_months: totalMonths,
           months_paid: 1,
           status: totalMonths === 1 ? "completed" : "ongoing"
-        });
+        }, { transaction: t });
       } else {
         ownership.months_paid += 1;
         if (ownership.months_paid >= totalMonths) {
           ownership.status = "completed";
         }
-        await ownership.save();
+        await ownership.save({ transaction: t });
       }
 
       await InstallmentPayment.create({
@@ -756,8 +787,9 @@ exports.verifyPayment = async (req, res) => {
         amount_paid: paymentData.amount / 100,
         payment_month: month,
         payment_year: year
-      });
+      }, { transaction: t });
 
+      await t.commit();
       return res.status(200).json({
         message: "Installment payment verified successfully",
         transaction,
@@ -771,16 +803,21 @@ exports.verifyPayment = async (req, res) => {
     if (payment_type === "rental" && property.isRental) {
       const roomsBooked = parseInt(rooms) || 1;
       
-      if (property.number_of_rooms < roomsBooked) {
-        await transaction.update({ status: 'refunded' });
+      // Calculate actual available rooms (total - all booked)
+      const totalBooked = await RentalBooking.sum('rooms_booked', {
+        where: { property_id: property.id },
+        transaction: t
+      }) || 0;
+      
+      const availableRooms = property.number_of_rooms - totalBooked;
+
+      if (availableRooms < roomsBooked) {
+        await transaction.update({ status: 'refunded' }, { transaction: t });
+        await t.commit();
         return res.status(400).json({ 
-          message: `Only ${property.number_of_rooms} room(s) available`
+          message: `Only ${availableRooms} room(s) available - payment refunded`
         });
       }
-
-      const today = new Date();
-      const oneYearLater = new Date(today);
-      oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
 
       // Create rental record
       const rental = await RentalBooking.create({
@@ -788,38 +825,62 @@ exports.verifyPayment = async (req, res) => {
         property_id,
         rooms_booked: roomsBooked,
         amount_paid: paymentData.amount / 100,
-        start_date: today,
-        end_date: oneYearLater
+        start_date: new Date(),
+        end_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+      }, { transaction: t });
+
+      // Atomic room decrement
+      await Property.decrement('number_of_rooms', {
+        by: roomsBooked,
+        where: { id: property.id },
+        transaction: t
       });
 
-      // Decrement available rooms
-      await property.decrement('number_of_rooms', { by: roomsBooked });
-      await property.reload();
+      // Get updated property data
+      const updatedProperty = await Property.findByPk(property.id, { 
+        attributes: ['id', 'number_of_rooms'],
+        transaction: t 
+      });
+
+      await t.commit();
 
       return res.status(200).json({
         message: "Rental payment verified successfully",
         transaction,
+        property: {
+          id: updatedProperty.id,
+          number_of_rooms: updatedProperty.number_of_rooms,
+          available_rooms: updatedProperty.number_of_rooms - (totalBooked + roomsBooked)
+        },
         rentalDetails: {
+          bookingId: rental.id,
+          roomsBooked,
           startDate: rental.start_date,
-          expiryDate: rental.end_date,
-          roomsBooked: roomsBooked,
-          remainingRooms: property.number_of_rooms
+          endDate: rental.end_date
         }
       });
     }
 
     // Default case
+    await t.commit();
     return res.status(200).json({
       message: "Payment verified, but no specific ownership type was processed",
       transaction
     });
 
   } catch (error) {
-    console.error("Payment Verification Error:", error.response ? error.response.data : error.message);
-    return res.status(500).json({ message: "Error verifying payment", error: error.message });
+    await t.rollback();
+    console.error("Payment Verification Error:", {
+      message: error.message,
+      reference: req.query.reference,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+    return res.status(500).json({ 
+      message: "Error verifying payment",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
-
 
 
 // Get installment status for a specific property
