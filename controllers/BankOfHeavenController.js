@@ -36,21 +36,87 @@ const { Op } = require('sequelize');
 //   }
 // };
 
+// exports.getBankSummary = async (req, res) => {
+//   try {
+//     // 1. Get raw data without Sequelize instance methods
+//     const bankData = await BankOfHeaven.findOne({
+//       where: { id: 1 },
+//       raw: true, // Crucial for direct JSON response
+//       attributes: [
+//         'id',
+//         'current_balance',
+//         'expenses_per_month',
+//         'income_per_month',
+//         'transactions',
+//         'createdAt',
+//         'updatedAt'
+//       ]
+//     });
+
+//     if (!bankData) {
+//       return res.status(404).json({
+//         success: false,
+//         message: 'Bank record not found'
+//       });
+//     }
+
+//     // 2. Calculate all-time income safely
+//     let total_income = 0;
+//     try {
+//       const allTransactions = await Transaction.findAll({
+//         attributes: ['price'],
+//         raw: true
+//       });
+//       total_income = allTransactions.reduce((sum, tx) => 
+//         sum + parseFloat(tx.price || 0), 0);
+//     } catch (calcError) {
+//       console.error('Income calculation error:', calcError);
+//       // Use stored income if calculation fails
+//       total_income = parseFloat(bankData.income_per_month) || 0;
+//     }
+
+//     // 3. Prepare response with guaranteed number types
+//     const response = {
+//       ...bankData,
+//       current_balance: Number(bankData.current_balance),
+//       expenses_per_month: Number(bankData.expenses_per_month),
+//       income_per_month: Number(bankData.income_per_month),
+//       total_income: Number(total_income.toFixed(2)),
+//       total_expenses: Number(bankData.expenses_per_month) // Already includes all-time
+//     };
+
+//     res.json({
+//       success: true,
+//       data: response
+//     });
+
+//   } catch (error) {
+//     console.error('Server Error:', {
+//       message: error.message,
+//       stack: error.stack,
+//       query: error.sql
+//     });
+    
+//     res.status(500).json({
+//       success: false,
+//       message: 'Server error',
+//       ...(process.env.NODE_ENV === 'development' && {
+//         debug: {
+//           error: error.message,
+//           stack: error.stack
+//         }
+//       })
+//     });
+//   }
+// };
+
+// 15/07/2025
+
 exports.getBankSummary = async (req, res) => {
   try {
-    // 1. Get raw data without Sequelize instance methods
     const bankData = await BankOfHeaven.findOne({
       where: { id: 1 },
-      raw: true, // Crucial for direct JSON response
-      attributes: [
-        'id',
-        'current_balance',
-        'expenses_per_month',
-        'income_per_month',
-        'transactions',
-        'createdAt',
-        'updatedAt'
-      ]
+      raw: true
     });
 
     if (!bankData) {
@@ -60,7 +126,7 @@ exports.getBankSummary = async (req, res) => {
       });
     }
 
-    // 2. Calculate all-time income safely
+    // Calculate all-time income safely
     let total_income = 0;
     try {
       const allTransactions = await Transaction.findAll({
@@ -71,41 +137,38 @@ exports.getBankSummary = async (req, res) => {
         sum + parseFloat(tx.price || 0), 0);
     } catch (calcError) {
       console.error('Income calculation error:', calcError);
-      // Use stored income if calculation fails
       total_income = parseFloat(bankData.income_per_month) || 0;
     }
 
-    // 3. Prepare response with guaranteed number types
-    const response = {
-      ...bankData,
-      current_balance: Number(bankData.current_balance),
-      expenses_per_month: Number(bankData.expenses_per_month),
-      income_per_month: Number(bankData.income_per_month),
-      total_income: Number(total_income.toFixed(2)),
-      total_expenses: Number(bankData.expenses_per_month) // Already includes all-time
+    // Format percentage changes
+    const formatPercentage = (value) => {
+      const num = parseFloat(value || 0);
+      return num > 0 ? `+${num.toFixed(1)}%` : `${num.toFixed(1)}%`;
     };
 
     res.json({
       success: true,
-      data: response
+      data: {
+        ...bankData,
+        current_balance: Number(bankData.current_balance),
+        income_per_month: Number(bankData.income_per_month),
+        expenses_per_month: Number(bankData.expenses_per_month),
+        total_income: Number(total_income.toFixed(2)),
+        total_expenses: Number(bankData.expenses_per_month),
+        percentage_changes: {
+          income: formatPercentage(bankData.percentage_changes?.income),
+          expenses: formatPercentage(bankData.percentage_changes?.expenses),
+          balance: formatPercentage(bankData.percentage_changes?.balance)
+        },
+        previous_month_comparison: bankData.previous_month_data
+      }
     });
 
   } catch (error) {
-    console.error('Server Error:', {
-      message: error.message,
-      stack: error.stack,
-      query: error.sql
-    });
-    
+    console.error('Server Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      ...(process.env.NODE_ENV === 'development' && {
-        debug: {
-          error: error.message,
-          stack: error.stack
-        }
-      })
+      message: 'Server error'
     });
   }
 };
@@ -173,54 +236,154 @@ exports.getBankSummary = async (req, res) => {
 //   }
 // };
 
+// exports.updateBankSummary = async (req, res) => {
+//   try {
+//     const { expenses } = req.body;
+    
+//     // 1. Get current bank data
+//     const [bankData] = await BankOfHeaven.findOrCreate({
+//       where: { id: 1 },
+//       defaults: { current_balance: 0 }
+//     });
+
+//     // 2. Calculate all-time values
+//     const allTransactions = await Transaction.findAll();
+//     const total_income = allTransactions.reduce((sum, tx) => 
+//       sum + parseFloat(tx.price), 0);
+
+//     // 3. Process new expenses
+//     const newExpenses = expenses.reduce((sum, e) => 
+//       sum + parseFloat(e.amount), 0);
+    
+//     // 4. Update transactions array (appends new expenses)
+//     const updatedTransactions = [
+//       ...(bankData.transactions || []),
+//       ...expenses
+//     ];
+
+//     // 5. Calculate new values
+//     const updatedExpenses = parseFloat(bankData.expenses_per_month || 0) + newExpenses;
+//     const current_balance = total_income - updatedExpenses;
+
+//     // 6. Save updates
+//     await bankData.update({
+//       current_balance,
+//       expenses_per_month: updatedExpenses,
+//       transactions: updatedTransactions,
+//       income_per_month: await calculateMonthlyIncome() // Implement this function
+//     });
+
+//     res.json({
+//       success: true,
+//       data: {
+//         current_balance: parseFloat(current_balance.toFixed(2)),
+//         expenses_this_month: parseFloat(newExpenses.toFixed(2)),
+//         all_time_income: parseFloat(total_income.toFixed(2)),
+//         all_time_expenses: parseFloat(updatedExpenses.toFixed(2))
+//       }
+//     });
+
+//   } catch (error) {
+//     console.error('Update error:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: 'Error updating bank summary'
+//     });
+//   }
+// };
+
+// async function calculateMonthlyIncome() {
+//   const lastMonth = new Date();
+//   lastMonth.setMonth(lastMonth.getMonth() - 1);
+  
+//   const monthlyTransactions = await Transaction.findAll({
+//     where: {
+//       transaction_date: { [Op.gte]: lastMonth }
+//     }
+//   });
+  
+//   return monthlyTransactions.reduce((sum, tx) => 
+//     sum + parseFloat(tx.price), 0);
+// }
+
+// 15/07/2025
+
 exports.updateBankSummary = async (req, res) => {
+  const t = await sequelize.transaction();
   try {
     const { expenses } = req.body;
     
-    // 1. Get current bank data
+    // 1. Get current and previous data
     const [bankData] = await BankOfHeaven.findOrCreate({
       where: { id: 1 },
-      defaults: { current_balance: 0 }
+      defaults: { current_balance: 0 },
+      transaction: t
     });
 
-    // 2. Calculate all-time values
-    const allTransactions = await Transaction.findAll();
+    // 2. Store current values before update
+    const previousValues = {
+      income: bankData.income_per_month || 0,
+      expenses: bankData.expenses_per_month || 0,
+      balance: bankData.current_balance || 0
+    };
+
+    // 3. Calculate all-time values
+    const allTransactions = await Transaction.findAll({ transaction: t });
     const total_income = allTransactions.reduce((sum, tx) => 
       sum + parseFloat(tx.price), 0);
 
-    // 3. Process new expenses
+    // 4. Process new expenses
     const newExpenses = expenses.reduce((sum, e) => 
       sum + parseFloat(e.amount), 0);
     
-    // 4. Update transactions array (appends new expenses)
-    const updatedTransactions = [
-      ...(bankData.transactions || []),
-      ...expenses
-    ];
+    // 5. Calculate monthly income
+    const monthlyIncome = await calculateMonthlyIncome(t);
 
-    // 5. Calculate new values
-    const updatedExpenses = parseFloat(bankData.expenses_per_month || 0) + newExpenses;
-    const current_balance = total_income - updatedExpenses;
+    // 6. Calculate percentage changes
+    const calculatePercentageChange = (current, previous) => {
+      if (previous === 0) return 0; // Avoid division by zero
+      return ((current - previous) / previous) * 100;
+    };
 
-    // 6. Save updates
+    const percentageChanges = {
+      income: calculatePercentageChange(monthlyIncome, previousValues.income),
+      expenses: calculatePercentageChange(newExpenses, previousValues.expenses),
+      balance: calculatePercentageChange(
+        total_income - (bankData.expenses_per_month + newExpenses),
+        previousValues.balance
+      )
+    };
+
+    // 7. Update bank record
     await bankData.update({
-      current_balance,
-      expenses_per_month: updatedExpenses,
-      transactions: updatedTransactions,
-      income_per_month: await calculateMonthlyIncome() // Implement this function
-    });
+      current_balance: total_income - (bankData.expenses_per_month + newExpenses),
+      income_per_month: monthlyIncome,
+      expenses_per_month: bankData.expenses_per_month + newExpenses,
+      transactions: [...(bankData.transactions || []), ...expenses],
+      previous_month_data: previousValues,
+      percentage_changes: percentageChanges
+    }, { transaction: t });
+
+    await t.commit();
 
     res.json({
       success: true,
       data: {
-        current_balance: parseFloat(current_balance.toFixed(2)),
+        current_balance: parseFloat(bankData.current_balance.toFixed(2)),
         expenses_this_month: parseFloat(newExpenses.toFixed(2)),
+        income_this_month: parseFloat(monthlyIncome.toFixed(2)),
         all_time_income: parseFloat(total_income.toFixed(2)),
-        all_time_expenses: parseFloat(updatedExpenses.toFixed(2))
+        all_time_expenses: parseFloat((bankData.expenses_per_month + newExpenses).toFixed(2)),
+        percentage_changes: {
+          income: parseFloat(percentageChanges.income.toFixed(1)) + '%',
+          expenses: parseFloat(percentageChanges.expenses.toFixed(1)) + '%',
+          balance: parseFloat(percentageChanges.balance.toFixed(1)) + '%'
+        }
       }
     });
 
   } catch (error) {
+    await t.rollback();
     console.error('Update error:', error);
     res.status(500).json({ 
       success: false,
@@ -229,14 +392,15 @@ exports.updateBankSummary = async (req, res) => {
   }
 };
 
-async function calculateMonthlyIncome() {
+async function calculateMonthlyIncome(transaction) {
   const lastMonth = new Date();
   lastMonth.setMonth(lastMonth.getMonth() - 1);
   
   const monthlyTransactions = await Transaction.findAll({
     where: {
       transaction_date: { [Op.gte]: lastMonth }
-    }
+    },
+    transaction
   });
   
   return monthlyTransactions.reduce((sum, tx) => 
