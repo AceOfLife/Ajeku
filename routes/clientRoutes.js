@@ -25,7 +25,15 @@ router.put('/profile', authenticate, upload, ClientController.updateProfile);
 router.put('/:id/status', authenticate, authorizeAdmin, ClientController.updateClientStatus);
 
 // Route for logged-in client to get their own profile (authentication required)
-router.get('/profile', authenticate, ClientController.getClient);
+// router.get('/profile', authenticate, ClientController.getClient);
+// Get specific client (admin/agent only)
+router.get('/:id', authenticate, authorizeRole(['admin', 'agent']), ClientController.getClient);
+
+// Get own profile (any authenticated client)
+router.get('/profile', authenticate, (req, res) => {
+  req.params = { id: req.user.clientId }; // Set the ID from authenticated user
+  return ClientController.getClient(req, res);
+});
 
 // Route for users to change their password
 router.put('/change-password', authenticate, ClientController.changePassword);
