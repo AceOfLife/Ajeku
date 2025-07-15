@@ -487,25 +487,88 @@ exports.deleteProperty = async (req, res) => {
 //   }
 // };
 
-exports.getAllProperties = async (req, res) => {
-  try {
-    const properties = await Property.findAll({
-      include: [
-        {
-          model: PropertyImage,
-          as: 'images',
-          attributes: ['image_url']
-        }
-      ]
-    });
+// exports.getAllProperties = async (req, res) => {
+//   try {
+//     const properties = await Property.findAll({
+//       include: [
+//         {
+//           model: PropertyImage,
+//           as: 'images',
+//           attributes: ['image_url']
+//         }
+//       ]
+//     });
 
-    // Get all ownership data in parallel
+//     // Get all ownership data in parallel
+//     const [allInstallmentOwnerships, allFractionalOwnerships] = await Promise.all([
+//       InstallmentOwnership.findAll(),
+//       FractionalOwnership.findAll()
+//     ]);
+
+//     // Create lookup maps
+//     const installmentOwnershipMap = {};
+//     const fractionalOwnershipMap = {};
+
+//     allInstallmentOwnerships.forEach(ownership => {
+//       if (!installmentOwnershipMap[ownership.property_id]) {
+//         installmentOwnershipMap[ownership.property_id] = [];
+//       }
+//       installmentOwnershipMap[ownership.property_id].push(ownership);
+//     });
+
+//     allFractionalOwnerships.forEach(ownership => {
+//       if (!fractionalOwnershipMap[ownership.property_id]) {
+//         fractionalOwnershipMap[ownership.property_id] = [];
+//       }
+//       fractionalOwnershipMap[ownership.property_id].push(ownership);
+//     });
+
+//     // Process each property
+//     for (const property of properties) {
+//       // Keep existing installment progress logic
+//       if (property.isInstallment && !property.is_fractional) {
+//         const ownerships = installmentOwnershipMap[property.id] || [];
+//         const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
+//         const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
+        
+//         property.dataValues.installmentProgress = {
+//           totalOwnerships: ownerships.length,
+//           totalMonths,
+//           paidMonths,
+//           remainingMonths: totalMonths - paidMonths
+//         };
+//       } else {
+//         property.dataValues.installmentProgress = null;
+//       }
+
+//       // NEW: Add available_slots calculation for fractional properties
+//       if (property.is_fractional) {
+//         const fractionalOwnerships = fractionalOwnershipMap[property.id] || [];
+//         const totalPurchased = fractionalOwnerships.reduce((sum, o) => sum + o.slots_purchased, 0);
+//         property.dataValues.available_slots = property.fractional_slots - totalPurchased;
+//       }
+//     }
+
+//     res.status(200).json(properties);
+//   } catch (error) {
+//     console.error("Error in getAllProperties:", error);
+//     res.status(500).json({ message: 'Error retrieving properties', error });
+//   }
+// };
+
+// 15/07/2025
+
+exports.getUserProperties = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Get all ownership data in parallel for calculations
     const [allInstallmentOwnerships, allFractionalOwnerships] = await Promise.all([
       InstallmentOwnership.findAll(),
       FractionalOwnership.findAll()
     ]);
 
-    // Create lookup maps
+    // Create lookup maps for ownership data
     const installmentOwnershipMap = {};
     const fractionalOwnershipMap = {};
 
@@ -523,36 +586,118 @@ exports.getAllProperties = async (req, res) => {
       fractionalOwnershipMap[ownership.property_id].push(ownership);
     });
 
-    // Process each property
-    for (const property of properties) {
-      // Keep existing installment progress logic
+    // 2. Outright properties (via Transactions)
+    const outright = await Property.findAll({
+      include: [
+        { 
+          model: Transaction, 
+          where: { user_id: userId, status: 'success' }, 
+          required: true 
+        },
+        { 
+          model: PropertyImage, 
+          as: 'images',
+          attributes: ['image_url']
+        }
+      ]
+    });
+
+    // 3. Fractional ownerships
+    const fractionalIds = await FractionalOwnership.findAll({
+      where: { user_id: userId },
+      attributes: ['property_id'],
+      raw: true
+    });
+
+    const fractional = await Property.findAll({
+      where: {
+        id: fractionalIds.map(f => f.property_id)
+      },
+      include: [{ 
+        model: PropertyImage, 
+        as: 'images',
+        attributes: ['image_url'] 
+      }]
+    });
+
+    // 4. Installment ownerships
+    const installmentIds = await InstallmentOwnership.findAll({
+      where: { user_id: userId },
+      attributes: ['property_id'],
+      raw: true
+    });
+
+    const installments = await Property.findAll({
+      where: {
+        id: installmentIds.map(i => i.property_id)
+      },
+      include: [{ 
+        model: PropertyImage, 
+        as: 'images',
+        attributes: ['image_url'] 
+      }]
+    });
+
+    // Combine and remove duplicates
+    const allPropertiesMap = new Map();
+
+    [...outright, ...fractional, ...installments].forEach((prop) => {
+      allPropertiesMap.set(prop.id, prop); // overwrite duplicates
+    });
+
+    const uniqueProperties = Array.from(allPropertiesMap.values());
+
+    // Process each property to add calculated fields
+    for (const property of uniqueProperties) {
+      // Add installment progress for installment properties
       if (property.isInstallment && !property.is_fractional) {
         const ownerships = installmentOwnershipMap[property.id] || [];
-        const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
-        const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
+        const userOwnerships = ownerships.filter(o => o.user_id === userId);
+        
+        const totalMonths = userOwnerships.reduce((sum, o) => sum + o.total_months, 0);
+        const paidMonths = userOwnerships.reduce((sum, o) => sum + o.months_paid, 0);
         
         property.dataValues.installmentProgress = {
-          totalOwnerships: ownerships.length,
+          totalOwnerships: userOwnerships.length,
           totalMonths,
           paidMonths,
-          remainingMonths: totalMonths - paidMonths
+          remainingMonths: totalMonths - paidMonths,
+          completionPercentage: totalMonths > 0 ? Math.round((paidMonths / totalMonths) * 100) : 0
         };
       } else {
         property.dataValues.installmentProgress = null;
       }
 
-      // NEW: Add available_slots calculation for fractional properties
+      // Add fractional ownership details
       if (property.is_fractional) {
-        const fractionalOwnerships = fractionalOwnershipMap[property.id] || [];
-        const totalPurchased = fractionalOwnerships.reduce((sum, o) => sum + o.slots_purchased, 0);
-        property.dataValues.available_slots = property.fractional_slots - totalPurchased;
+        const allFractionalOwnershipsForProperty = fractionalOwnershipMap[property.id] || [];
+        const userFractionalOwnerships = allFractionalOwnershipsForProperty.filter(o => o.user_id === userId);
+        
+        const totalSlotsPurchased = userFractionalOwnerships.reduce((sum, o) => sum + o.slots_purchased, 0);
+        const totalSlotsAvailable = property.fractional_slots - 
+          allFractionalOwnershipsForProperty.reduce((sum, o) => sum + o.slots_purchased, 0);
+        
+        property.dataValues.fractionalDetails = {
+          slotsOwned: totalSlotsPurchased,
+          slotsAvailable: totalSlotsAvailable,
+          ownershipPercentage: (totalSlotsPurchased / property.fractional_slots) * 100
+        };
+      } else {
+        property.dataValues.fractionalDetails = null;
       }
     }
 
-    res.status(200).json(properties);
+    return res.status(200).json({
+      message: 'User properties fetched successfully',
+      properties: uniqueProperties
+    });
+
   } catch (error) {
-    console.error("Error in getAllProperties:", error);
-    res.status(500).json({ message: 'Error retrieving properties', error });
+    console.error('Error fetching user properties:', error);
+    return res.status(500).json({ 
+      message: 'Failed to fetch user properties', 
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    });
   }
 };
 
