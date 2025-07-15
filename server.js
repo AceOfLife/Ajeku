@@ -13,6 +13,7 @@ const paymentRoutes = require("./routes/paymentRoutes");
 const transactionRoutes = require('./routes/transactionRoutes');
 const bankOfHeavenRoutes = require('./routes/bankOfHeavenRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const cookieParser = require('cookie-parser');
 
 const app = express();
@@ -45,6 +46,9 @@ app.use('/api/bank-of-heaven', bankOfHeavenRoutes);
 
 // Message Routes
 app.use('/api/messages', messageRoutes); 
+
+// Notification Routes
+app.use('/api/notifications', notificationRoutes);
 
 app.get('/favicon.png', (req, res) => {
   res.sendFile(path.join(__dirname, 'favicon.png')); // Serve favicon.png directly from root
