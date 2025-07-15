@@ -1003,13 +1003,6 @@ exports.getUserProperties = async (req, res) => {
 
     const uniqueProperties = Array.from(allPropertiesMap.values());
 
-    // NEW: Add available_slots calculation for fractional properties
-      if (property.is_fractional) {
-        const fractionalOwnerships = fractionalOwnershipMap[property.id] || [];
-        const totalPurchased = fractionalOwnerships.reduce((sum, o) => sum + o.slots_purchased, 0);
-        property.dataValues.available_slots = property.fractional_slots - totalPurchased;
-      }
-
     return res.status(200).json({
       message: 'User properties fetched successfully',
       properties: uniqueProperties
