@@ -8,7 +8,8 @@ const {
   InstallmentPayment,
   PropertyImage,
   Notification,
-  Sequelize
+  Sequelize,
+  sequelize
 } = require('../models');
 
 
