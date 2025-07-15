@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const ClientController = require('../controllers/ClientController');
-const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
+const { authenticate, authorizeAdmin, authorizeRole } = require('../middlewares/authMiddleware');
 const { upload } = require('../config/multerConfig');
 const PropertyController = require('../controllers/PropertyController');
 const NotificationController = require('../controllers/NotificationController');
