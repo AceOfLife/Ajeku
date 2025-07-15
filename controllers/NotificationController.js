@@ -35,40 +35,46 @@ exports.createNotification = async (req, res) => {
   }
 };
 
-// Get paginated notifications
+// In your controller
 exports.getUserNotifications = async (req, res) => {
   try {
     const userId = req.user.id;
     const { page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
 
-    const { count, rows: notifications } = await Notification.findAndCountAll({
+    const { count, rows } = await Notification.findAndCountAll({
       where: { user_id: userId },
-      order: [['created_at', 'DESC']],
       limit: parseInt(limit),
       offset: parseInt(offset),
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['id', 'name', 'email']
-      }]
+      order: [['created_at', 'DESC']]
     });
 
-    return res.status(200).json({ 
+    const unreadCount = await Notification.count({
+      where: { 
+        user_id: userId,
+        is_read: false
+      }
+    });
+
+    res.json({
       success: true,
-      notifications,
+      data: {
+        notifications: rows,
+        unread_count: unreadCount
+      },
       pagination: {
         total: count,
         page: parseInt(page),
+        limit: parseInt(limit),
         totalPages: Math.ceil(count / limit)
+      },
+      meta: {
+        message: count === 0 ? 'No notifications found' : 'Notifications loaded',
+        timestamp: new Date().toISOString()
       }
     });
   } catch (error) {
-    console.error("Fetch Notifications Error:", error);
-    return res.status(500).json({ 
-      success: false,
-      message: 'Failed to fetch notifications'
-    });
+    // Error handling...
   }
 };
 
