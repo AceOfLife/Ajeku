@@ -1,4 +1,4 @@
-const { BankOfHeaven, Transaction, Property } = require('../models');
+const { BankOfHeaven, Transaction, Property, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 // // Fetch the current financial data
