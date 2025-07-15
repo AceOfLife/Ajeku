@@ -409,7 +409,8 @@ async function calculateMonthlyIncome(transaction) {
     sum + parseFloat(tx.price || 0), 0);
 }
 
-exports.getBankSummary = async (req, res) => {
+// Controller functions
+const getBankSummary = async (req, res) => {
   try {
     const bankData = await BankOfHeaven.findOne({
       where: { id: 1 },
@@ -479,7 +480,7 @@ exports.getBankSummary = async (req, res) => {
   }
 };
 
-exports.updateBankSummary = async (req, res) => {
+const updateBankSummary = async (req, res) => {
   let t;
   try {
     t = await sequelize.transaction();
@@ -559,6 +560,7 @@ exports.updateBankSummary = async (req, res) => {
   }
 };
 
+// Export at the bottom after all functions are defined
 module.exports = {
   getBankSummary,
   updateBankSummary
