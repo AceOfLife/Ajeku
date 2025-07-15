@@ -309,39 +309,34 @@ exports.getBankSummary = async (req, res) => {
 // 15/07/2025
 
 exports.updateBankSummary = async (req, res) => {
-  const t = await sequelize.transaction();
+  let t;
   try {
+    t = await sequelize.transaction();
     const { expenses } = req.body;
     
-    // 1. Get current and previous data
     const [bankData] = await BankOfHeaven.findOrCreate({
       where: { id: 1 },
       defaults: { current_balance: 0 },
       transaction: t
     });
 
-    // 2. Store current values before update
     const previousValues = {
       income: bankData.income_per_month || 0,
       expenses: bankData.expenses_per_month || 0,
       balance: bankData.current_balance || 0
     };
 
-    // 3. Calculate all-time values
     const allTransactions = await Transaction.findAll({ transaction: t });
     const total_income = allTransactions.reduce((sum, tx) => 
       sum + parseFloat(tx.price), 0);
 
-    // 4. Process new expenses
     const newExpenses = expenses.reduce((sum, e) => 
       sum + parseFloat(e.amount), 0);
     
-    // 5. Calculate monthly income
     const monthlyIncome = await calculateMonthlyIncome(t);
 
-    // 6. Calculate percentage changes
     const calculatePercentageChange = (current, previous) => {
-      if (previous === 0) return 0; // Avoid division by zero
+      if (previous === 0) return 0;
       return ((current - previous) / previous) * 100;
     };
 
@@ -354,7 +349,6 @@ exports.updateBankSummary = async (req, res) => {
       )
     };
 
-    // 7. Update bank record
     await bankData.update({
       current_balance: total_income - (bankData.expenses_per_month + newExpenses),
       income_per_month: monthlyIncome,
@@ -366,7 +360,7 @@ exports.updateBankSummary = async (req, res) => {
 
     await t.commit();
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         current_balance: parseFloat(bankData.current_balance.toFixed(2)),
@@ -383,26 +377,13 @@ exports.updateBankSummary = async (req, res) => {
     });
 
   } catch (error) {
-    await t.rollback();
+    if (t && !t.finished) {
+      await t.rollback();
+    }
     console.error('Update error:', error);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       success: false,
       message: 'Error updating bank summary'
     });
   }
 };
-
-async function calculateMonthlyIncome(transaction) {
-  const lastMonth = new Date();
-  lastMonth.setMonth(lastMonth.getMonth() - 1);
-  
-  const monthlyTransactions = await Transaction.findAll({
-    where: {
-      transaction_date: { [Op.gte]: lastMonth }
-    },
-    transaction
-  });
-  
-  return monthlyTransactions.reduce((sum, tx) => 
-    sum + parseFloat(tx.price), 0);
-}
