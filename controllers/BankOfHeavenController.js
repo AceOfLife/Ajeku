@@ -492,10 +492,11 @@ const updateBankSummary = async (req, res) => {
       transaction: t
     });
 
+    // Convert all numbers to proper float values
     const previousValues = {
-      income: bankData.income_per_month || 0,
-      expenses: bankData.expenses_per_month || 0,
-      balance: bankData.current_balance || 0
+      income: parseFloat(bankData.income_per_month || 0),
+      expenses: parseFloat(bankData.expenses_per_month || 0),
+      balance: parseFloat(bankData.current_balance || 0)
     };
 
     const allTransactions = await Transaction.findAll({ transaction: t });
@@ -512,19 +513,19 @@ const updateBankSummary = async (req, res) => {
       return ((current - previous) / previous) * 100;
     };
 
+    const currentExpenses = parseFloat(bankData.expenses_per_month || 0) + newExpenses;
+    const currentBalance = total_income - currentExpenses;
+
     const percentageChanges = {
       income: calculatePercentageChange(monthlyIncome, previousValues.income),
       expenses: calculatePercentageChange(newExpenses, previousValues.expenses),
-      balance: calculatePercentageChange(
-        total_income - (bankData.expenses_per_month + newExpenses),
-        previousValues.balance
-      )
+      balance: calculatePercentageChange(currentBalance, previousValues.balance)
     };
 
     await bankData.update({
-      current_balance: total_income - (bankData.expenses_per_month + newExpenses),
+      current_balance: currentBalance,
       income_per_month: monthlyIncome,
-      expenses_per_month: bankData.expenses_per_month + newExpenses,
+      expenses_per_month: currentExpenses,
       transactions: [...(bankData.transactions || []), ...expenses],
       previous_month_data: previousValues,
       percentage_changes: percentageChanges
@@ -535,11 +536,11 @@ const updateBankSummary = async (req, res) => {
     res.json({
       success: true,
       data: {
-        current_balance: parseFloat(bankData.current_balance.toFixed(2)),
+        current_balance: parseFloat(currentBalance.toFixed(2)),
         expenses_this_month: parseFloat(newExpenses.toFixed(2)),
         income_this_month: parseFloat(monthlyIncome.toFixed(2)),
         all_time_income: parseFloat(total_income.toFixed(2)),
-        all_time_expenses: parseFloat((bankData.expenses_per_month + newExpenses).toFixed(2)),
+        all_time_expenses: parseFloat(currentExpenses.toFixed(2)),
         percentage_changes: {
           income: parseFloat(percentageChanges.income.toFixed(1)) + '%',
           expenses: parseFloat(percentageChanges.expenses.toFixed(1)) + '%',
@@ -560,7 +561,6 @@ const updateBankSummary = async (req, res) => {
   }
 };
 
-// Export at the bottom after all functions are defined
 module.exports = {
   getBankSummary,
   updateBankSummary
