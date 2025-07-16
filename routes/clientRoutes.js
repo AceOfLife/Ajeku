@@ -30,35 +30,10 @@ router.put('/:id/status', authenticate, authorizeAdmin, ClientController.updateC
 router.get('/:id', authenticate, authorizeRole(['admin', 'agent']), ClientController.getClient);
 
 // Get own profile (any authenticated client)
-router.get('/profile', authenticate, async (req, res) => {
-  try {
-    // First find the client ID associated with this user
-    const client = await Client.findOne({
-      where: { user_id: req.user.id }
-    });
-
-    if (!client) {
-      return res.status(404).json({ message: 'Client profile not found' });
-    }
-
-    // Now get full client details
-    const fullClient = await Client.findByPk(client.id, {
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['firstName', 'lastName', 'email', 'address', 
-                   'contactNumber', 'city', 'state', 'gender', 'profileImage']
-      }]
-    });
-
-    return res.status(200).json({
-      id: fullClient.id,
-      user_id: fullClient.user_id,
-      // ... rest of the client data
-    });
-  } catch (error) {
-    // error handling
-  }
+router.get('/profile', authenticate, (req, res) => {
+  // The token now contains clientId for client users
+  req.params = { id: req.user.clientId };
+  return ClientController.getClient(req, res);
 });
 
 // Route for users to change their password
