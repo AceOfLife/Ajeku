@@ -30,16 +30,33 @@ router.put('/:id/status', authenticate, authorizeAdmin, ClientController.updateC
 router.get('/:id', authenticate, authorizeRole(['admin', 'agent']), ClientController.getClient);
 
 // routes/clientRoutes.js
-router.get('/profile', authenticate, (req, res) => {
-  // Use the exact field name from your token (clientId)
-  if (!req.user.clientId) {
-    return res.status(403).json({ 
-      message: 'Client profile not available for this account' 
+router.get('/profile', authenticate, async (req, res) => {
+  try {
+    // For clients, use clientId from token
+    if (req.user.role === 'client') {
+      if (!req.user.clientId) {
+        return res.status(403).json({
+          message: 'Client profile not available for this account'
+        });
+      }
+      req.params = { id: req.user.clientId };
+      return ClientController.getClient(req, res);
+    }
+    
+    // For admins/agents trying to view their own profile as a client
+    // (assuming they might have a client record)
+    if (req.user.clientId) {
+      req.params = { id: req.user.clientId };
+      return ClientController.getClient(req, res);
+    }
+
+    return res.status(403).json({
+      message: 'No client profile associated with this account'
     });
+  } catch (error) {
+    console.error('Error in profile route:', error);
+    return res.status(500).json({ message: 'Server error' });
   }
-  
-  req.params = { id: req.user.clientId }; // Now using correct case
-  return ClientController.getClient(req, res);
 });
 
 // Route for users to change their password
