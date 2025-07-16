@@ -51,8 +51,8 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
   }, {
-    tableName: 'Clients', // Explicit table name
-    underscored: true // For snake_case fields
+    tableName: 'Clients',
+    underscored: false, // Disable automatic snake_case conversion
   });
 
   Client.associate = function(models) {

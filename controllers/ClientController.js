@@ -191,7 +191,6 @@ exports.getClient = async (req, res) => {
       return res.status(404).json({ message: 'Client not found' });
     }
 
-    // Authorization check
     if (req.user.role === 'client' && client.user_id !== req.user.id) {
       return res.status(403).json({ message: 'Unauthorized to access this profile' });
     }

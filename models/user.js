@@ -109,10 +109,12 @@ module.exports = (sequelize, DataTypes) => {
     firstName: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: 'firstName' // Explicit field name
     },
     lastName: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: 'lastName'
     },
     email: {
       type: DataTypes.STRING,
@@ -126,6 +128,7 @@ module.exports = (sequelize, DataTypes) => {
     contactNumber: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: 'contactNumber'
     },
     city: {
       type: DataTypes.STRING,
@@ -146,10 +149,12 @@ module.exports = (sequelize, DataTypes) => {
     profileImage: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: 'profileImage'
     },
     referralSource: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: 'referralSource'
     },
     gender: {
       type: DataTypes.STRING, 
@@ -159,8 +164,8 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
   }, {
-    tableName: 'Users', // Explicit table name
-    underscored: true, // For snake_case fields
+    tableName: 'Users',
+    underscored: false, // Disable automatic snake_case conversion
     hooks: {
       beforeValidate: (user, options) => {
         if (user.gender) {
@@ -180,7 +185,7 @@ module.exports = (sequelize, DataTypes) => {
       as: 'properties' 
     });
     User.hasMany(models.UserDocument, { 
-      foreignKey: 'user_id', // Changed from 'userId' for consistency
+      foreignKey: 'user_id',
       as: 'documents' 
     });
     User.hasOne(models.Client, {

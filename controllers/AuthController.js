@@ -100,7 +100,8 @@ const login = async (req, res) => {
         model: Client,
         as: 'client',
         attributes: ['id']
-      }]
+      }],
+      raw: false
     });
 
     if (!user) {
@@ -112,7 +113,6 @@ const login = async (req, res) => {
       return res.status(400).json({ message: 'Invalid email or password' });
     }
 
-    // Token payload with clientId if available
     const tokenPayload = {
       id: user.id,
       name: user.name,
@@ -127,8 +127,7 @@ const login = async (req, res) => {
       { expiresIn: '1h' }
     );
 
-    // Response with clientId if available
-    const response = {
+    res.json({
       token,
       user: {
         id: user.id,
@@ -137,9 +136,7 @@ const login = async (req, res) => {
         role: user.role,
         ...(user.client && { clientId: user.client.id })
       }
-    };
-
-    res.json(response);
+    });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: 'Server error', error });
@@ -157,21 +154,14 @@ const signup = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user with client if role is 'client'
     if (role === 'client') {
       const newUser = await User.create({
         name,
         email,
         password: hashedPassword,
         role
-      }, {
-        include: [{
-          association: User.Client,
-          as: 'client'
-        }]
       });
 
-      // Create client record
       await Client.create({
         user_id: newUser.id,
         status: 'Unverified'
@@ -185,7 +175,6 @@ const signup = async (req, res) => {
       });
     }
 
-    // For non-client roles
     const newUser = await User.create({
       name,
       email,
