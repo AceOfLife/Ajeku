@@ -7,7 +7,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Users', // Assuming you have a Users table
+        model: 'Users', // This must match exactly how it's defined in PostgreSQL
         key: 'id',
       },
       onUpdate: 'CASCADE',
@@ -18,14 +18,16 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 'Unverified',
       allowNull: false,
     },
-  }, {});
+  }, {
+    tableName: 'Clients', // Explicitly set to match your PostgreSQL table
+    underscored: true // To handle snake_case columns properly
+  });
 
   Client.associate = function(models) {
     Client.belongsTo(models.User, {
       foreignKey: 'user_id',
-      as: 'user', // This will allow you to access the user details
+      as: 'user',
     });
-    // Other associations can be added as needed
   };
 
   return Client;
