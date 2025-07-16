@@ -14,109 +14,100 @@ const {
 } = require('../models');
 
 exports.initializePayment = async (req, res) => {
-  const t = await sequelize.transaction(); // Add transaction for rental check
   try {
     const { user_id, property_id, payment_type, slots = 1, rooms = 1 } = req.body;
 
     // Fetch the user
     const user = await User.findByPk(user_id);
-    if (!user) {
-      await t.rollback();
-      return res.status(404).json({ message: 'User not found' });
-    }
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Fetch the property with lock to prevent race conditions
-    const property = await Property.findByPk(property_id, { 
-      transaction: t,
-      lock: t.LOCK.UPDATE
-    });
-    if (!property) {
-      await t.rollback();
-      return res.status(404).json({ message: 'Property not found' });
+    // Fetch the property with lock for rental checks
+    const property = await Property.findByPk(property_id);
+    if (!property) return res.status(404).json({ message: 'Property not found' });
+
+    // Check room availability for rentals before proceeding
+    if (payment_type === "rental" && property.isRental) {
+      if (!property.annual_rent || property.annual_rent <= 0) {
+        return res.status(400).json({ message: 'Annual rent must be set for rental properties' });
+      }
+
+      const t = await sequelize.transaction();
+      try {
+        const totalBooked = await RentalBooking.sum('rooms_booked', {
+          where: { property_id: property.id },
+          transaction: t
+        }) || 0;
+
+        const availableRooms = property.number_of_rooms - totalBooked;
+        const roomsRequested = parseInt(rooms) || 1;
+
+        if (availableRooms < roomsRequested) {
+          await t.rollback();
+          return res.status(400).json({ 
+            message: `Only ${availableRooms} room(s) available - booking rejected`
+          });
+        }
+        await t.commit();
+      } catch (error) {
+        await t.rollback();
+        throw error;
+      }
     }
 
     let amount = property.price;
 
-    // Outright or per-slot payment (EXISTING LOGIC - UNCHANGED)
+    // Outright or per-slot payment
     if (payment_type === "fractional" && property.is_fractional) {
       if (!property.price_per_slot || !property.fractional_slots) {
-        await t.rollback();
         return res.status(400).json({ message: 'Invalid fractional property setup' });
       }
 
       if (slots > property.fractional_slots) {
-        await t.rollback();
         return res.status(400).json({ message: 'Not enough fractional slots available' });
       }
 
       amount = property.price_per_slot * slots;
     }
 
-    // Standard Installment (Non-fractional) (EXISTING LOGIC - UNCHANGED)
+    // Standard Installment (Non-fractional)
     else if (payment_type === "installment" && property.isInstallment) {
       if (property.is_fractional) {
         if (!property.price_per_slot || !property.fractional_slots) {
-          await t.rollback();
           return res.status(400).json({ message: 'Invalid fractional installment setup' });
         }
 
         if (slots > property.fractional_slots) {
-          await t.rollback();
           return res.status(400).json({ message: 'Not enough fractional slots available' });
         }
 
         amount = property.price_per_slot * slots;
       } else {
         if (!property.duration || property.duration <= 0) {
-          await t.rollback();
           return res.status(400).json({ message: 'Invalid installment setup' });
         }
         amount = property.price / property.duration;
       }
     }
 
-    // Fractional Installment Logic (EXISTING LOGIC - UNCHANGED)
+    // Fractional Installment Logic
     else if (payment_type === "fractionalInstallment" && property.is_fractional && property.isFractionalInstallment) {
       if (!property.price_per_slot || !property.isFractionalDuration || !property.fractional_slots) {
-        await t.rollback();
         return res.status(400).json({ message: 'Invalid fractional installment duration setup' });
       }
 
       if (slots > property.fractional_slots) {
-        await t.rollback();
         return res.status(400).json({ message: 'Not enough fractional slots available' });
       }
 
       amount = (property.price_per_slot * slots) / property.isFractionalDuration;
     }
 
-    // ✅ UPDATED: Rental Payment Logic - Check room availability FIRST
+    // Rental Payment Logic
     else if (payment_type === "rental" && property.isRental) {
-      if (!property.annual_rent || property.annual_rent <= 0) {
-        await t.rollback();
-        return res.status(400).json({ message: 'Annual rent must be set for rental properties' });
-      }
-
-      // Check room availability before proceeding
-      const totalBooked = await RentalBooking.sum('rooms_booked', {
-        where: { property_id: property.id },
-        transaction: t
-      }) || 0;
-
-      const availableRooms = property.number_of_rooms - totalBooked;
-      const roomsRequested = parseInt(rooms) || 1;
-
-      if (availableRooms < roomsRequested) {
-        await t.rollback();
-        return res.status(400).json({ 
-          message: `Only ${availableRooms} room(s) available - booking rejected`
-        });
-      }
-
       amount = property.annual_rent;
     }
 
-    // Convert amount to kobo (EXISTING LOGIC - UNCHANGED)
+    // Convert amount to kobo
     const amountInKobo = Math.round(amount * 100);
 
     const response = await axios.post(
@@ -131,7 +122,7 @@ exports.initializePayment = async (req, res) => {
           property_id: property.id,
           payment_type,
           slots,
-          rooms: parseInt(rooms) || 1 // Ensure rooms is included
+          rooms: parseInt(rooms) || 1
         }
       },
       {
@@ -142,15 +133,16 @@ exports.initializePayment = async (req, res) => {
       }
     );
 
-    await t.commit(); // Commit transaction if everything succeeds
     res.status(200).json({
       paymentUrl: response.data.data.authorization_url,
       reference: response.data.data.reference
     });
   } catch (error) {
-    await t.rollback();
     console.error("Payment Initialization Error:", error.response?.data || error.message);
-    res.status(500).json({ message: 'Error initializing payment', error });
+    res.status(500).json({ 
+      message: 'Error initializing payment',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
@@ -205,7 +197,10 @@ exports.verifyPayment = async (req, res) => {
     // Get user and property within transaction
     const [user, property] = await Promise.all([
       User.findByPk(user_id, { transaction: t }),
-      Property.findByPk(property_id, { transaction: t })
+      Property.findByPk(property_id, { 
+        transaction: t,
+        lock: true
+      })
     ]);
 
     if (!user || !property) {
@@ -237,7 +232,7 @@ exports.verifyPayment = async (req, res) => {
       return property.fractional_slots - totalPurchased;
     };
 
-    // === FRACTIONAL OUTRIGHT PAYMENT ===
+    // FRACTIONAL OUTRIGHT PAYMENT
     if (payment_type === "fractional" && property.is_fractional) {
       const availableSlots = await getAvailableFractionalSlots(property.id);
       if (slots > availableSlots) {
@@ -260,7 +255,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // === FRACTIONAL INSTALLMENT ===
+    // FRACTIONAL INSTALLMENT
     if (payment_type === "fractionalInstallment" && property.is_fractional && property.isFractionalInstallment) {
       const today = new Date();
       const month = today.getMonth() + 1;
@@ -323,7 +318,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // === STANDARD INSTALLMENT ===
+    // STANDARD INSTALLMENT
     if (payment_type === "installment" && property.isInstallment && !property.is_fractional) {
       const totalMonths = parseInt(property.duration);
       const today = new Date();
@@ -371,11 +366,11 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // === RENTAL PAYMENT (SIMPLIFIED) ===
+    // RENTAL PAYMENT
     if (payment_type === "rental" && property.isRental) {
       const roomsBooked = parseInt(rooms) || 1;
       
-      // Create rental record (availability already checked in initializePayment)
+      // Create rental record
       const rental = await RentalBooking.create({
         user_id,
         property_id,
@@ -385,28 +380,17 @@ exports.verifyPayment = async (req, res) => {
         end_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
       }, { transaction: t });
 
-      // Atomic room decrement
+      // Update available rooms
       await Property.decrement('number_of_rooms', {
         by: roomsBooked,
         where: { id: property.id },
         transaction: t
       });
 
-      // Get updated property data
-      const updatedProperty = await Property.findByPk(property.id, { 
-        attributes: ['id', 'number_of_rooms'],
-        transaction: t 
-      });
-
       await t.commit();
-
       return res.status(200).json({
         message: "Rental payment verified successfully",
         transaction,
-        property: {
-          id: updatedProperty.id,
-          number_of_rooms: updatedProperty.number_of_rooms
-        },
         rentalDetails: {
           bookingId: rental.id,
           roomsBooked,
@@ -436,7 +420,6 @@ exports.verifyPayment = async (req, res) => {
     });
   }
 };
-
 
 // exports.initializePayment = async (req, res) => {
 //   try {
