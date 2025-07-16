@@ -173,9 +173,24 @@ exports.getAllClients = async (req, res) => {
 
 exports.getClient = async (req, res) => {
   try {
-    // Use either the provided ID or the authenticated user's client ID
-    const clientId = req.params.id || req.user.clientId;
+    // Debugging: Log incoming request details
+    console.log('Request params:', req.params);
+    console.log('Authenticated user:', req.user);
 
+    // Determine if this is a profile request (no ID in params)
+    const isProfileRequest = !req.params.id;
+    const clientId = isProfileRequest ? req.user.clientId : req.params.id;
+
+    // Validate we have a client ID
+    if (!clientId) {
+      return res.status(400).json({ 
+        message: isProfileRequest 
+          ? 'No client profile associated with this account' 
+          : 'Client ID required'
+      });
+    }
+
+    // Fetch client with user details
     const client = await Client.findByPk(clientId, {
       include: [{
         model: User,
@@ -186,15 +201,33 @@ exports.getClient = async (req, res) => {
     });
 
     if (!client) {
-      return res.status(404).json({ message: 'Client not found' });
+      return res.status(404).json({ 
+        message: isProfileRequest
+          ? 'Your client profile was not found'
+          : 'Client not found'
+      });
     }
 
-    // Authorization check - client can only view their own profile unless admin/agent
-    if (client.user_id !== req.user.id && !['admin', 'agent'].includes(req.user.role)) {
-      return res.status(403).json({ message: 'Unauthorized to view this client' });
+    // Authorization check
+    if (isProfileRequest) {
+      // For profile requests, must be the exact matching user
+      if (client.user_id !== req.user.id) {
+        console.error(`User ${req.user.id} attempted to access profile for client ${client.id} owned by user ${client.user_id}`);
+        return res.status(403).json({ 
+          message: 'Unauthorized to access this profile' 
+        });
+      }
+    } else {
+      // For direct client ID access, allow admins/agents
+      if (client.user_id !== req.user.id && !['admin', 'agent'].includes(req.user.role)) {
+        return res.status(403).json({ 
+          message: 'Insufficient permissions to view this client' 
+        });
+      }
     }
 
-    res.status(200).json({
+    // Format and return response
+    const response = {
       id: client.id,
       user_id: client.user_id,
       firstName: client.user.firstName,
@@ -209,12 +242,19 @@ exports.getClient = async (req, res) => {
       status: client.status,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt
-    });
+    };
+
+    console.log('Successfully fetched client:', response.id);
+    res.status(200).json(response);
+
   } catch (error) {
-    res.status(500).json({ message: 'Error retrieving client', error: error.message });
+    console.error('Error in getClient:', error);
+    res.status(500).json({ 
+      message: 'Error retrieving client data',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
-
 
 // 07/07/
 // exports.getClient = async (req, res) => {
