@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const ClientController = require('../controllers/ClientController');
-const { authenticate, authorizeAdmin, authorizeRole } = require('../middlewares/authMiddleware');
+const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
 const { upload } = require('../config/multerConfig');
 const PropertyController = require('../controllers/PropertyController');
 const NotificationController = require('../controllers/NotificationController');
@@ -25,39 +25,7 @@ router.put('/profile', authenticate, upload, ClientController.updateProfile);
 router.put('/:id/status', authenticate, authorizeAdmin, ClientController.updateClientStatus);
 
 // Route for logged-in client to get their own profile (authentication required)
-// router.get('/profile', authenticate, ClientController.getClient);
-// Get specific client (admin/agent only)
-router.get('/:id', authenticate, authorizeRole(['admin', 'agent']), ClientController.getClient);
-
-// routes/clientRoutes.js
-router.get('/profile', authenticate, async (req, res) => {
-  try {
-    // For clients, use clientId from token
-    if (req.user.role === 'client') {
-      if (!req.user.clientId) {
-        return res.status(403).json({
-          message: 'Client profile not available for this account'
-        });
-      }
-      req.params = { id: req.user.clientId };
-      return ClientController.getClient(req, res);
-    }
-    
-    // For admins/agents trying to view their own profile as a client
-    // (assuming they might have a client record)
-    if (req.user.clientId) {
-      req.params = { id: req.user.clientId };
-      return ClientController.getClient(req, res);
-    }
-
-    return res.status(403).json({
-      message: 'No client profile associated with this account'
-    });
-  } catch (error) {
-    console.error('Error in profile route:', error);
-    return res.status(500).json({ message: 'Server error' });
-  }
-});
+router.get('/profile', authenticate, ClientController.getClient);
 
 // Route for users to change their password
 router.put('/change-password', authenticate, ClientController.changePassword);
