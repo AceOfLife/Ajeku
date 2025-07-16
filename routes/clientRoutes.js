@@ -25,7 +25,29 @@ router.put('/profile', authenticate, upload, ClientController.updateProfile);
 router.put('/:id/status', authenticate, authorizeAdmin, ClientController.updateClientStatus);
 
 // Route for logged-in client to get their own profile (authentication required)
-router.get('/profile', authenticate, ClientController.getClient);
+router.get('/profile', authenticate, async (req, res) => {
+  try {
+    // For client users, use clientId from token
+    if (req.user.role === 'client') {
+      if (!req.user.clientId) {
+        return res.status(403).json({
+          message: 'No client profile associated with this account'
+        });
+      }
+      // Set the client ID in params for the controller
+      req.params = { id: req.user.clientId };
+      return ClientController.getClient(req, res);
+    }
+    
+    // For other roles trying to view their own profile
+    return res.status(403).json({
+      message: 'This endpoint is for client profiles only'
+    });
+  } catch (error) {
+    console.error('Error in profile route:', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
 
 // Route for users to change their password
 router.put('/change-password', authenticate, ClientController.changePassword);

@@ -191,6 +191,11 @@ exports.getClient = async (req, res) => {
       return res.status(404).json({ message: 'Client not found' });
     }
 
+    // Authorization check
+    if (req.user.role === 'client' && client.user_id !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized to access this profile' });
+    }
+
     res.status(200).json({
       id: client.id,
       user_id: client.user_id,
@@ -208,7 +213,11 @@ exports.getClient = async (req, res) => {
       updatedAt: client.updatedAt
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error retrieving client', error: error.message });
+    console.error('Error retrieving client:', error);
+    res.status(500).json({ 
+      message: 'Error retrieving client', 
+      error: error.message 
+    });
   }
 };
 
