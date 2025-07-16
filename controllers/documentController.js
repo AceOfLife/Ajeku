@@ -103,6 +103,91 @@ exports.uploadDocuments = async (req, res) => {
 //   }
 // };   10/07/2025 revert here
 
+// exports.verifyDocument = async (req, res) => {
+//   try {
+//     const { documentId } = req.params;
+//     const { status, adminNotes } = req.body;
+
+//     // Validate status
+//     const allowedStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
+//     const statusUpperCase = status.toUpperCase();
+    
+//     if (!allowedStatuses.includes(statusUpperCase)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}`
+//       });
+//     }
+
+//     // Find document with associated user
+//     const document = await UserDocument.findOne({
+//       where: { id: documentId },
+//       include: [{
+//         model: User,
+//         as: 'user',
+//         required: true
+//       }]
+//     });
+
+//     if (!document) {
+//       return res.status(404).json({ 
+//         success: false, 
+//         message: 'Document not found or no associated user' 
+//       });
+//     }
+
+//     // Find the client associated with this user
+//     const client = await Client.findOne({
+//       where: { user_id: document.user.id }
+//     });
+
+//     if (!client) {
+//       return res.status(404).json({ 
+//         success: false, 
+//         message: 'No client profile found for this user' 
+//       });
+//     }
+
+//     // Update document
+//     await document.update({
+//       status: statusUpperCase,
+//       adminNotes: adminNotes || null,
+//       verifiedBy: req.user.id,
+//       verifiedAt: new Date()
+//     });
+
+//     // Update client status if document is approved
+//     if (statusUpperCase === 'APPROVED') {
+//       await client.update({
+//         status: 'Verified'
+//       });
+//     }
+
+//     return res.json({
+//       success: true,
+//       message: `Document ${statusUpperCase}`,
+//       document: {
+//         id: document.id,
+//         status: document.status,
+//         verifiedBy: document.verifiedBy,
+//         verifiedAt: document.verifiedAt
+//       },
+//       client: statusUpperCase === 'APPROVED' ? {
+//         id: client.id,
+//         status: client.status
+//       } : undefined
+//     });
+
+//   } catch (error) {
+//     console.error('Admin document verification error:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Verification failed',
+//       error: process.env.NODE_ENV === 'development' ? error.message : undefined
+//     });
+//   }
+// };  //16/07/2025 Not working properly
+
 exports.verifyDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
@@ -110,9 +195,9 @@ exports.verifyDocument = async (req, res) => {
 
     // Validate status
     const allowedStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
-    const statusUpperCase = status.toUpperCase();
+    const statusUpperCase = status?.toUpperCase();
     
-    if (!allowedStatuses.includes(statusUpperCase)) {
+    if (!statusUpperCase || !allowedStatuses.includes(statusUpperCase)) {
       return res.status(400).json({
         success: false,
         message: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}`
@@ -122,11 +207,13 @@ exports.verifyDocument = async (req, res) => {
     // Find document with associated user
     const document = await UserDocument.findOne({
       where: { id: documentId },
-      include: [{
-        model: User,
-        as: 'user',
-        required: true
-      }]
+      include: [
+        {
+          model: User,
+          as: 'user',
+          required: true
+        }
+      ]
     });
 
     if (!document) {
@@ -136,31 +223,25 @@ exports.verifyDocument = async (req, res) => {
       });
     }
 
-    // Find the client associated with this user
-    const client = await Client.findOne({
-      where: { user_id: document.user.id }
-    });
-
-    if (!client) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'No client profile found for this user' 
-      });
-    }
-
     // Update document
-    await document.update({
+    const updateData = {
       status: statusUpperCase,
       adminNotes: adminNotes || null,
       verifiedBy: req.user.id,
       verifiedAt: new Date()
-    });
+    };
 
-    // Update client status if document is approved
+    await document.update(updateData);
+
+    // If approved, find and update client status
     if (statusUpperCase === 'APPROVED') {
-      await client.update({
-        status: 'Verified'
+      const client = await Client.findOne({
+        where: { user_id: document.user.id }
       });
+
+      if (client) {
+        await client.update({ status: 'Verified' });
+      }
     }
 
     return res.json({
@@ -171,11 +252,7 @@ exports.verifyDocument = async (req, res) => {
         status: document.status,
         verifiedBy: document.verifiedBy,
         verifiedAt: document.verifiedAt
-      },
-      client: statusUpperCase === 'APPROVED' ? {
-        id: client.id,
-        status: client.status
-      } : undefined
+      }
     });
 
   } catch (error) {

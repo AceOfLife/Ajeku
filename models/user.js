@@ -184,10 +184,11 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'agent_id', 
       as: 'properties' 
     });
-    User.hasMany(models.UserDocument, { 
-      foreignKey: 'user_id',
-      as: 'documents' 
-    });
+      User.hasMany(models.UserDocument, {
+    foreignKey: 'userId',
+    as: 'documents',
+    onDelete: 'CASCADE'
+  });
     User.hasOne(models.Client, {
       foreignKey: 'user_id',
       as: 'client',
