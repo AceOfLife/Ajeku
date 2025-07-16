@@ -9,7 +9,8 @@ const {
   PropertyImage,
   Notification,
   Sequelize,
-  sequelize
+  sequelize,
+  RentalBooking
 } = require('../models');
 
 
