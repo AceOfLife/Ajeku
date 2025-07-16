@@ -29,10 +29,16 @@ router.put('/:id/status', authenticate, authorizeAdmin, ClientController.updateC
 // Get specific client (admin/agent only)
 router.get('/:id', authenticate, authorizeRole(['admin', 'agent']), ClientController.getClient);
 
-// Get own profile (any authenticated client)
+// routes/clientRoutes.js
 router.get('/profile', authenticate, (req, res) => {
-  // The token now contains clientId for client users
-  req.params = { id: req.user.clientId };
+  // Use the exact field name from your token (clientId)
+  if (!req.user.clientId) {
+    return res.status(403).json({ 
+      message: 'Client profile not available for this account' 
+    });
+  }
+  
+  req.params = { id: req.user.clientId }; // Now using correct case
   return ClientController.getClient(req, res);
 });
 
