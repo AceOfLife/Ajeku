@@ -1125,22 +1125,24 @@ exports.getUserProperties = async (req, res) => {
         property.dataValues.installmentProgress = null;
       }
 
-      // Add fractional ownership details
+      // Add fractional ownership details (UPDATED SECTION)
       if (property.is_fractional) {
         const allFractionalOwnershipsForProperty = fractionalOwnershipMap[property.id] || [];
         const userFractionalOwnerships = allFractionalOwnershipsForProperty.filter(o => o.user_id === userId);
         
         const totalSlotsPurchased = userFractionalOwnerships.reduce((sum, o) => sum + o.slots_purchased, 0);
-        const totalSlotsAvailable = property.fractional_slots - 
-          allFractionalOwnershipsForProperty.reduce((sum, o) => sum + o.slots_purchased, 0);
+        const totalPurchasedByAll = allFractionalOwnershipsForProperty.reduce((sum, o) => sum + o.slots_purchased, 0);
         
-        property.dataValues.fractionalDetails = {
-          slotsOwned: totalSlotsPurchased,
-          slotsAvailable: totalSlotsAvailable,
+        property.dataValues.fractionalProgress = {
+          totalSlots: property.fractional_slots,
+          purchasedSlots: totalPurchasedByAll,
+          availableSlots: property.fractional_slots - totalPurchasedByAll,
+          totalInvestors: allFractionalOwnershipsForProperty.length,
+          userSlotsOwned: totalSlotsPurchased,
           ownershipPercentage: (totalSlotsPurchased / property.fractional_slots) * 100
         };
       } else {
-        property.dataValues.fractionalDetails = null;
+        property.dataValues.fractionalProgress = null;
       }
     }
 
