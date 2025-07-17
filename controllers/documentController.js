@@ -192,6 +192,7 @@ exports.verifyDocument = async (req, res) => {
   try {
     const { documentId } = req.params;
     const { status, adminNotes } = req.body;
+    const adminId = req.user.id; // The admin verifying the document
 
     // Validate status
     const allowedStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
@@ -204,56 +205,64 @@ exports.verifyDocument = async (req, res) => {
       });
     }
 
-    // Find document with associated user
-    const document = await UserDocument.findOne({
-      where: { id: documentId },
-      include: [
-        {
-          model: User,
-          as: 'user',
-          required: true
+    // Start transaction to ensure both updates succeed or fail together
+    const transaction = await sequelize.transaction();
+
+    try {
+      // Find document with associated user
+      const document = await UserDocument.findOne({
+        where: { id: documentId },
+        include: [{ model: User, as: 'user', required: true }],
+        transaction
+      });
+
+      if (!document) {
+        await transaction.rollback();
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Document not found or no associated user' 
+        });
+      }
+
+      // Update document
+      const updateData = {
+        status: statusUpperCase,
+        adminNotes: adminNotes || null,
+        verifiedBy: adminId,
+        verifiedAt: new Date()
+      };
+
+      await document.update(updateData, { transaction });
+
+      // If approved, update client status
+      if (statusUpperCase === 'APPROVED') {
+        await Client.update(
+          { status: 'Verified' },
+          { 
+            where: { user_id: document.user.id },
+            transaction
+          }
+        );
+      }
+
+      // Commit the transaction
+      await transaction.commit();
+
+      return res.json({
+        success: true,
+        message: `Document ${statusUpperCase}`,
+        document: {
+          id: document.id,
+          status: document.status,
+          verifiedBy: document.verifiedBy,
+          verifiedAt: document.verifiedAt
         }
-      ]
-    });
-
-    if (!document) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Document not found or no associated user' 
-      });
-    }
-
-    // Update document
-    const updateData = {
-      status: statusUpperCase,
-      adminNotes: adminNotes || null,
-      verifiedBy: req.user.id,
-      verifiedAt: new Date()
-    };
-
-    await document.update(updateData);
-
-    // If approved, find and update client status
-    if (statusUpperCase === 'APPROVED') {
-      const client = await Client.findOne({
-        where: { user_id: document.user.id }
       });
 
-      if (client) {
-        await client.update({ status: 'Verified' });
-      }
+    } catch (error) {
+      await transaction.rollback();
+      throw error; // This will be caught by the outer catch block
     }
-
-    return res.json({
-      success: true,
-      message: `Document ${statusUpperCase}`,
-      document: {
-        id: document.id,
-        status: document.status,
-        verifiedBy: document.verifiedBy,
-        verifiedAt: document.verifiedAt
-      }
-    });
 
   } catch (error) {
     console.error('Admin document verification error:', error);
