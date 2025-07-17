@@ -14,48 +14,36 @@ const {
 } = require('../models');
 
 exports.initializePayment = async (req, res) => {
-  let rentalTransaction;
   try {
     const { user_id, property_id, payment_type, slots = 1, rooms = 1 } = req.body;
 
-    // 1. Fetch User (without transaction)
+    // 1. Fetch User
     const user = await User.findByPk(user_id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // 2. Fetch Property (without transaction)
+    // 2. Fetch Property
     const property = await Property.findByPk(property_id);
     if (!property) return res.status(404).json({ message: 'Property not found' });
 
-    // 3. Handle Rental Availability Check (with dedicated transaction)
+    // 3. Handle Rental Availability Check (TRANSACTION REMOVED)
     if (payment_type === "rental" && property.isRental) {
       if (!property.annual_rent || property.annual_rent <= 0) {
         return res.status(400).json({ message: 'Annual rent must be set for rental properties' });
       }
 
-      rentalTransaction = await sequelize.transaction();
-      try {
-        const totalBooked = await RentalBooking.sum('rooms_booked', {
-          where: { property_id: property.id },
-          transaction: rentalTransaction,
-          lock: rentalTransaction.LOCK.UPDATE
-        }) || 0;
+      // Simplified check without transaction
+      const totalBooked = await RentalBooking.sum('rooms_booked', {
+        where: { property_id: property.id }
+      }) || 0;
 
-        const availableRooms = property.number_of_rooms - totalBooked;
-        const roomsRequested = parseInt(rooms) || 1;
+      const availableRooms = property.number_of_rooms - totalBooked;
+      const roomsRequested = parseInt(rooms) || 1;
 
-        if (availableRooms < roomsRequested) {
-          await rentalTransaction.rollback();
-          return res.status(400).json({ 
-            message: `Only ${availableRooms} room(s) available - booking rejected`,
-            availableRooms
-          });
-        }
-        await rentalTransaction.commit();
-      } catch (error) {
-        if (rentalTransaction && !rentalTransaction.finished) {
-          await rentalTransaction.rollback();
-        }
-        throw error;
+      if (availableRooms < roomsRequested) {
+        return res.status(400).json({ 
+          message: `Only ${availableRooms} room(s) available - booking rejected`,
+          availableRooms
+        });
       }
     }
 
