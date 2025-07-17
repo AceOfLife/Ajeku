@@ -1375,14 +1375,15 @@ async function calculatePropertyAnalytics(propertyId, userId = null) {
       }
     ]
   });
-  
+
   if (!property) return null;
 
-  // 1. Base Metrics
+  // Base Metrics
   const annual_rent = parseFloat(property.annual_rent || 0);
   const estimated_value = parseFloat(property.estimated_value || property.price || 0);
+  const monthly_expense = parseFloat(property.monthly_expense || 0);
 
-  // 2. Payment Type Breakdown
+  // Payment Type Breakdown
   const paymentBreakdown = await Transaction.findAll({
     attributes: [
       'payment_type',
@@ -1396,125 +1397,76 @@ async function calculatePropertyAnalytics(propertyId, userId = null) {
     group: ['payment_type']
   });
 
-  // 3. Specific Metrics by Payment Type
-  const metrics = {
-    rental: {
-      annual_income: paymentBreakdown.find(p => p.payment_type === 'rental')?.total_amount || 0,
-      monthly: annual_rent / 12
-    },
-    installment: {
-      total_paid: paymentBreakdown.find(p => p.payment_type === 'installment')?.total_amount || 0,
-      transactions: paymentBreakdown.find(p => p.payment_type === 'installment')?.transaction_count || 0
-    },
-    fractional: {
-      total_invested: paymentBreakdown.find(p => p.payment_type === 'fractional')?.total_amount || 0,
-      slots_sold: await FractionalOwnership.sum('slots_purchased', {
-        where: { property_id: property.id }
-      }) || 0
-    }
-  };
+  // Initialize metrics for all payment types
+  const paymentTypes = ['fractional', 'fractionalInstallment', 'installment', 'rental'];
+  const metrics = {};
+  
+  paymentTypes.forEach(type => {
+    const data = paymentBreakdown.find(p => p.payment_type === type);
+    metrics[type] = {
+      total: data?.total_amount || 0,
+      count: data?.transaction_count || 0
+    };
+  });
 
-  // 4. Ownership Calculations (for authenticated users)
+  // User-specific metrics
   let userMetrics = {};
   if (userId) {
-    // Installment progress
     const installment = property.installmentOwnerships?.find(i => i.user_id === userId);
-    
-    // Fractional ownership
     const fractional = property.fractionalOwnerships?.find(f => f.user_id === userId);
 
     userMetrics = {
-      installment_progress: installment ? {
+      installment: installment ? {
         paid: installment.months_paid,
         total: installment.total_months,
-        amount_per_installment: property.price / installment.total_months
+        amountPerMonth: property.price / installment.total_months
       } : null,
-      fractional_ownership: fractional ? {
-        slots_owned: fractional.slots_purchased,
+      fractional: fractional ? {
+        slots: fractional.slots_purchased,
         percentage: (fractional.slots_purchased / property.fractional_slots) * 100
       } : null
     };
   }
 
-  // 5. Yield Calculations
-  const gross_yield = estimated_value ? (metrics.rental.annual_income / estimated_value) * 100 : 0;
+  // Yield Calculations
+  const gross_yield = estimated_value ? (metrics.rental.total / estimated_value) * 100 : 0;
   const net_yield = estimated_value ? 
-    (metrics.rental.annual_income - (property.monthly_expense * 12)) / estimated_value * 100 : 0;
+    ((metrics.rental.total - (monthly_expense * 12)) / estimated_value) * 100 : 0;
 
   return {
-    ...metrics,
+    payments: metrics,
     valuations: {
       estimated_value,
-      potential_equity: estimated_value - (metrics.installment?.total_paid || 0)
+      potential_equity: estimated_value - metrics.installment.total
     },
     yields: {
       gross: parseFloat(gross_yield.toFixed(2)),
       net: parseFloat(net_yield.toFixed(2))
     },
-    ...(userId ? { user_metrics: userMetrics } : {})
+    ...(userId ? { user: userMetrics } : {})
   };
 }
 
 // ======================
-// EXISTING CONTROLLERS
+// EXISTING CONTROLLERS (updated)
 // ======================
 exports.getPropertyAnalytics = async (req, res) => {
   try {
     const { propertyId } = req.params;
     const { userId } = req.query;
 
-    const property = await Property.findByPk(propertyId);
-    if (!property || !property.isRental) {
-      return res.status(404).json({ message: 'Rental property not found' });
-    }
-
     const analytics = await calculatePropertyAnalytics(propertyId, userId);
-
-    return res.status(200).json({
-      message: 'Property analytics retrieved',
+    
+    res.status(200).json({
+      success: true,
       analytics
     });
   } catch (error) {
-    console.error("Error fetching property analytics:", error);
-    return res.status(500).json({ message: "Error retrieving analytics", error });
-  }
-};
-
-// ======================
-// NEW CONTROLLERS
-// ======================
-exports.getTopPerformingProperty = async (req, res) => {
-  try {
-    const properties = await Property.findAll({
-      where: { isRental: true },
-      include: [{
-        model: Transaction,
-        where: { payment_type: 'rental' },
-        required: false
-      }]
+    console.error("Property analytics error:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Error retrieving property analytics"
     });
-
-    const propertiesWithAnalytics = await Promise.all(
-      properties.map(async property => {
-        const analytics = await calculatePropertyAnalytics(property.id);
-        return {
-          propertyId: property.id,
-          name: property.name,
-          ...analytics
-        };
-      })
-    );
-
-    const sortedProperties = propertiesWithAnalytics.sort((a, b) => b.yields.net - a.yields.net);
-    const topProperty = sortedProperties[0] || null;
-
-    return res.status(200).json({
-      message: 'Top performing property retrieved',
-      property: topProperty
-    });
-  } catch (error) {
-    console.error("Error fetching top performing property:", error);
-    return res.status(500).json({ message: "Error retrieving top property", error });
   }
 };
 
@@ -1526,10 +1478,7 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       include: [
         {
           model: Transaction,
-          where: { 
-            user_id: userId, 
-            status: 'success'
-          },
+          where: { user_id: userId },
           required: false,
           attributes: []
         },
@@ -1537,14 +1486,12 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
           model: InstallmentOwnership,
           where: { user_id: userId },
           required: false,
-          attributes: [],
           as: 'installmentOwnerships'
         },
         {
           model: FractionalOwnership,
           where: { user_id: userId },
           required: false,
-          attributes: [],
           as: 'fractionalOwnerships'
         }
       ],
@@ -1552,35 +1499,19 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
     });
 
     const analytics = await Promise.all(
-      userProperties.map(async property => {
-        const propertyAnalytics = await calculatePropertyAnalytics(property.id, userId);
-        return {
-          propertyId: property.id,
-          name: property.name,
-          type: property.type,
-          ...propertyAnalytics
-        };
-      })
-    );
+      userProperties.map(property => 
+        calculatePropertyAnalytics(property.id, userId)
+    ));
 
-    const totals = {
-      total_value: analytics.reduce((sum, a) => sum + (a.valuations.estimated_value || 0), 0),
-      total_equity: analytics.reduce((sum, a) => sum + (a.valuations.potential_equity || 0), 0),
-      annual_rental_income: analytics.reduce((sum, a) => sum + (a.rental.annual_income || 0), 0),
-      total_investment: analytics.reduce((sum, a) => sum + (a.installment?.total_paid || 0) + 
-                                             (a.fractional?.total_invested || 0), 0)
-    };
-
-    return res.status(200).json({
-      message: 'User property analytics retrieved',
-      properties: analytics,
-      totals
+    res.status(200).json({
+      success: true,
+      properties: analytics
     });
   } catch (error) {
-    console.error("Error fetching user properties analytics:", error);
-    return res.status(500).json({ 
-      message: "Error retrieving user analytics",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    console.error("User analytics error:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Error retrieving user analytics"
     });
   }
 };

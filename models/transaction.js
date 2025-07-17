@@ -134,7 +134,17 @@ module.exports = (sequelize, DataTypes) => {
     transaction_date: {
       type: DataTypes.DATE,
       allowNull: false,
-    }
+    },
+    payment_type: {
+      type: DataTypes.ENUM(
+        'fractional',
+        'fractionalInstallment',
+        'installment',
+        'rental'
+      ),
+      allowNull: false,
+      defaultValue: 'fractional'
+    },
   }, {
     tableName: 'Transactions',
     timestamps: true
