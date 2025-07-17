@@ -176,6 +176,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       defaultValue: null, // Default value for non-fractional properties
     },
+    market_value: {
+      type: DataTypes.FLOAT,
+      allowNull: true, 
+      defaultValue: null
+    },
     views: {
       type: DataTypes.INTEGER,
       defaultValue: 0,

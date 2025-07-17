@@ -242,7 +242,7 @@ exports.createProperty = async (req, res) => {
         interior_area, parking, material, date_on_market,
         ownership, kitchen, heating, cooling, type_and_style, lot,
         percentage, duration, is_fractional, fractional_slots,
-        isRental, isInstallment, isFractionalInstallment, isFractionalDuration, annual_rent,
+        isRental, isInstallment, isFractionalInstallment, isFractionalDuration, annual_rent, market_value,
       } = req.body;
 
       // === Typecasting and validation ===
@@ -319,6 +319,7 @@ exports.createProperty = async (req, res) => {
         type_and_style: splitToArray(type_and_style),
         lot: splitToArray(lot),
         parking: splitToArray(parking),
+        market_value: market_value ? parseFloat(market_value) : null,
       };
 
       // Rest of your existing code remains exactly the same...
