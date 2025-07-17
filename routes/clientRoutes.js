@@ -58,6 +58,8 @@ router.get('/properties/most-viewed', PropertyController.getMostViewedProperties
 // User properties
 router.get('/properties/user', authenticate, PropertyController.getUserProperties);
 router.get('/property-analytics/:propertyId', authenticate, PropertyController.getPropertyAnalytics);
+router.get('/analytics/top-performing', authenticate, PropertyController.getTopPerformingProperty);
+router.get('/users/:userId/analytics', authenticate, PropertyController.getUserPropertiesAnalytics);
 
 // Notification
 router.post('/notifications', authenticate, NotificationController.createNotification);
