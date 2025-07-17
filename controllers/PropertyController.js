@@ -1375,7 +1375,7 @@ async function calculatePropertyAnalytics(propertyId, userId = null) {
   const annual_income = await Transaction.sum('price', {
     where: {
       property_id: property.id,
-      payment_type: 'rent'
+      // payment_type: 'rent'
     }
   }) || 0;
 
