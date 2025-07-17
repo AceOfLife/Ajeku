@@ -1,4 +1,4 @@
-const { UserDocument, Client, User } = require('../models');
+const { UserDocument, Client, User, sequelize } = require('../models');
 // const { uploadImagesToCloudinary } = require('../utils/cloudinary');
 const {uploadImagesToCloudinary} = require('../config/multerConfig');
 
