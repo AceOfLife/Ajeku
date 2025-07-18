@@ -1361,91 +1361,52 @@ exports.updateEstimatedValue = async (req, res) => {
 };
 
 async function calculatePropertyAnalytics(propertyId, userId = null) {
-  const property = await Property.findByPk(propertyId, {
-    include: [
-      {
-        model: InstallmentOwnership,
-        as: 'installmentOwnerships',
-        required: false
-      },
-      {
-        model: FractionalOwnership,
-        as: 'fractionalOwnerships',
-        required: false
-      }
-    ]
-  });
-
+  const property = await Property.findByPk(propertyId);
   if (!property) return null;
 
-  // Base metrics
   const annual_rent = parseFloat(property.annual_rent || 0);
-  const estimated_value = parseFloat(property.estimated_value || property.price || 0);
+  const monthly_rent = annual_rent / 12;
+
   const monthly_expense = parseFloat(property.monthly_expense || 0);
+  const annual_expense = monthly_expense * 12;
 
-  // Get all successful transactions grouped by payment type
-  const paymentBreakdown = await Transaction.findAll({
-    attributes: [
-      'payment_type',
-      [sequelize.fn('SUM', sequelize.col('price')), 'total_amount'],
-      [sequelize.fn('COUNT', sequelize.col('id')), 'transaction_count']
-    ],
-    where: { 
+  const estimated_value = parseFloat(property.estimated_value || property.price || 0);
+
+  const annual_income = await Transaction.sum('price', {
+    where: {
       property_id: property.id,
-      status: 'success'
-    },
-    group: ['payment_type']
-  });
+      // payment_type: 'rent'
+    }
+  }) || 0;
 
-  // Initialize metrics for all payment types
-  const paymentTypes = ['fractional', 'fractionalInstallment', 'installment', 'rental'];
-  const metrics = {};
-  
-  paymentTypes.forEach(type => {
-    const data = paymentBreakdown.find(p => p.payment_type === type);
-    metrics[type] = {
-      total: data?.total_amount || 0,
-      count: data?.transaction_count || 0
-    };
-  });
-
-  // User-specific calculations
-  let userMetrics = {};
+  let outstanding_balance = 0;
   if (userId) {
-    const installment = property.installmentOwnerships?.find(i => i.user_id === userId);
-    const fractional = property.fractionalOwnerships?.find(f => f.user_id === userId);
+    const ownership = await InstallmentOwnership.findOne({
+      where: { user_id: userId, property_id: property.id }
+    });
 
-    userMetrics = {
-      installment: installment ? {
-        paid: installment.months_paid,
-        total: installment.total_months,
-        amountPerMonth: property.price / installment.total_months
-      } : null,
-      fractional: fractional ? {
-        slots: fractional.slots_purchased,
-        percentage: (fractional.slots_purchased / property.fractional_slots) * 100
-      } : null
-    };
+    if (ownership) {
+      const total_months = ownership.total_months || 0;
+      const months_paid = ownership.months_paid || 0;
+      const monthly_installment = property.price / total_months;
+      outstanding_balance = monthly_installment * (total_months - months_paid);
+    }
   }
 
-  // Yield calculations (only for rental properties)
-  const gross_yield = property.isRental && estimated_value ? 
-    (metrics.rental.total / estimated_value) * 100 : 0;
-  
-  const net_yield = property.isRental && estimated_value ? 
-    ((metrics.rental.total - (monthly_expense * 12))) / estimated_value * 100 : 0;
+  const potential_equity = estimated_value - outstanding_balance;
+
+  const gross_yield = estimated_value ? (annual_income / estimated_value) * 100 : 0;
+  const net_yield = estimated_value ? ((annual_income - annual_expense) / estimated_value) * 100 : 0;
 
   return {
-    payments: metrics,
-    valuations: {
-      estimated_value,
-      potential_equity: estimated_value - metrics.installment.total
-    },
-    yields: {
-      gross: parseFloat(gross_yield.toFixed(2)),
-      net: parseFloat(net_yield.toFixed(2))
-    },
-    ...(userId ? { user: userMetrics } : {})
+    monthly_rent,
+    annual_expense,
+    annual_income,
+    outstanding_balance,
+    estimated_value,
+    potential_equity,
+    gross_yield: parseFloat(gross_yield.toFixed(2)),
+    net_yield: parseFloat(net_yield.toFixed(2))
   };
 }
 
