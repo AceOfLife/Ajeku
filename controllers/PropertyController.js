@@ -1,7 +1,7 @@
 // PropertyImage Table Update
 
 // const { Property, User, PropertyImage } = require('../models');
-const { Property, User, PropertyImage, FractionalOwnership, InstallmentOwnership, Transaction } = require('../models');
+const { Property, User, PropertyImage, FractionalOwnership, InstallmentOwnership, Transaction, sequelize } = require('../models');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
@@ -1364,168 +1364,139 @@ async function calculatePropertyAnalytics(propertyId, userId = null) {
   const property = await Property.findByPk(propertyId);
   if (!property) return null;
 
-  const annual_rent = parseFloat(property.annual_rent || 0);
-  const monthly_rent = annual_rent / 12;
-
+  // Base metrics
+  const estimated_value = parseFloat(property.estimated_value || property.price || 0);
   const monthly_expense = parseFloat(property.monthly_expense || 0);
   const annual_expense = monthly_expense * 12;
 
-  const estimated_value = parseFloat(property.estimated_value || property.price || 0);
-
+  // Get all successful transactions for the property
   const annual_income = await Transaction.sum('price', {
     where: {
       property_id: property.id,
-      // payment_type: 'rent'
+      status: 'success'
     }
   }) || 0;
 
+  // Calculate outstanding balance (for installment properties)
   let outstanding_balance = 0;
-  if (userId) {
+  if (userId && property.isInstallment) {
     const ownership = await InstallmentOwnership.findOne({
       where: { user_id: userId, property_id: property.id }
     });
-
     if (ownership) {
-      const total_months = ownership.total_months || 0;
-      const months_paid = ownership.months_paid || 0;
-      const monthly_installment = property.price / total_months;
-      outstanding_balance = monthly_installment * (total_months - months_paid);
+      const monthly_installment = property.price / ownership.total_months;
+      outstanding_balance = monthly_installment * (ownership.total_months - ownership.months_paid);
     }
   }
 
-  const potential_equity = estimated_value - outstanding_balance;
-
+  // Yield calculations
   const gross_yield = estimated_value ? (annual_income / estimated_value) * 100 : 0;
   const net_yield = estimated_value ? ((annual_income - annual_expense) / estimated_value) * 100 : 0;
 
   return {
-    monthly_rent,
     annual_expense,
     annual_income,
     outstanding_balance,
     estimated_value,
-    potential_equity,
+    potential_equity: estimated_value - outstanding_balance,
     gross_yield: parseFloat(gross_yield.toFixed(2)),
     net_yield: parseFloat(net_yield.toFixed(2))
   };
 }
 
-// ======================
-// EXISTING CONTROLLER
-// ======================
+
 exports.getPropertyAnalytics = async (req, res) => {
   try {
     const { propertyId } = req.params;
-    const { userId } = req.query;
-
-    const property = await Property.findByPk(propertyId);
-    if (!property || !property.isRental) {
-      return res.status(404).json({ message: 'Rental property not found' });
-    }
+    const userId = req.user.id; // Get from token
 
     const analytics = await calculatePropertyAnalytics(propertyId, userId);
-
-    return res.status(200).json({
+    
+    res.status(200).json({
       message: 'Property analytics retrieved',
       analytics
     });
   } catch (error) {
-    console.error("Error fetching property analytics:", error);
-    return res.status(500).json({ message: "Error retrieving analytics", error });
+    console.error("Error:", error);
+    res.status(500).json({ message: "Error retrieving analytics" });
   }
 };
 
-// ======================
-// NEW CONTROLLERS
-// ======================
 exports.getTopPerformingProperty = async (req, res) => {
   try {
+    const userId = req.user.id; // Get from token
+    
     const properties = await Property.findAll({
-      where: { isRental: true },
-      include: [{
-        model: Transaction,
-        where: { payment_type: 'rent' },
-        required: false
-      }]
+      where: { isRental: true } // Or your criteria for "performance"
     });
 
     const propertiesWithAnalytics = await Promise.all(
-      properties.map(async property => {
-        const analytics = await calculatePropertyAnalytics(property.id);
-        return {
-          propertyId: property.id,
-          name: property.name,
-          ...analytics
-        };
-      })
+      properties.map(async property => ({
+        propertyId: property.id,
+        name: property.name,
+        analytics: await calculatePropertyAnalytics(property.id, userId)
+      }))
     );
 
-    const sortedProperties = propertiesWithAnalytics.sort((a, b) => b.net_yield - a.net_yield);
-    const topProperty = sortedProperties[0] || null;
-
-    return res.status(200).json({
+    // Sort by net yield (descending)
+    const sorted = propertiesWithAnalytics.sort((a, b) => b.analytics.net_yield - a.analytics.net_yield);
+    
+    res.status(200).json({
       message: 'Top performing property retrieved',
-      property: topProperty
+      property: sorted[0] || null
     });
   } catch (error) {
-    console.error("Error fetching top performing property:", error);
-    return res.status(500).json({ message: "Error retrieving top property", error });
+    console.error("Error:", error);
+    res.status(500).json({ message: "Error retrieving top property" });
   }
 };
 
 exports.getUserPropertiesAnalytics = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const userId = req.user.id; // Get from token
 
+    // Get all properties associated with the user
     const userProperties = await Property.findAll({
       include: [
         {
           model: Transaction,
-          where: { user_id: userId, status: 'success' },
-          required: false
+          where: { user_id: userId },
+          required: false,
+          attributes: []
         },
         {
           model: InstallmentOwnership,
           where: { user_id: userId },
-          required: false
-        },
-        {
-          model: FractionalOwnership,
-          where: { user_id: userId },
-          required: false
+          required: false,
+          attributes: []
         }
       ],
       distinct: true
     });
 
     const analytics = await Promise.all(
-      userProperties.map(async property => {
-        const propertyAnalytics = await calculatePropertyAnalytics(property.id, userId);
-        return {
-          propertyId: property.id,
-          name: property.name,
-          type: property.type,
-          ...propertyAnalytics
-        };
-      })
+      userProperties.map(property => 
+        calculatePropertyAnalytics(property.id, userId)
+      )
     );
 
+    // Calculate totals
     const totals = {
-      total_annual_income: analytics.reduce((sum, a) => sum + (a.annual_income || 0), 0),
-      total_outstanding: analytics.reduce((sum, a) => sum + (a.outstanding_balance || 0), 0),
-      total_equity: analytics.reduce((sum, a) => sum + (a.potential_equity || 0), 0),
-      average_yield: analytics.length > 0 
-        ? analytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / analytics.length 
+      total_annual_income: analytics.reduce((sum, a) => sum + a.annual_income, 0),
+      total_outstanding: analytics.reduce((sum, a) => sum + a.outstanding_balance, 0),
+      total_equity: analytics.reduce((sum, a) => sum + a.potential_equity, 0),
+      avg_yield: analytics.length > 0 
+        ? analytics.reduce((sum, a) => sum + a.net_yield, 0) / analytics.length
         : 0
     };
 
-    return res.status(200).json({
+    res.status(200).json({
       message: 'User property analytics retrieved',
       properties: analytics,
       totals
     });
   } catch (error) {
-    console.error("Error fetching user properties analytics:", error);
-    return res.status(500).json({ message: "Error retrieving user analytics", error });
+    console.error("Error:", error);
+    res.status(500).json({ message: "Error retrieving user analytics" });
   }
 };
