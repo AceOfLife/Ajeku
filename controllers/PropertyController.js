@@ -1,7 +1,7 @@
 // PropertyImage Table Update
 
 // const { Property, User, PropertyImage } = require('../models');
-const { Property, User, PropertyImage, FractionalOwnership, InstallmentOwnership, Transaction, sequelize } = require('../models');
+const { Property, User, PropertyImage, FractionalOwnership, InstallmentOwnership, Transaction } = require('../models');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
@@ -1521,51 +1521,51 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       include: [
         {
           model: Transaction,
-          where: { user_id: userId },
-          required: false,
-          attributes: []
+          where: { user_id: userId, status: 'success' },
+          required: false
         },
         {
           model: InstallmentOwnership,
           where: { user_id: userId },
-          required: false,
-          as: 'installmentOwnerships'
+          required: false
         },
         {
           model: FractionalOwnership,
           where: { user_id: userId },
-          required: false,
-          as: 'fractionalOwnerships'
+          required: false
         }
       ],
       distinct: true
     });
 
     const analytics = await Promise.all(
-      userProperties.map(property => 
-        calculatePropertyAnalytics(property.id, userId)
-    ));
+      userProperties.map(async property => {
+        const propertyAnalytics = await calculatePropertyAnalytics(property.id, userId);
+        return {
+          propertyId: property.id,
+          name: property.name,
+          type: property.type,
+          ...propertyAnalytics
+        };
+      })
+    );
 
-    // Calculate totals across all properties
     const totals = {
-      total_value: analytics.reduce((sum, a) => sum + (a.valuations.estimated_value || 0), 0),
-      total_investment: analytics.reduce((sum, a) => 
-        sum + a.payments.fractional.total + a.payments.fractionalInstallment.total + a.payments.installment.total, 0),
-      total_rental_income: analytics.reduce((sum, a) => sum + (a.payments.rental.total || 0), 0),
-      average_yield: analytics.length > 0 ? 
-        analytics.reduce((sum, a) => sum + (a.yields.net || 0), 0) / analytics.length : 0
+      total_annual_income: analytics.reduce((sum, a) => sum + (a.annual_income || 0), 0),
+      total_outstanding: analytics.reduce((sum, a) => sum + (a.outstanding_balance || 0), 0),
+      total_equity: analytics.reduce((sum, a) => sum + (a.potential_equity || 0), 0),
+      average_yield: analytics.length > 0 
+        ? analytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / analytics.length 
+        : 0
     };
 
-    res.status(200).json({
-      success: true,
+    return res.status(200).json({
+      message: 'User property analytics retrieved',
       properties: analytics,
       totals
     });
   } catch (error) {
-    console.error("User analytics error:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "Error retrieving user analytics"
-    });
+    console.error("Error fetching user properties analytics:", error);
+    return res.status(500).json({ message: "Error retrieving user analytics", error });
   }
 };
