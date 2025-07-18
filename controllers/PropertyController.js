@@ -1453,7 +1453,7 @@ exports.getTopPerformingProperty = async (req, res) => {
 
 exports.getUserPropertiesAnalytics = async (req, res) => {
   try {
-    const userId = req.user.id; // Get from token
+    const userId = req.user.id;
 
     // Get all properties associated with the user
     const userProperties = await Property.findAll({
@@ -1466,6 +1466,14 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
         },
         {
           model: InstallmentOwnership,
+          as: 'installmentOwnerships', // Add this line
+          where: { user_id: userId },
+          required: false,
+          attributes: []
+        },
+        {
+          model: FractionalOwnership,
+          as: 'fractionalOwnerships', // Add this line
           where: { user_id: userId },
           required: false,
           attributes: []
@@ -1482,11 +1490,11 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
 
     // Calculate totals
     const totals = {
-      total_annual_income: analytics.reduce((sum, a) => sum + a.annual_income, 0),
-      total_outstanding: analytics.reduce((sum, a) => sum + a.outstanding_balance, 0),
-      total_equity: analytics.reduce((sum, a) => sum + a.potential_equity, 0),
+      total_annual_income: analytics.reduce((sum, a) => sum + (a.annual_income || 0), 0),
+      total_outstanding: analytics.reduce((sum, a) => sum + (a.outstanding_balance || 0), 0),
+      total_equity: analytics.reduce((sum, a) => sum + (a.potential_equity || 0), 0),
       avg_yield: analytics.length > 0 
-        ? analytics.reduce((sum, a) => sum + a.net_yield, 0) / analytics.length
+        ? analytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / analytics.length
         : 0
     };
 
@@ -1496,7 +1504,10 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       totals
     });
   } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({ message: "Error retrieving user analytics" });
+    console.error("Error fetching user properties analytics:", error);
+    res.status(500).json({ 
+      message: "Error retrieving user analytics",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
