@@ -1474,13 +1474,16 @@ exports.getPropertyAnalytics = async (req, res) => {
   }
 };
 
+// ======================
+// NEW CONTROLLERS
+// ======================
 exports.getTopPerformingProperty = async (req, res) => {
   try {
     const properties = await Property.findAll({
       where: { isRental: true },
       include: [{
         model: Transaction,
-        where: { payment_type: 'rental' },
+        where: { payment_type: 'rent' },
         required: false
       }]
     });
@@ -1496,20 +1499,16 @@ exports.getTopPerformingProperty = async (req, res) => {
       })
     );
 
-    // Sort by net yield (descending)
-    const sortedProperties = propertiesWithAnalytics.sort((a, b) => b.yields.net - a.yields.net);
+    const sortedProperties = propertiesWithAnalytics.sort((a, b) => b.net_yield - a.net_yield);
     const topProperty = sortedProperties[0] || null;
 
-    res.status(200).json({
-      success: true,
+    return res.status(200).json({
+      message: 'Top performing property retrieved',
       property: topProperty
     });
   } catch (error) {
-    console.error("Top performing property error:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "Error retrieving top property"
-    });
+    console.error("Error fetching top performing property:", error);
+    return res.status(500).json({ message: "Error retrieving top property", error });
   }
 };
 
