@@ -31,12 +31,12 @@ exports.initializePayment = async (req, res) => {
         return res.status(400).json({ message: 'Annual rent must be set for rental properties' });
       }
 
-      // Simplified check without transaction
+      // UPDATED: Use rental_rooms instead of number_of_rooms
       const totalBooked = await RentalBooking.sum('rooms_booked', {
         where: { property_id: property.id }
       }) || 0;
 
-      const availableRooms = property.number_of_rooms - totalBooked;
+      const availableRooms = property.rental_rooms - totalBooked;
       const roomsRequested = parseInt(rooms) || 1;
 
       if (availableRooms < roomsRequested) {
@@ -89,7 +89,7 @@ exports.initializePayment = async (req, res) => {
     }
     // Rental Payment
     else if (payment_type === "rental" && property.isRental) {
-      amount = property.annual_rent;
+      amount = (property.annual_rent / property.rental_rooms) * rooms; // UPDATED: Calculate based on rooms
     }
 
     // 5. Initialize Payment with Paystack
@@ -359,11 +359,21 @@ exports.verifyPayment = async (req, res) => {
         end_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
       }, { transaction: t });
 
-      await Property.decrement('number_of_rooms', {
-        by: roomsBooked,
-        where: { id: property.id },
+      // UPDATED: Track available rental rooms instead of total rooms
+      const totalBooked = await RentalBooking.sum('rooms_booked', {
+        where: { property_id: property.id },
         transaction: t
-      });
+      }) || 0;
+
+      const availableRooms = property.rental_rooms - totalBooked;
+
+      if (availableRooms < 0) {
+        await t.rollback();
+        return res.status(400).json({ 
+          message: "No rental rooms available after booking",
+          availableRooms
+        });
+      }
 
       await t.commit();
       return res.status(200).json({
@@ -373,7 +383,8 @@ exports.verifyPayment = async (req, res) => {
           bookingId: rental.id,
           roomsBooked,
           startDate: rental.start_date,
-          endDate: rental.end_date
+          endDate: rental.end_date,
+          availableRooms
         }
       });
     }

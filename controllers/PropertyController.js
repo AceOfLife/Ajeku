@@ -243,6 +243,7 @@ exports.createProperty = async (req, res) => {
         ownership, kitchen, heating, cooling, type_and_style, lot,
         percentage, duration, is_fractional, fractional_slots,
         isRental, isInstallment, isFractionalInstallment, isFractionalDuration, annual_rent, market_value,
+        rental_rooms // NEW: Added rental_rooms
       } = req.body;
 
       // === Typecasting and validation ===
@@ -259,6 +260,7 @@ exports.createProperty = async (req, res) => {
         : null;
       const parsedIsRental = ["true", "1", true].includes(isRental);
       const parsedAnnualRent = annual_rent ? parseFloat(annual_rent) : null;
+      const parsedRentalRooms = rental_rooms ? parseInt(rental_rooms, 10) : 0; // NEW: Parse rental_rooms
 
       // === Validation ===
       if (!parsedFractional && isInstallment === undefined) {
@@ -280,6 +282,13 @@ exports.createProperty = async (req, res) => {
         return res.status(400).json({ message: "Annual rent must be a positive number when isRental is true" });
       }
 
+      // NEW: Validate rental_rooms when isRental is true
+      if (parsedIsRental && (parsedRentalRooms <= 0 || parsedRentalRooms > number_of_rooms)) {
+        return res.status(400).json({ 
+          message: `Rental rooms must be between 1 and ${number_of_rooms} when isRental is true` 
+        });
+      }
+
       const newPropertyData = {
         name,
         size: parseInt(size, 10) || 0,
@@ -291,6 +300,7 @@ exports.createProperty = async (req, res) => {
         address: address || "",
         number_of_baths: parseInt(number_of_baths, 10) || 0,
         number_of_rooms: parseInt(number_of_rooms, 10) || 0,
+        rental_rooms: parsedRentalRooms, // NEW: Added rental_rooms
         listed_by: "Admin",
         description: description || "",
         payment_plan: payment_plan || "",
@@ -310,7 +320,7 @@ exports.createProperty = async (req, res) => {
         price_per_slot: parsedFractional ? (parsedPrice / (parsedFractionalSlots || 1)) : null,
         available_slots: parsedFractional ? parsedFractionalSlots : null,
         isRental: parsedIsRental,
-        annual_rent: parsedAnnualRent, // Include the parsed value
+        annual_rent: parsedAnnualRent,
         isFractionalInstallment: parsedIsFractionalInstallment,
         isFractionalDuration: parsedFractional && parsedIsFractionalInstallment ? parsedIsFractionalDuration : null,
         kitchen: splitToArray(kitchen),
@@ -322,7 +332,6 @@ exports.createProperty = async (req, res) => {
         market_value: market_value ? parseFloat(market_value) : null,
       };
 
-      // Rest of your existing code remains exactly the same...
       const newProperty = await Property.create(newPropertyData);
 
       const property = await Property.findByPk(newProperty.id);
