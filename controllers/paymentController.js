@@ -17,59 +17,104 @@ exports.initializePayment = async (req, res) => {
   try {
     const { user_id, property_id, payment_type, slots = 1, rooms = 1 } = req.body;
 
-    // 1. Fetch User and Property (unchanged)
+    // 1. Fetch User
     const user = await User.findByPk(user_id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
+    // 2. Fetch Property
     const property = await Property.findByPk(property_id);
     if (!property) return res.status(404).json({ message: 'Property not found' });
 
-    // 2. Rental Availability Check (unchanged)
+    // 3. Handle Rental Availability Check (TRANSACTION REMOVED)
     if (payment_type === "rental" && property.isRental) {
+      if (!property.annual_rent || property.annual_rent <= 0) {
+        return res.status(400).json({ message: 'Annual rent must be set for rental properties' });
+      }
+
+      // Simplified check without transaction
       const totalBooked = await RentalBooking.sum('rooms_booked', {
         where: { property_id: property.id }
       }) || 0;
 
-      const availableRooms = property.rental_rooms - totalBooked;
+      const availableRooms = property.number_of_rooms - totalBooked;
       const roomsRequested = parseInt(rooms) || 1;
 
       if (availableRooms < roomsRequested) {
         return res.status(400).json({ 
-          message: `Only ${availableRooms} room(s) available`,
+          message: `Only ${availableRooms} room(s) available - booking rejected`,
           availableRooms
         });
       }
     }
 
-    // 3. Corrected Rental Payment Calculation
-    let amount = property.price; // Default to property price
+    // 4. Calculate Amount Based on Payment Type
+    let amount = property.price;
 
+    // Fractional Outright Payment
     if (payment_type === "fractional" && property.is_fractional) {
+      if (!property.price_per_slot || !property.fractional_slots) {
+        return res.status(400).json({ message: 'Invalid fractional property setup' });
+      }
+      if (slots > property.fractional_slots) {
+        return res.status(400).json({ message: 'Not enough fractional slots available' });
+      }
       amount = property.price_per_slot * slots;
-    } 
+    }
+    // Standard Installment
     else if (payment_type === "installment" && property.isInstallment) {
-      amount = property.is_fractional 
-        ? property.price_per_slot * slots
-        : property.price / property.duration;
-    } 
-    else if (payment_type === "fractionalInstallment" && property.isFractionalInstallment) {
+      if (property.is_fractional) {
+        if (!property.price_per_slot || !property.fractional_slots) {
+          return res.status(400).json({ message: 'Invalid fractional installment setup' });
+        }
+        if (slots > property.fractional_slots) {
+          return res.status(400).json({ message: 'Not enough fractional slots available' });
+        }
+        amount = property.price_per_slot * slots;
+      } else {
+        if (!property.duration || property.duration <= 0) {
+          return res.status(400).json({ message: 'Invalid installment setup' });
+        }
+        amount = property.price / property.duration;
+      }
+    }
+    // Fractional Installment
+    else if (payment_type === "fractionalInstallment" && property.is_fractional && property.isFractionalInstallment) {
+      if (!property.price_per_slot || !property.isFractionalDuration || !property.fractional_slots) {
+        return res.status(400).json({ message: 'Invalid fractional installment duration setup' });
+      }
+      if (slots > property.fractional_slots) {
+        return res.status(400).json({ message: 'Not enough fractional slots available' });
+      }
       amount = (property.price_per_slot * slots) / property.isFractionalDuration;
-    } 
+    }
+    // Rental Payment
     else if (payment_type === "rental" && property.isRental) {
-      // FIX: Multiply annual_rent by rooms (NO division by rental_rooms)
-      amount = property.annual_rent * rooms; // 200,000 * 1 = 200,000 NGN
+      amount = property.annual_rent;
     }
 
-    // Rest of your code (Paystack initialization) remains unchanged...
+    // 5. Initialize Payment with Paystack
     const amountInKobo = Math.round(amount * 100);
     const response = await axios.post(
       "https://api.paystack.co/transaction/initialize",
       {
         email: user.email,
         amount: amountInKobo,
-        metadata: { user_id, property_id, payment_type, slots, rooms }
+        currency: "NGN",
+        callback_url: `https://ajeku-developing.vercel.app/payment-success?propertyId=${property.id}`,
+        metadata: {
+          user_id: user.id,
+          property_id: property.id,
+          payment_type,
+          slots,
+          rooms: parseInt(rooms) || 1
+        }
       },
-      { headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` } }
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
     );
 
     res.status(200).json({
@@ -78,7 +123,14 @@ exports.initializePayment = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({ message: "Error initializing payment", error });
+    console.error("Payment Initialization Error:", {
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+    res.status(500).json({ 
+      message: "Error initializing payment",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
@@ -307,21 +359,11 @@ exports.verifyPayment = async (req, res) => {
         end_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
       }, { transaction: t });
 
-      // UPDATED: Track available rental rooms instead of total rooms
-      const totalBooked = await RentalBooking.sum('rooms_booked', {
-        where: { property_id: property.id },
+      await Property.decrement('rental_rooms', {
+        by: roomsBooked,
+        where: { id: property.id },
         transaction: t
-      }) || 0;
-
-      const availableRooms = property.rental_rooms - totalBooked;
-
-      if (availableRooms < 0) {
-        await t.rollback();
-        return res.status(400).json({ 
-          message: "No rental rooms available after booking",
-          availableRooms
-        });
-      }
+      });
 
       await t.commit();
       return res.status(200).json({
@@ -331,8 +373,7 @@ exports.verifyPayment = async (req, res) => {
           bookingId: rental.id,
           roomsBooked,
           startDate: rental.start_date,
-          endDate: rental.end_date,
-          availableRooms
+          endDate: rental.end_date
         }
       });
     }
