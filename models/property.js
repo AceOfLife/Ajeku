@@ -176,6 +176,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       defaultValue: null, // Default value for non-fractional properties
     },
+    rental_rooms: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+    },
     market_value: {
       type: DataTypes.FLOAT,
       allowNull: true, 
