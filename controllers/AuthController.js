@@ -145,65 +145,18 @@ const login = async (req, res) => {
 
 const signup = async (req, res) => {
   const { name, email, password, role } = req.body;
-
   const transaction = await sequelize.transaction();
+
   try {
+    // [1] Check existing user
     const existingUser = await User.findOne({ where: { email }, transaction });
     if (existingUser) {
       await transaction.rollback();
       return res.status(400).json({ message: 'Email already in use' });
     }
 
+    // [2] Create user
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    if (role === 'client') {
-      const newUser = await User.create({
-        name,
-        email,
-        password: hashedPassword,
-        role
-      }, { transaction });
-
-      await Client.create({
-        user_id: newUser.id,
-        status: 'Unverified'
-      }, { transaction });
-
-      // Create user notification
-      await Notification.create({
-        user_id: newUser.id,
-        title: 'Welcome!',
-        message: `Hi ${name}, your client account has been created!`,
-        type: 'user_signup',
-        is_read: false
-      }, { transaction });
-
-      // Create admin notifications
-      const admins = await User.findAll({ 
-        where: { role: 'admin' },
-        transaction
-      });
-
-      await Promise.all(admins.map(admin => 
-        Notification.create({
-          user_id: admin.id,
-          title: 'New Client Registration',
-          message: `New client: ${name} (${email})`,
-          type: 'admin_alert',
-          is_read: false
-        }, { transaction })
-      ));
-
-      await transaction.commit();
-      return res.status(201).json({
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role
-      });
-    }
-
-    // For non-client roles
     const newUser = await User.create({
       name,
       email,
@@ -211,13 +164,57 @@ const signup = async (req, res) => {
       role
     }, { transaction });
 
-    await Notification.create({
-      user_id: newUser.id,
-      title: 'Account Created',
-      message: `Your ${role} account is ready`,
-      type: 'user_signup',
-      is_read: false
-    }, { transaction });
+    // [3] For clients only
+    if (role === 'client') {
+      await Client.create({
+        user_id: newUser.id,
+        status: 'Unverified'
+      }, { transaction });
+    }
+
+    // [4] DEBUG: Verify connection
+    console.log('Database connection:', sequelize.connectionManager.config);
+
+    // [5] Create notifications with RAW query as last resort
+    await sequelize.query(
+      `INSERT INTO notifications 
+       (user_id, title, message, type, is_read, created_at, updated_at) 
+       VALUES (?, ?, ?, ?, false, NOW(), NOW())`,
+      {
+        replacements: [
+          newUser.id,
+          'Welcome!',
+          `Hi ${name}, your account was created!`,
+          'user_signup'
+        ],
+        transaction
+      }
+    );
+
+    // [6] Create admin notifications
+    if (role === 'client') {
+      const [admins] = await sequelize.query(
+        `SELECT id FROM "Users" WHERE role = 'admin'`,
+        { transaction }
+      );
+
+      await Promise.all(admins.map(admin => 
+        sequelize.query(
+          `INSERT INTO notifications 
+           (user_id, title, message, type, is_read, created_at, updated_at) 
+           VALUES (?, ?, ?, ?, false, NOW(), NOW())`,
+          {
+            replacements: [
+              admin.id,
+              'New Client',
+              `${name} (${email}) registered`,
+              'admin_alert'
+            ],
+            transaction
+          }
+        )
+      ));
+    }
 
     await transaction.commit();
     return res.status(201).json({
@@ -229,8 +226,16 @@ const signup = async (req, res) => {
 
   } catch (error) {
     await transaction.rollback();
-    console.error('Signup error:', error);
-    res.status(500).json({ message: 'Server error', error });
+    console.error('SIGNUP ERROR DETAILS:', {
+      message: error.message,
+      stack: error.stack,
+      query: error.sql,
+      parameters: error.parameters
+    });
+    res.status(500).json({ 
+      message: 'Registration failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : null
+    });
   }
 };
 
