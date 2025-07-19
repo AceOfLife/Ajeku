@@ -202,6 +202,7 @@ const signup = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
+    console.log('Starting signup transaction for', email);
     const existingUser = await User.findOne({ where: { email }, transaction });
     if (existingUser) {
       await transaction.rollback();
@@ -223,28 +224,30 @@ const signup = async (req, res) => {
         status: 'Unverified'
       }, { transaction });
 
-      // 1. Welcome notification for new client (using NotificationHelper)
+      console.log('Attempting user notification for', newUser.id);
       await NotificationHelper.createNotification({
         userId: newUser.id,
         title: 'Welcome!',
         message: `Hi ${name}, your client account has been created successfully!`,
         type: 'user_signup'
       }, transaction);
+      console.log('User notification created for', newUser.id);
 
-      // 2. Admin alert (using NotificationHelper)
+      console.log('Attempting admin notifications for', newUser.id);
       await NotificationHelper.notifyAdmins({
         title: 'New Client Registration',
         message: `New client signed up: ${email}`,
         type: 'admin_alert',
         relatedEntityId: newUser.id
       }, transaction);
+      console.log('Admin notifications created for', newUser.id);
 
       await transaction.commit();
+      console.log('Transaction committed for', newUser.id);
 
-      // 3. Real-time Socket.io notifications
       const io = req.app.get('socketio');
       if (io) {
-        const admins = await User.findAll({ where: { role: 'admin' } }); // Outside transaction
+        const admins = await User.findAll({ where: { role: 'admin' } });
         io.to(`user_${newUser.id}`).emit('new_notification', {
           event: 'user_signup',
           data: { userId: newUser.id, email: newUser.email, name: newUser.name }
@@ -265,7 +268,6 @@ const signup = async (req, res) => {
       });
     }
 
-    // For non-client roles (admin/agent/etc)
     const newUser = await User.create({
       name,
       email,
@@ -273,14 +275,17 @@ const signup = async (req, res) => {
       role
     }, { transaction });
 
+    console.log('Attempting notification for non-client', newUser.id);
     await NotificationHelper.createNotification({
       userId: newUser.id,
       title: 'Account Created',
       message: `Your ${role} account is ready`,
       type: 'user_signup'
     }, transaction);
+    console.log('Notification created for non-client', newUser.id);
 
     await transaction.commit();
+    console.log('Transaction committed for', newUser.id);
 
     const io = req.app.get('socketio');
     if (io) {
@@ -298,8 +303,8 @@ const signup = async (req, res) => {
     });
   } catch (error) {
     await transaction.rollback();
-    console.error('Signup error:', error);
-    res.status(500).json({ message: 'Server error', error });
+    console.error('Signup error:', error.message, error.stack);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 

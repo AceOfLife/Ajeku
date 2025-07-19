@@ -51,6 +51,7 @@
 // 19/07/2025
 
 // utils/notificationHelper.js
+// utils/notificationHelper.js
 const { Notification, User } = require('../models');
 
 class NotificationHelper {
@@ -89,7 +90,7 @@ class NotificationHelper {
         stack: error.stack,
         input: { userId, title }
       });
-      throw error; // Throw error to be caught by the caller
+      throw error;
     }
   }
 
@@ -130,7 +131,7 @@ class NotificationHelper {
         error: error.message,
         stack: error.stack
       });
-      throw error; // Throw error to be caught by the caller
+      throw error;
     }
   }
 }
