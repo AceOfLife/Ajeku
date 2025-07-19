@@ -312,7 +312,7 @@ exports.getClient = async (req, res) => {
 
 exports.createClient = [
   // Validation middleware
-  check('name').notEmpty().withMessage('Wetin'),
+  check('name').notEmpty().withMessage('Name is required'),
   check('email').isEmail().withMessage('Enter a valid email'),
   check('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
 
@@ -323,12 +323,13 @@ exports.createClient = [
     }
 
     const { name, email, password } = req.body;
+    const io = req.app.get('socketio'); // Get Socket.io instance
 
     try {
       // Check if email already exists
       const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
-        return res.status(400).json({ message: 'Email is already wetin' });
+        return res.status(400).json({ message: 'Email is already registered' });
       }
 
       // Hash the password
@@ -343,17 +344,85 @@ exports.createClient = [
         role: 'client',
       });
 
-      // Create the client record using the new user's ID
+      // Create the client record
       const newClient = await Client.create({
         user_id: newUser.id,
+        status: 'Unverified' // Explicitly set status
       });
 
-      res.status(201).json({ user: newUser, client: newClient });
+      // 1. Create welcome notification for new client
+      const userNotification = await Notification.create({
+        user_id: newUser.id,
+        title: 'Welcome to Our Platform!',
+        message: `Hi ${name}, your client account has been successfully created.`,
+        type: 'user_signup',
+        is_read: false
+      });
+
+      // 2. Notify all admins
+      const admins = await User.findAll({ where: { role: 'admin' } });
+      const adminNotifications = await Promise.all(
+        admins.map(admin => Notification.create({
+          user_id: admin.id,
+          title: 'New Client Registration',
+          message: `New client: ${name} (${email})`,
+          type: 'admin_alert',
+          is_read: false
+        }))
+      );
+
+      // Real-time notifications via Socket.io
+      if (io) {
+        // Send to new client
+        io.to(`user_${newUser.id}`).emit('new_notification', {
+          event: 'user_signup',
+          data: {
+            id: userNotification.id,
+            title: userNotification.title,
+            message: userNotification.message,
+            type: userNotification.type,
+            created_at: userNotification.created_at
+          }
+        });
+
+        // Send to all admins
+        adminNotifications.forEach(notification => {
+          io.to(`user_${notification.user_id}`).emit('new_notification', {
+            event: 'admin_alert',
+            data: {
+              id: notification.id,
+              title: notification.title,
+              message: notification.message,
+              type: notification.type,
+              created_at: notification.created_at
+            }
+          });
+        });
+      }
+
+      res.status(201).json({ 
+        user: {
+          id: newUser.id,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role
+        },
+        client: {
+          id: newClient.id,
+          status: newClient.status
+        }
+      });
+
     } catch (error) {
-      res.status(500).json({ message: 'Error creating client', error });
+      console.error('Client creation error:', error);
+      res.status(500).json({ 
+        message: 'Error creating client',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
-  },
+  }
 ];
+
 
 // exports.updateClient = async (req, res) => {
 //   try {
