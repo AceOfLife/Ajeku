@@ -144,32 +144,103 @@ const login = async (req, res) => {
   }
 };
 
-// TEMPORARY TEST - remove transactions
 const signup = async (req, res) => {
+  const { name, email, password, role } = req.body;
+  const io = req.app.get('socketio'); // Get Socket.io instance
+
+  const transaction = await sequelize.transaction();
   try {
-    const { name, email, password, role } = req.body;
-    
-    // Remove transaction from this find
-    const existingUser = await User.findOne({ where: { email } });
-    if (existingUser) return res.status(400).json({ message: 'Email already in use' });
+    // Existing validation
+    const existingUser = await User.findOne({ where: { email }, transaction });
+    if (existingUser) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Email already in use' });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = await User.create({ /* ... */ }); // no transaction
+    const newUser = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      role
+    }, { transaction });
 
-    // Create a simple notification without transaction
-    const testNotification = await Notification.create({
+    // Create client record if needed
+    if (role === 'client') {
+      await Client.create({
+        user_id: newUser.id,
+        status: 'Unverified'
+      }, { transaction });
+    }
+
+    // 1. Create USER notification (same pattern as your working endpoint)
+    const userNotification = await Notification.create({
       user_id: newUser.id,
-      title: 'TEST',
-      message: 'Test notification',
-      type: 'system',
+      title: role === 'client' ? 'Welcome!' : 'Account Created',
+      message: role === 'client' 
+        ? `Hi ${name}, your client account has been created!` 
+        : `Your ${role} account is ready`,
+      type: 'user_signup',
       is_read: false
+    }, { transaction });
+
+    // 2. Create ADMIN notifications (only for client signups)
+    if (role === 'client') {
+      const admins = await User.findAll({ 
+        where: { role: 'admin' },
+        transaction
+      });
+
+      await Promise.all(admins.map(admin => 
+        Notification.create({
+          user_id: admin.id,
+          title: 'New Client Registration',
+          message: `New client: ${name} (${email})`,
+          type: 'admin_alert',
+          is_read: false
+        }, { transaction })
+      ));
+    }
+
+    await transaction.commit();
+
+    // REAL-TIME NOTIFICATIONS (same pattern as your working endpoint)
+    if (io) {
+      // Send to new user
+      io.to(`user_${newUser.id}`).emit('new_notification', {
+        event: 'user_signup',
+        data: userNotification
+      });
+
+      // Send to admins if client
+      if (role === 'client') {
+        const admins = await User.findAll({ where: { role: 'admin' } });
+        admins.forEach(admin => {
+          io.to(`user_${admin.id}`).emit('new_notification', {
+            event: 'admin_alert',
+            data: {
+              title: 'New Client Registration',
+              message: `New client: ${name} (${email})`
+            }
+          });
+        });
+      }
+    }
+
+    return res.status(201).json({
+      id: newUser.id,
+      name: newUser.name,
+      email: newEmail.email,
+      role: newUser.role
     });
 
-    console.log('TEST NOTIFICATION CREATED:', testNotification.id);
-    return res.status(201).json(newUser);
   } catch (error) {
-    console.error('SIMPLE TEST ERROR:', error);
-    return res.status(500).json({ error });
+    await transaction.rollback();
+    console.error('Signup error:', error);
+    res.status(500).json({ 
+      message: 'Server error during signup',
+      error: error.message 
+    });
   }
 };
 
