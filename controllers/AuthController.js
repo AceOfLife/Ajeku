@@ -144,18 +144,22 @@ const login = async (req, res) => {
 };
 
 const signup = async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role = 'client' } = req.body;
   const transaction = await sequelize.transaction();
 
   try {
-    // [1] Check existing user
-    const existingUser = await User.findOne({ where: { email }, transaction });
+    // Check for existing user
+    const existingUser = await User.findOne({ 
+      where: { email },
+      transaction
+    });
+    
     if (existingUser) {
       await transaction.rollback();
       return res.status(400).json({ message: 'Email already in use' });
     }
 
-    // [2] Create user
+    // Create user
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await User.create({
       name,
@@ -164,7 +168,7 @@ const signup = async (req, res) => {
       role
     }, { transaction });
 
-    // [3] For clients only
+    // For clients only
     if (role === 'client') {
       await Client.create({
         user_id: newUser.id,
@@ -172,48 +176,64 @@ const signup = async (req, res) => {
       }, { transaction });
     }
 
-    // [4] DEBUG: Verify connection
-    console.log('Database connection:', sequelize.connectionManager.config);
+    // Create notifications
+    const [userNotification, adminNotifications] = await Promise.all([
+      // User notification
+      Notification.create({
+        user_id: newUser.id,
+        title: role === 'client' ? 'Welcome!' : 'Account Created',
+        message: role === 'client' 
+          ? `Hi ${name}, your client account was created!` 
+          : `Your ${role} account is ready`,
+        type: 'user_signup',
+        is_read: false
+      }, { transaction }),
 
-    // [5] Create notifications with RAW query as last resort
-    await sequelize.query(
-      `INSERT INTO notifications 
-       (user_id, title, message, type, is_read, created_at, updated_at) 
-       VALUES (?, ?, ?, ?, false, NOW(), NOW())`,
-      {
-        replacements: [
-          newUser.id,
-          'Welcome!',
-          `Hi ${name}, your account was created!`,
-          'user_signup'
-        ],
-        transaction
-      }
-    );
-
-    // [6] Create admin notifications
-    if (role === 'client') {
-      const [admins] = await sequelize.query(
-        `SELECT id FROM "Users" WHERE role = 'admin'`,
+      // Admin notifications (only for clients)
+      role === 'client' ? Notification.bulkCreate(
+        (await User.findAll({ 
+          where: { role: 'admin' },
+          attributes: ['id'],
+          transaction
+        })).map(admin => ({
+          user_id: admin.id,
+          title: 'New Client Signup',
+          message: `${name} (${email}) just registered`,
+          type: 'admin_alert',
+          is_read: false
+        })),
         { transaction }
-      );
+      ) : Promise.resolve([])
+    ]);
 
-      await Promise.all(admins.map(admin => 
-        sequelize.query(
-          `INSERT INTO notifications 
-           (user_id, title, message, type, is_read, created_at, updated_at) 
-           VALUES (?, ?, ?, ?, false, NOW(), NOW())`,
-          {
-            replacements: [
-              admin.id,
-              'New Client',
-              `${name} (${email}) registered`,
-              'admin_alert'
-            ],
-            transaction
-          }
-        )
-      ));
+    // Real-time notifications
+    const io = req.app.get('socketio');
+    if (io) {
+      try {
+        // To new user
+        io.to(`user_${newUser.id}`).emit('new_notification', {
+          id: userNotification.id,
+          title: userNotification.title,
+          message: userNotification.message,
+          type: userNotification.type,
+          created_at: userNotification.created_at
+        });
+
+        // To admins (if client)
+        if (role === 'client') {
+          adminNotifications.forEach(notif => {
+            io.to(`user_${notif.user_id}`).emit('new_notification', {
+              id: notif.id,
+              title: notif.title,
+              message: notif.message,
+              type: notif.type,
+              created_at: notif.created_at
+            });
+          });
+        }
+      } catch (socketError) {
+        console.error('Socket emission error:', socketError);
+      }
     }
 
     await transaction.commit();
@@ -226,11 +246,10 @@ const signup = async (req, res) => {
 
   } catch (error) {
     await transaction.rollback();
-    console.error('SIGNUP ERROR DETAILS:', {
+    console.error('Signup error:', {
       message: error.message,
       stack: error.stack,
-      query: error.sql,
-      parameters: error.parameters
+      body: req.body
     });
     res.status(500).json({ 
       message: 'Registration failed',
