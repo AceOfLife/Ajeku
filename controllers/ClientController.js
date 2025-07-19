@@ -310,50 +310,50 @@ exports.getClient = async (req, res) => {
 //   }
 // };
 
-// exports.createClient = [
-//   // Validation middleware
-//   check('name').notEmpty().withMessage('Name is required'),
-//   check('email').isEmail().withMessage('Enter a valid email'),
-//   check('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
+exports.createClient = [
+  // Validation middleware
+  check('name').notEmpty().withMessage('Wetin'),
+  check('email').isEmail().withMessage('Enter a valid email'),
+  check('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
 
-//   async (req, res) => {
-//     const errors = validationResult(req);
-//     if (!errors.isEmpty()) {
-//       return res.status(400).json({ errors: errors.array() });
-//     }
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
-//     const { name, email, password } = req.body;
+    const { name, email, password } = req.body;
 
-//     try {
-//       // Check if email already exists
-//       const existingUser = await User.findOne({ where: { email } });
-//       if (existingUser) {
-//         return res.status(400).json({ message: 'Email is already registered' });
-//       }
+    try {
+      // Check if email already exists
+      const existingUser = await User.findOne({ where: { email } });
+      if (existingUser) {
+        return res.status(400).json({ message: 'Email is already registered' });
+      }
 
-//       // Hash the password
-//       const salt = await bcrypt.genSalt(10);
-//       const hashedPassword = await bcrypt.hash(password, salt);
+      // Hash the password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
 
-//       // Create the user
-//       const newUser = await User.create({
-//         name,
-//         email,
-//         password: hashedPassword,
-//         role: 'client',
-//       });
+      // Create the user
+      const newUser = await User.create({
+        name,
+        email,
+        password: hashedPassword,
+        role: 'client',
+      });
 
-//       // Create the client record using the new user's ID
-//       const newClient = await Client.create({
-//         user_id: newUser.id,
-//       });
+      // Create the client record using the new user's ID
+      const newClient = await Client.create({
+        user_id: newUser.id,
+      });
 
-//       res.status(201).json({ user: newUser, client: newClient });
-//     } catch (error) {
-//       res.status(500).json({ message: 'Error creating client', error });
-//     }
-//   },
-// ];
+      res.status(201).json({ user: newUser, client: newClient });
+    } catch (error) {
+      res.status(500).json({ message: 'Error creating client', error });
+    }
+  },
+];
 
 // exports.updateClient = async (req, res) => {
 //   try {
