@@ -144,13 +144,64 @@ const login = async (req, res) => {
   }
 };
 
+// const signup = async (req, res) => {
+//   const { name, email, password, role } = req.body;
+
+//   try {
+//     const existingUser = await User.findOne({ where: { email } });
+//     if (existingUser) {
+//       return res.status(400).json({ message: 'Email already in use' });
+//     }
+
+//     const hashedPassword = await bcrypt.hash(password, 10);
+
+//     if (role === 'client') {
+//       const newUser = await User.create({
+//         name,
+//         email,
+//         password: hashedPassword,
+//         role
+//       });
+
+//       await Client.create({
+//         user_id: newUser.id,
+//         status: 'Unverified'
+//       });
+
+//       return res.status(201).json({
+//         id: newUser.id,
+//         name: newUser.name,
+//         email: newUser.email,
+//         role: newUser.role
+//       });
+//     }
+
+//     const newUser = await User.create({
+//       name,
+//       email,
+//       password: hashedPassword,
+//       role
+//     });
+
+//     res.status(201).json({
+//       id: newUser.id,
+//       name: newUser.name,
+//       email: newUser.email,
+//       role: newUser.role
+//     });
+//   } catch (error) {
+//     console.error('Signup error:', error);
+//     res.status(500).json({ message: 'Server error', error });
+//   }
+// };
+
+// Added notification
+
 const signup = async (req, res) => {
   const { name, email, password, role } = req.body;
-  const io = req.app.get('socketio'); // Get Socket.io instance
-
   const transaction = await sequelize.transaction();
+
   try {
-    // Existing validation
     const existingUser = await User.findOne({ where: { email }, transaction });
     if (existingUser) {
       await transaction.rollback();
@@ -158,6 +209,63 @@ const signup = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    if (role === 'client') {
+      const newUser = await User.create({
+        name,
+        email,
+        password: hashedPassword,
+        role
+      }, { transaction });
+
+      await Client.create({
+        user_id: newUser.id,
+        status: 'Unverified'
+      }, { transaction });
+
+      // 1. Welcome notification for new client (using NotificationHelper)
+      await NotificationHelper.createNotification({
+        userId: newUser.id,
+        title: 'Welcome!',
+        message: `Hi ${name}, your client account has been created successfully!`,
+        type: 'user_signup'
+      }, transaction);
+
+      // 2. Admin alert (using NotificationHelper)
+      await NotificationHelper.notifyAdmins({
+        title: 'New Client Registration',
+        message: `New client signed up: ${email}`,
+        type: 'admin_alert',
+        relatedEntityId: newUser.id
+      }, transaction);
+
+      await transaction.commit();
+
+      // 3. Real-time Socket.io notifications
+      const io = req.app.get('socketio');
+      if (io) {
+        const admins = await User.findAll({ where: { role: 'admin' } }); // Outside transaction
+        io.to(`user_${newUser.id}`).emit('new_notification', {
+          event: 'user_signup',
+          data: { userId: newUser.id, email: newUser.email, name: newUser.name }
+        });
+        admins.forEach(admin => {
+          io.to(`user_${admin.id}`).emit('new_notification', {
+            event: 'new_client_signup',
+            data: { userId: newUser.id, email: newUser.email, name: newUser.name }
+          });
+        });
+      }
+
+      return res.status(201).json({
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role
+      });
+    }
+
+    // For non-client roles (admin/agent/etc)
     const newUser = await User.create({
       name,
       email,
@@ -165,82 +273,33 @@ const signup = async (req, res) => {
       role
     }, { transaction });
 
-    // Create client record if needed
-    if (role === 'client') {
-      await Client.create({
-        user_id: newUser.id,
-        status: 'Unverified'
-      }, { transaction });
-    }
-
-    // 1. Create USER notification (same pattern as your working endpoint)
-    const userNotification = await Notification.create({
-      user_id: newUser.id,
-      title: role === 'client' ? 'Welcome!' : 'Account Created',
-      message: role === 'client' 
-        ? `Hi ${name}, your client account has been created!` 
-        : `Your ${role} account is ready`,
-      type: 'user_signup',
-      is_read: false
-    }, { transaction });
-
-    // 2. Create ADMIN notifications (only for client signups)
-    if (role === 'client') {
-      const admins = await User.findAll({ 
-        where: { role: 'admin' },
-        transaction
-      });
-
-      await Promise.all(admins.map(admin => 
-        Notification.create({
-          user_id: admin.id,
-          title: 'New Client Registration',
-          message: `New client: ${name} (${email})`,
-          type: 'admin_alert',
-          is_read: false
-        }, { transaction })
-      ));
-    }
+    await NotificationHelper.createNotification({
+      userId: newUser.id,
+      title: 'Account Created',
+      message: `Your ${role} account is ready`,
+      type: 'user_signup'
+    }, transaction);
 
     await transaction.commit();
 
-    // REAL-TIME NOTIFICATIONS (same pattern as your working endpoint)
+    const io = req.app.get('socketio');
     if (io) {
-      // Send to new user
       io.to(`user_${newUser.id}`).emit('new_notification', {
         event: 'user_signup',
-        data: userNotification
+        data: { userId: newUser.id, email: newUser.email, name: newUser.name }
       });
-
-      // Send to admins if client
-      if (role === 'client') {
-        const admins = await User.findAll({ where: { role: 'admin' } });
-        admins.forEach(admin => {
-          io.to(`user_${admin.id}`).emit('new_notification', {
-            event: 'admin_alert',
-            data: {
-              title: 'New Client Registration',
-              message: `New client: ${name} (${email})`
-            }
-          });
-        });
-      }
     }
 
-    return res.status(201).json({
+    res.status(201).json({
       id: newUser.id,
       name: newUser.name,
-      email: newEmail.email,
+      email: newUser.email,
       role: newUser.role
     });
-
   } catch (error) {
     await transaction.rollback();
     console.error('Signup error:', error);
-    res.status(500).json({ 
-      message: 'Server error during signup',
-      error: error.message 
-    });
+    res.status(500).json({ message: 'Server error', error });
   }
 };
 
