@@ -144,134 +144,32 @@ const login = async (req, res) => {
   }
 };
 
+// TEMPORARY TEST - remove transactions
 const signup = async (req, res) => {
-  const { name, email, password, role } = req.body;
-  const io = req.app.get('socketio'); // Get Socket.io instance from app
-
-  const transaction = await sequelize.transaction();
   try {
-    const existingUser = await User.findOne({ where: { email }, transaction });
-    if (existingUser) {
-      await transaction.rollback();
-      return res.status(400).json({ message: 'Email already in use' });
-    }
+    const { name, email, password, role } = req.body;
+    
+    // Remove transaction from this find
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) return res.status(400).json({ message: 'Email already in use' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await User.create({ /* ... */ }); // no transaction
 
-    if (role === 'client') {
-      const newUser = await User.create({
-        name,
-        email,
-        password: hashedPassword,
-        role
-      }, { transaction });
-
-      await Client.create({
-        user_id: newUser.id,
-        status: 'Unverified'
-      }, { transaction });
-
-      // Create user notification
-      const userNotification = await Notification.create({
-        user_id: newUser.id,
-        title: 'Welcome!',
-        message: `Hi ${name}, your client account has been created!`,
-        type: 'user_signup',
-        is_read: false
-      }, { transaction });
-
-      // Create admin notifications
-      const admins = await User.findAll({ 
-        where: { role: 'admin' },
-        transaction
-      });
-
-      const adminNotifications = await Promise.all(admins.map(admin => 
-        Notification.create({
-          user_id: admin.id,
-          title: 'New Client Registration',
-          message: `New client: ${name} (${email})`,
-          type: 'admin_alert',
-          is_read: false
-        }, { transaction })
-      ));
-
-      await transaction.commit();
-
-      // Emit notifications via Socket.io
-      if (userNotification) {
-        io.to(`user_${newUser.id}`).emit('new_notification', {
-          id: userNotification.id,
-          title: userNotification.title,
-          message: userNotification.message,
-          type: userNotification.type,
-          is_read: userNotification.is_read,
-          created_at: userNotification.created_at
-        });
-      }
-      
-      if (adminNotifications && adminNotifications.length > 0) {
-        adminNotifications.forEach(notification => {
-          io.to(`user_${notification.user_id}`).emit('new_notification', {
-            id: notification.id,
-            title: notification.title,
-            message: notification.message,
-            type: notification.type,
-            is_read: notification.is_read,
-            created_at: notification.created_at
-          });
-        });
-      }
-
-      return res.status(201).json({
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role
-      });
-    }
-
-    // For non-client roles
-    const newUser = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-      role
-    }, { transaction });
-
-    const notification = await Notification.create({
+    // Create a simple notification without transaction
+    const testNotification = await Notification.create({
       user_id: newUser.id,
-      title: 'Account Created',
-      message: `Your ${role} account is ready`,
-      type: 'user_signup',
+      title: 'TEST',
+      message: 'Test notification',
+      type: 'system',
       is_read: false
-    }, { transaction });
-
-    await transaction.commit();
-
-    // Emit notification
-    if (notification) {
-      io.to(`user_${newUser.id}`).emit('new_notification', {
-        id: notification.id,
-        title: notification.title,
-        message: notification.message,
-        type: notification.type,
-        is_read: notification.is_read,
-        created_at: notification.created_at
-      });
-    }
-
-    return res.status(201).json({
-      id: newUser.id,
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role
     });
 
+    console.log('TEST NOTIFICATION CREATED:', testNotification.id);
+    return res.status(201).json(newUser);
   } catch (error) {
-    await transaction.rollback();
-    console.error('Signup error:', error);
-    res.status(500).json({ message: 'Server error', error });
+    console.error('SIMPLE TEST ERROR:', error);
+    return res.status(500).json({ error });
   }
 };
 
