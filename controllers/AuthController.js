@@ -85,7 +85,7 @@
 //   signup
 // };
 
-const { User, Client } = require('../models');
+const { User, Client, Notification } = require('../models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const NotificationHelper = require('../utils/notificationHelper');
@@ -221,15 +221,23 @@ const signup = async (req, res) => {
         status: 'Unverified'
       });
 
-      // 1. Welcome notification for new client
-      await Notification.create({
-        user_id: newUser.id,
+      // 1. Welcome notification for new client (using NotificationHelper)
+      await NotificationHelper.createNotification({
+        userId: newUser.id, // Using camelCase in parameters
         title: 'Welcome!',
         message: `Hi ${name}, your client account has been created successfully!`,
         type: 'user_signup'
       });
 
-      // 2. Admin alert (real-time)
+      // 2. Admin alert (using NotificationHelper)
+      await NotificationHelper.notifyAdmins({
+        title: 'New Client Registration',
+        message: `New client signed up: ${email}`,
+        type: 'admin_alert',
+        relatedEntityId: newUser.id
+      });
+
+      // 3. Real-time Socket.io notifications
       const io = req.app.get('socketio');
       if (io) {
         const admins = await User.findAll({ where: { role: 'admin' } });
@@ -261,9 +269,9 @@ const signup = async (req, res) => {
       role
     });
 
-    // Notification for non-client signups
-    await Notification.create({
-      user_id: newUser.id,
+    // Notification for non-client signups (using NotificationHelper)
+    await NotificationHelper.createNotification({
+      userId: newUser.id,
       title: 'Account Created',
       message: `Your ${role} account is ready`,
       type: 'user_signup'
