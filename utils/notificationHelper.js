@@ -61,40 +61,74 @@ class NotificationHelper {
     relatedEntityId = null,
     metadata = null,
     actionUrl = null
-  }) {
+  }, transaction = null) {
     try {
-      return await Notification.create({
-        user_id: userId,  // Changed to match your model's underscored fields
+      console.log('Creating notification:', { userId, title });
+      
+      const options = {};
+      if (transaction) options.transaction = transaction;
+
+      const notification = await Notification.create({
+        user_id: userId,
         title,
         message,
         type,
-        related_entity_id: relatedEntityId,  // Changed to underscored
+        related_entity_id: relatedEntityId,
         metadata,
-        action_url: actionUrl,  // Added to match your model
-        is_read: false  // Changed to underscored
-      });
+        action_url: actionUrl,
+        is_read: false
+      }, options);
+
+      console.log('Notification created:', notification.id);
+      return notification;
+
     } catch (error) {
-      console.error('Error creating notification:', error);
+      console.error('Notification creation failed:', {
+        error: error.message,
+        stack: error.stack,
+        input: { userId, title }
+      });
       return null;
     }
   }
 
-  static async notifyAdmins({ title, message, type, relatedEntityId, metadata }) {
+  static async notifyAdmins({
+    title,
+    message,
+    type,
+    relatedEntityId,
+    metadata
+  }, transaction = null) {
     try {
-      const admins = await User.findAll({ where: { role: 'admin' } });
+      console.log('Notifying admins:', { title });
+
+      const options = {};
+      if (transaction) options.transaction = transaction;
+
+      const admins = await User.findAll({ 
+        where: { role: 'admin' },
+        ...options
+      });
+
       const notifications = admins.map(admin => ({
-        user_id: admin.id,  // Changed to underscored
+        user_id: admin.id,
         title,
         message,
         type,
-        related_entity_id: relatedEntityId,  // Changed to underscored
+        related_entity_id: relatedEntityId,
         metadata,
-        is_read: false  // Added to match your model
+        is_read: false
       }));
-      
-      return await Notification.bulkCreate(notifications);
+
+      const results = await Notification.bulkCreate(notifications, options);
+      console.log(`Created ${results.length} admin notifications`);
+      return results;
+
     } catch (error) {
-      console.error('Error notifying admins:', error);
+      console.error('Admin notification failed:', {
+        error: error.message,
+        stack: error.stack
+      });
       return null;
     }
   }

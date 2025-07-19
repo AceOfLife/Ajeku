@@ -85,7 +85,7 @@
 //   signup
 // };
 
-const { User, Client, Notification } = require('../models');
+const { User, Client, sequelize} = require('../models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const NotificationHelper = require('../utils/notificationHelper');
@@ -198,94 +198,109 @@ const login = async (req, res) => {
 // Added notification
 
 const signup = async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role = 'client' } = req.body; // Default to client role
 
+  const transaction = await sequelize.transaction(); // Start transaction
   try {
-    const existingUser = await User.findOne({ where: { email } });
+    // Check existing user
+    const existingUser = await User.findOne({ where: { email }, transaction });
     if (existingUser) {
+      await transaction.rollback();
       return res.status(400).json({ message: 'Email already in use' });
     }
 
+    // Create user
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    if (role === 'client') {
-      const newUser = await User.create({
-        name,
-        email,
-        password: hashedPassword,
-        role
-      });
-
-      await Client.create({
-        user_id: newUser.id,
-        status: 'Unverified'
-      });
-
-      // 1. Welcome notification for new client (using NotificationHelper)
-      await NotificationHelper.createNotification({
-        userId: newUser.id, // Using camelCase in parameters
-        title: 'Welcome!',
-        message: `Hi ${name}, your client account has been created successfully!`,
-        type: 'user_signup'
-      });
-
-      // 2. Admin alert (using NotificationHelper)
-      await NotificationHelper.notifyAdmins({
-        title: 'New Client Registration',
-        message: `New client signed up: ${email}`,
-        type: 'admin_alert',
-        relatedEntityId: newUser.id
-      });
-
-      // 3. Real-time Socket.io notifications
-      const io = req.app.get('socketio');
-      if (io) {
-        const admins = await User.findAll({ where: { role: 'admin' } });
-        admins.forEach(admin => {
-          io.to(`user_${admin.id}`).emit('new_notification', {
-            event: 'new_client_signup',
-            data: {
-              userId: newUser.id,
-              email: newUser.email,
-              name: newUser.name
-            }
-          });
-        });
-      }
-
-      return res.status(201).json({
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role
-      });
-    }
-
-    // For non-client roles (admin/agent/etc)
     const newUser = await User.create({
       name,
       email,
       password: hashedPassword,
       role
-    });
+    }, { transaction });
 
-    // Notification for non-client signups (using NotificationHelper)
-    await NotificationHelper.createNotification({
+    // For clients only
+    if (role === 'client') {
+      await Client.create({
+        user_id: newUser.id,
+        status: 'Unverified'
+      }, { transaction });
+    }
+
+    // 1. User welcome notification
+    console.log('Creating user notification for:', newUser.id);
+    const userNotif = await NotificationHelper.createNotification({
       userId: newUser.id,
-      title: 'Account Created',
-      message: `Your ${role} account is ready`,
+      title: role === 'client' ? 'Welcome!' : 'Account Created',
+      message: role === 'client' 
+        ? `Hi ${name}, your client account was created!` 
+        : `Your ${role} account is ready`,
       type: 'user_signup'
-    });
+    }, transaction);
 
-    res.status(201).json({
+    if (!userNotif) {
+      console.error('Failed to create user notification');
+    }
+
+    // 2. Admin notifications (only for client signups)
+    if (role === 'client') {
+      console.log('Creating admin notifications');
+      const adminNotifs = await NotificationHelper.notifyAdmins({
+        title: 'New Client Signup',
+        message: `${name} (${email}) just registered`,
+        type: 'admin_alert',
+        relatedEntityId: newUser.id
+      }, transaction);
+
+      if (!adminNotifs) {
+        console.error('Failed to create admin notifications');
+      }
+    }
+
+    // 3. Real-time updates
+    const io = req.app.get('socketio');
+    if (io) {
+      if (role === 'client') {
+        const admins = await User.findAll({ 
+          where: { role: 'admin' },
+          transaction
+        });
+        admins.forEach(admin => {
+          io.to(`user_${admin.id}`).emit('new_notification', {
+            event: 'new_client',
+            data: {
+              userId: newUser.id,
+              email,
+              name
+            }
+          });
+        });
+      }
+      io.to(`user_${newUser.id}`).emit('new_notification', {
+        event: 'welcome',
+        data: { userId: newUser.id }
+      });
+    }
+
+    await transaction.commit(); // Commit only after all succeeds
+
+    return res.status(201).json({
       id: newUser.id,
       name: newUser.name,
       email: newUser.email,
       role: newUser.role
     });
+
   } catch (error) {
-    console.error('Signup error:', error);
-    res.status(500).json({ message: 'Server error', error });
+    await transaction.rollback();
+    console.error('Signup error:', {
+      message: error.message,
+      stack: error.stack,
+      body: req.body
+    });
+    res.status(500).json({ 
+      message: 'Registration failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : null
+    });
   }
 };
 
