@@ -19,7 +19,8 @@ module.exports = (sequelize, DataTypes) => {
         'message',
         'system',
         'payment',
-        'admin_alert'
+        'admin_alert',
+        'user_signup'
       ),
       allowNull: false
     },

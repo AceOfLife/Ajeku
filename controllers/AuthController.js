@@ -88,6 +88,7 @@
 const { User, Client } = require('../models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const NotificationHelper = require('../utils/notificationHelper');
 require('dotenv').config();
 
 const login = async (req, res) => {
@@ -143,6 +144,59 @@ const login = async (req, res) => {
   }
 };
 
+// const signup = async (req, res) => {
+//   const { name, email, password, role } = req.body;
+
+//   try {
+//     const existingUser = await User.findOne({ where: { email } });
+//     if (existingUser) {
+//       return res.status(400).json({ message: 'Email already in use' });
+//     }
+
+//     const hashedPassword = await bcrypt.hash(password, 10);
+
+//     if (role === 'client') {
+//       const newUser = await User.create({
+//         name,
+//         email,
+//         password: hashedPassword,
+//         role
+//       });
+
+//       await Client.create({
+//         user_id: newUser.id,
+//         status: 'Unverified'
+//       });
+
+//       return res.status(201).json({
+//         id: newUser.id,
+//         name: newUser.name,
+//         email: newUser.email,
+//         role: newUser.role
+//       });
+//     }
+
+//     const newUser = await User.create({
+//       name,
+//       email,
+//       password: hashedPassword,
+//       role
+//     });
+
+//     res.status(201).json({
+//       id: newUser.id,
+//       name: newUser.name,
+//       email: newUser.email,
+//       role: newUser.role
+//     });
+//   } catch (error) {
+//     console.error('Signup error:', error);
+//     res.status(500).json({ message: 'Server error', error });
+//   }
+// };
+
+// Added notification
+
 const signup = async (req, res) => {
   const { name, email, password, role } = req.body;
 
@@ -167,6 +221,30 @@ const signup = async (req, res) => {
         status: 'Unverified'
       });
 
+      // 1. Welcome notification for new client
+      await Notification.create({
+        user_id: newUser.id,
+        title: 'Welcome!',
+        message: `Hi ${name}, your client account has been created successfully!`,
+        type: 'user_signup'
+      });
+
+      // 2. Admin alert (real-time)
+      const io = req.app.get('socketio');
+      if (io) {
+        const admins = await User.findAll({ where: { role: 'admin' } });
+        admins.forEach(admin => {
+          io.to(`user_${admin.id}`).emit('new_notification', {
+            event: 'new_client_signup',
+            data: {
+              userId: newUser.id,
+              email: newUser.email,
+              name: newUser.name
+            }
+          });
+        });
+      }
+
       return res.status(201).json({
         id: newUser.id,
         name: newUser.name,
@@ -175,11 +253,20 @@ const signup = async (req, res) => {
       });
     }
 
+    // For non-client roles (admin/agent/etc)
     const newUser = await User.create({
       name,
       email,
       password: hashedPassword,
       role
+    });
+
+    // Notification for non-client signups
+    await Notification.create({
+      user_id: newUser.id,
+      title: 'Account Created',
+      message: `Your ${role} account is ready`,
+      type: 'user_signup'
     });
 
     res.status(201).json({

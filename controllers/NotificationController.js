@@ -5,7 +5,7 @@ exports.createNotification = async (req, res) => {
   try {
     const { user_id, title, message, type, related_entity_id, metadata, action_url } = req.body;
 
-    // Validate required fields
+    // Validation (keep your existing checks)
     if (!user_id || !title || !message || !type) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
@@ -21,6 +21,16 @@ exports.createNotification = async (req, res) => {
       is_read: false
     });
 
+    // REAL-TIME: Emit to Socket.io (if available)
+    const io = req.app.get('socketio');
+    if (io) {
+      io.to(`user_${user_id}`).emit('new_notification', {
+        event: type, // 'property_purchase', 'new_signup', etc.
+        data: notification
+      });
+      console.log(`Real-time notification sent to user ${user_id}`);
+    }
+
     return res.status(201).json({ 
       success: true,
       notification 
@@ -29,8 +39,7 @@ exports.createNotification = async (req, res) => {
     console.error("Create Notification Error:", error);
     return res.status(500).json({ 
       success: false,
-      message: 'Failed to create notification',
-      error: process.env.NODE_ENV === 'development' ? error : undefined
+      message: 'Failed to create notification'
     });
   }
 };
@@ -163,5 +172,52 @@ exports.deleteNotification = async (req, res) => {
       success: false,
       message: 'Failed to delete notification'
     });
+  }
+};
+
+// Add this to your NotificationController
+exports.notificationStream = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // SSE Setup
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    // Initial connection message
+    res.write('event: connected\ndata: SSE connection established\n\n');
+
+    // Polling function (checks for new notifications every 5 seconds)
+    const intervalId = setInterval(async () => {
+      try {
+        const unreadNotifications = await Notification.findAll({
+          where: { 
+            user_id: userId,
+            is_read: false,
+            created_at: { [Sequelize.Op.gt]: new Date(Date.now() - 30000) } // Last 30 seconds
+          },
+          limit: 5,
+          order: [['created_at', 'DESC']]
+        });
+
+        if (unreadNotifications.length > 0) {
+          res.write(`data: ${JSON.stringify(unreadNotifications)}\n\n`);
+        }
+      } catch (error) {
+        console.error('SSE Polling Error:', error);
+      }
+    }, 5000); // Check every 5 seconds
+
+    // Cleanup on client disconnect
+    req.on('close', () => {
+      clearInterval(intervalId);
+      res.end();
+    });
+
+  } catch (error) {
+    console.error('SSE Connection Error:', error);
+    res.status(500).json({ message: 'SSE connection failed' });
   }
 };

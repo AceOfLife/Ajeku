@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "features": {
+    "streaming": true
+  },
   "builds": [
     {
       "src": "server.js",

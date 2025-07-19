@@ -3,6 +3,9 @@ const router = express.Router();
 const notificationController = require('../controllers/NotificationController');
 const { authenticate } = require('../middlewares/authMiddleware'); 
 
+// SSE Stream
+router.get('/stream', authenticate, notificationController.notificationStream);
+
 // Create notification (protected, typically admin/agent only)
 router.post('/', authenticate, notificationController.createNotification);
 
