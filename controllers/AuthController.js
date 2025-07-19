@@ -169,7 +169,7 @@ const signup = async (req, res) => {
         status: 'Unverified'
       }, { transaction });
 
-      // Create welcome notification for client
+      // Create user notification
       await Notification.create({
         user_id: newUser.id,
         title: 'Welcome!',
@@ -178,18 +178,21 @@ const signup = async (req, res) => {
         is_read: false
       }, { transaction });
 
-      // Notify admins
-      const admins = await User.findAll({ where: { role: 'admin' }, transaction });
-      await Notification.bulkCreate(
-        admins.map(admin => ({
+      // Create admin notifications
+      const admins = await User.findAll({ 
+        where: { role: 'admin' },
+        transaction
+      });
+
+      await Promise.all(admins.map(admin => 
+        Notification.create({
           user_id: admin.id,
           title: 'New Client Registration',
           message: `New client: ${name} (${email})`,
           type: 'admin_alert',
           is_read: false
-        })),
-        { transaction }
-      );
+        }, { transaction })
+      ));
 
       await transaction.commit();
       return res.status(201).json({
