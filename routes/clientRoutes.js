@@ -7,7 +7,7 @@ const PropertyController = require('../controllers/PropertyController');
 const NotificationController = require('../controllers/NotificationController');
 
 // Client registration (no authentication)
-router.post('/register', ClientController.createClient);
+// router.post('/register', ClientController.createClient);
 
 // Route to update profile
 // router.put('/profile', authenticate, upload, async (req, res, next) => {
