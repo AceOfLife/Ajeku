@@ -110,6 +110,19 @@ const cookieParser = require('cookie-parser');
 
 const app = express();
 const server = http.createServer(app); // NEW: Create HTTP server
+console.log('=== ACTIVE ROUTE HANDLERS ===');
+app._router.stack.forEach(layer => {
+  if (layer.route) {
+    console.log(`PATH: ${layer.route.path}`, `METHODS: ${Object.keys(layer.route.methods)}`, `FILE: ${layer.route.stack[0].handle.name}`);
+  } else if (layer.name === 'router') {
+    layer.handle.stack.forEach(sublayer => {
+      const path = (layer.regexp.source !== '^\\/?$') 
+        ? layer.regexp.source.replace('^\\', '').replace('\\/?(?=\\/|$)', '') + sublayer.route.path 
+        : sublayer.route.path;
+      console.log(`PATH: ${path}`, `METHODS: ${Object.keys(sublayer.route.methods)}`, `FILE: ${sublayer.route.stack[0].handle.name}`);
+    });
+  }
+});
 const io = socketio(server, { // NEW: Socket.io setup
   cors: {
     origin: "*", // Adjust in production
