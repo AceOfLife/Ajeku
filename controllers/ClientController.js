@@ -348,7 +348,7 @@ exports.createClient = [
         user_id: newUser.id,
       });
 
-      res.status(201).json({ debug: "Last updated: " + new Date().toISOString(), user: newUser, client: newClient });
+      res.status(201).json({source: "UserController", debug: "Last updated: " + new Date().toISOString(), user: newUser, client: newClient });
     } catch (error) {
       res.status(500).json({ message: 'Error creating client', error });
     }
