@@ -59,7 +59,7 @@ router.get('/clients/:id', authenticate, (req, res, next) => {
 }, ClientController.getClient);
 
 router.delete('/clients/:id', authenticate, authorizeAdmin, ClientController.deleteClient);
-// router.use('/clients', clientRoutes);
+router.use('/clients', clientRoutes);
 
 // Agent routes
 router.get('/agents', authenticate, AgentController.getAllAgents);

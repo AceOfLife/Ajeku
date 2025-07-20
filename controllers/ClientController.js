@@ -43,64 +43,50 @@ const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = requir
 
 exports.getAllClients = async (req, res) => {
   try {
-    // Include the associated User model to fetch the user's profile fields
+    // 1. Fetch clients with user data (keeping your exact structure)
     const clients = await Client.findAll({
       include: [{
         model: User,
         as: 'user',
-        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage']
+        attributes: ['firstName', 'lastName', 'email', 'address', 
+                    'contactNumber', 'city', 'state', 'gender', 'profileImage']
       }]
     });
 
-    // Get all client user IDs for batch document fetching
+    // 2. Fetch documents only if model exists
     const clientUserIds = clients.map(client => client.user_id);
-
-    // Fetch all documents for these users in one query (if model exists)
-    let userDocuments = [];
-    if (UserDocument && clientUserIds.length > 0) {
-      try {
-        const whereCondition = {};
-        
-        if (!req.user.isAdmin) {
-          whereCondition.status = 'APPROVED';
-        }
-
-        userDocuments = await UserDocument.findAll({
-          where: {
-            userId: clientUserIds,
-            ...whereCondition
-          },
-          attributes: req.user.isAdmin 
-            ? ['id', 'userId', 'type', 'url', 'status', 'verifiedAt', 'verifiedBy', 'adminNotes']
-            : ['id', 'userId', 'type', 'url', 'status']
-        });
-      } catch (docError) {
-        console.error('Note: Error fetching documents -', docError.message);
+    let documentsByUserId = {};
+    
+    if (typeof UserDocument !== 'undefined' && clientUserIds.length > 0) {
+      const whereCondition = {};
+      
+      // Non-admins only see approved documents
+      if (!req.user.isAdmin) {
+        whereCondition.status = 'APPROVED';
       }
+
+      const documents = await UserDocument.findAll({
+        where: {
+          userId: clientUserIds,
+          ...whereCondition
+        },
+        attributes: ['userId', 'frontUrl', 'backUrl'] // Only fetch URLs
+      });
+
+      // Group by user ID
+      documents.forEach(doc => {
+        if (!documentsByUserId[doc.userId]) {
+          documentsByUserId[doc.userId] = [];
+        }
+        documentsByUserId[doc.userId].push({
+          frontUrl: doc.frontUrl,
+          backUrl: doc.backUrl
+        });
+      });
     }
 
-    // Group documents by user ID for efficient lookup
-    const documentsByUserId = {};
-    userDocuments.forEach(doc => {
-      if (!documentsByUserId[doc.userId]) {
-        documentsByUserId[doc.userId] = [];
-      }
-      const docData = {
-        id: doc.id,
-        type: doc.type,
-        url: doc.url,
-        status: doc.status
-      };
-      if (req.user.isAdmin) {
-        docData.verifiedAt = doc.verifiedAt;
-        docData.verifiedBy = doc.verifiedBy;
-        docData.adminNotes = doc.adminNotes;
-      }
-      documentsByUserId[doc.userId].push(docData);
-    });
-
-    // Map over the clients to include user details and documents
-    const clientsWithUserDetails = clients.map(client => ({
+    // 3. Format response EXACTLY as you specified
+    const response = clients.map(client => ({
       id: client.id,
       user_id: client.user_id,
       firstName: client.user.firstName,
@@ -115,10 +101,11 @@ exports.getAllClients = async (req, res) => {
       status: client.status,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt,
-      documents: documentsByUserId[client.user_id] || [] // Add documents array
+      documents: documentsByUserId[client.user_id] || [] // Just URLs
     }));
 
-    res.status(200).json(clientsWithUserDetails);
+    res.status(200).json(response);
+
   } catch (error) {
     console.error('Error retrieving clients:', error);
     res.status(500).json({ 
@@ -348,7 +335,7 @@ exports.createClient = [
         user_id: newUser.id,
       });
 
-      res.status(201).json({source: "UserController", debug: "Last updated: " + new Date().toISOString(), user: newUser, client: newClient });
+      res.status(201).json({ user: newUser, client: newClient });
     } catch (error) {
       res.status(500).json({ message: 'Error creating client', error });
     }

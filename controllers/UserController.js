@@ -27,7 +27,6 @@ exports.createUser = async (req, res) => {
     const token = jwt.sign({ userId: newUser.id, role: newUser.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
     res.status(201).json({
-      source: "UserController",
       message: 'User created successfully',
       token,
       user: newUser,
