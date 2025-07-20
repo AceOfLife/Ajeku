@@ -213,6 +213,61 @@ exports.verifyPayment = async (req, res) => {
       payment_type
     }, { transaction: t });
 
+    // Helper function for notifications
+    const sendPaymentNotifications = async () => {
+      try {
+        const io = req.app.get('socketio');
+        const amount = paymentData.amount / 100;
+
+        // Buyer notification
+        const buyerMessage = `Your ${payment_type} payment of ₦${amount.toLocaleString()} for ${property.name} was successful`;
+        const buyerNotification = await Notification.create({
+          user_id,
+          title: 'Payment Successful',
+          message: buyerMessage,
+          type: 'payment_success',
+          related_entity_id: property_id,
+          is_read: false
+        }, { transaction: t });
+
+        // Admin notifications
+        const admins = await User.findAll({
+          where: { role: 'admin' },
+          transaction: t
+        });
+
+        const adminMessage = `${user.firstName} ${user.lastName} made a ${payment_type} purchase of ${property.name} for ₦${amount.toLocaleString()}`;
+        const adminNotifications = await Promise.all(
+          admins.map(admin => Notification.create({
+            user_id: admin.id,
+            title: 'New Property Purchase',
+            message: adminMessage,
+            type: 'admin_purchase_alert',
+            related_entity_id: property_id,
+            is_read: false
+          }, { transaction: t }))
+        );
+
+        // Real-time notifications
+        if (io) {
+          io.to(`user_${user_id}`).emit('new_notification', {
+            event: 'payment_success',
+            data: buyerNotification
+          });
+
+          adminNotifications.forEach(notif => {
+            io.to(`user_${notif.user_id}`).emit('new_notification', {
+              event: 'admin_purchase_alert',
+              data: notif
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Notification error:', error);
+        // Don't throw error - notifications shouldn't fail payment
+      }
+    };
+
     // 6. Process different payment types
     const getAvailableFractionalSlots = async (propertyId) => {
       const ownerships = await FractionalOwnership.findAll({ 
@@ -236,6 +291,7 @@ exports.verifyPayment = async (req, res) => {
         slots_purchased: slots
       }, { transaction: t });
 
+      await sendPaymentNotifications();
       await t.commit();
       return res.status(200).json({
         message: "Fractional payment verified successfully",
@@ -291,6 +347,7 @@ exports.verifyPayment = async (req, res) => {
         payment_year: today.getFullYear()
       }, { transaction: t });
 
+      await sendPaymentNotifications();
       await t.commit();
       return res.status(200).json({
         message: "Fractional installment payment verified successfully",
@@ -336,6 +393,7 @@ exports.verifyPayment = async (req, res) => {
         payment_year: today.getFullYear()
       }, { transaction: t });
 
+      await sendPaymentNotifications();
       await t.commit();
       return res.status(200).json({
         message: "Installment payment verified successfully",
@@ -365,6 +423,7 @@ exports.verifyPayment = async (req, res) => {
         transaction: t
       });
 
+      await sendPaymentNotifications();
       await t.commit();
       return res.status(200).json({
         message: "Rental payment verified successfully",
@@ -378,10 +437,11 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // Default case
+    // Default case (catch-all for other payment types)
+    await sendPaymentNotifications();
     await t.commit();
     return res.status(200).json({
-      message: "Payment verified, but no specific ownership type was processed",
+      message: "Payment verified successfully",
       transaction
     });
 

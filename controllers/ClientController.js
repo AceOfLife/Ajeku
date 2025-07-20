@@ -101,7 +101,7 @@ exports.getAllClients = async (req, res) => {
       city: client.user.city,
       state: client.user.state,
       gender: client.user.gender,
-      // profileImage: client.user.profileImage,
+      profileImage: client.user.profileImage,
       status: client.status,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt,
