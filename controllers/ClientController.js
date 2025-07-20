@@ -43,49 +43,53 @@ const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = requir
 
 exports.getAllClients = async (req, res) => {
   try {
-    // 1. Fetch clients with user data (keeping your exact structure)
+    // 1. Fetch clients with user data
     const clients = await Client.findAll({
       include: [{
         model: User,
         as: 'user',
         attributes: ['firstName', 'lastName', 'email', 'address', 
-                    'contactNumber', 'city', 'state', 'gender', 'profileImage']
+                   'contactNumber', 'city', 'state', 'gender', 'profileImage']
       }]
     });
 
-    // 2. Fetch documents only if model exists
+    // 2. Fetch documents if model exists
     const clientUserIds = clients.map(client => client.user_id);
     let documentsByUserId = {};
     
     if (typeof UserDocument !== 'undefined' && clientUserIds.length > 0) {
-      const whereCondition = {};
-      
-      // Non-admins only see approved documents
-      if (!req.user.isAdmin) {
-        whereCondition.status = 'APPROVED';
-      }
-
-      const documents = await UserDocument.findAll({
-        where: {
-          userId: clientUserIds,
-          ...whereCondition
-        },
-        attributes: ['userId', 'frontUrl', 'backUrl'] // Only fetch URLs
-      });
-
-      // Group by user ID
-      documents.forEach(doc => {
-        if (!documentsByUserId[doc.userId]) {
-          documentsByUserId[doc.userId] = [];
+      try {
+        const whereCondition = {};
+        if (!req.user.isAdmin) {
+          whereCondition.status = 'APPROVED';
         }
-        documentsByUserId[doc.userId].push({
-          frontUrl: doc.frontUrl,
-          backUrl: doc.backUrl
+
+        // FIX: Changed 'type' to 'documentType' to match your model
+        const documents = await UserDocument.findAll({
+          where: {
+            userId: clientUserIds,
+            ...whereCondition
+          },
+          attributes: ['userId', 'frontUrl', 'backUrl', 'documentType'] // Updated here
         });
-      });
+
+        // Group by user ID
+        documents.forEach(doc => {
+          if (!documentsByUserId[doc.userId]) {
+            documentsByUserId[doc.userId] = [];
+          }
+          documentsByUserId[doc.userId].push({
+            frontUrl: doc.frontUrl,
+            backUrl: doc.backUrl,
+            type: doc.documentType // Map to expected frontend field name
+          });
+        });
+      } catch (docError) {
+        console.error('Document fetch error:', docError.message);
+      }
     }
 
-    // 3. Format response EXACTLY as you specified
+    // 3. Format response (keeping your exact structure)
     const response = clients.map(client => ({
       id: client.id,
       user_id: client.user_id,
@@ -101,9 +105,9 @@ exports.getAllClients = async (req, res) => {
       status: client.status,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt,
-      documents: documentsByUserId[client.user_id] || [] // Just URLs
+      documents: documentsByUserId[client.user_id] || []
     }));
-    // console.log(documentsByUserId[client.user_id]);
+
     res.status(200).json(response);
 
   } catch (error) {
