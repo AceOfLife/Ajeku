@@ -103,7 +103,7 @@ exports.getAllClients = async (req, res) => {
       updatedAt: client.updatedAt,
       documents: documentsByUserId[client.user_id] || [] // Just URLs
     }));
-
+    console.log(documentsByUserId[client.user_id]);
     res.status(200).json(response);
 
   } catch (error) {
