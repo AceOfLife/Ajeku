@@ -328,7 +328,7 @@ exports.createClient = [
       // Check if email already exists
       const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
-        return res.status(400).json({ message: 'Email is already ' });
+        return res.status(400).json({ message: 'Email is already registered' });
       }
 
       // Hash the password
@@ -348,7 +348,7 @@ exports.createClient = [
         user_id: newUser.id,
       });
 
-      res.status(201).json({ user: newUser, client: newClient });
+      res.status(201).json({ debug: "Last updated: " + new Date().toISOString(), user: newUser, client: newClient });
     } catch (error) {
       res.status(500).json({ message: 'Error creating client', error });
     }
