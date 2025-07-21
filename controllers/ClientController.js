@@ -43,88 +43,128 @@ const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = requir
 
 exports.getAllClients = async (req, res) => {
   try {
-    // Include the associated User model to fetch the user's profile fields
+    // 1. Fetch all clients with their associated user data
     const clients = await Client.findAll({
       include: [{
         model: User,
         as: 'user',
-        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage']
-      }]
+        attributes: [
+          'firstName', 
+          'lastName', 
+          'email', 
+          'address', 
+          'contactNumber', 
+          'city', 
+          'state', 
+          'gender', 
+          'profileImage'
+        ]
+      }],
+      order: [['createdAt', 'DESC']] // Newest clients first
     });
 
-    // Get all client user IDs for batch document fetching
+    // 2. Extract user IDs for document fetching
     const clientUserIds = clients.map(client => client.user_id);
 
-    // Fetch all documents for these users in one query
+    // 3. Fetch documents in a single optimized query
     let userDocuments = [];
     if (clientUserIds.length > 0) {
       try {
-        const whereCondition = {};
-        
-        if (!req.user.isAdmin) {
-          whereCondition.status = 'APPROVED';
-        }
+        const documentWhere = {
+          userId: clientUserIds,
+          ...(!req.user.isAdmin && { status: 'APPROVED' }) // Only approved for non-admins
+        };
 
         userDocuments = await UserDocument.findAll({
-          where: {
-            userId: clientUserIds,
-            ...whereCondition
-          },
-          attributes: req.user.isAdmin 
-            ? ['id', 'userId', 'documentType', 'url', 'status', 'verifiedAt', 'verifiedBy', 'adminNotes']
-            : ['id', 'userId', 'documentType', 'url', 'status']
+          where: documentWhere,
+          attributes: [
+            'id',
+            'userId',
+            'documentType',
+            'frontUrl',
+            'backUrl',
+            'status',
+            ...(req.user.isAdmin ? [
+              'verifiedAt',
+              'verifiedBy',
+              'adminNotes'
+            ] : [])
+          ],
+          include: req.user.isAdmin ? [{
+            model: User,
+            as: 'verifier',
+            attributes: ['firstName', 'lastName']
+          }] : []
         });
       } catch (docError) {
-        console.error('Error fetching documents:', docError.message);
-        // Continue with empty documents array if there's an error
+        console.error('Document fetch error:', docError);
+        // Continue with empty documents rather than failing entire request
       }
     }
 
-    // Group documents by user ID for efficient lookup
-    const documentsByUserId = {};
-    userDocuments.forEach(doc => {
-      if (!documentsByUserId[doc.userId]) {
-        documentsByUserId[doc.userId] = [];
-      }
+    // 4. Organize documents by user ID for efficient mapping
+    const documentsByUserId = userDocuments.reduce((acc, doc) => {
       const docData = {
         id: doc.id,
-        documentType: doc.documentType, // Changed from 'type' to 'documentType'
-        url: doc.url,
-        status: doc.status
+        type: doc.documentType,
+        frontUrl: doc.frontUrl,
+        backUrl: doc.backUrl,
+        status: doc.status,
+        ...(req.user.isAdmin && {
+          verifiedAt: doc.verifiedAt,
+          verifiedBy: doc.verifier ? 
+            `${doc.verifier.firstName} ${doc.verifier.lastName}` : 
+            null,
+          adminNotes: doc.adminNotes
+        })
       };
-      if (req.user.isAdmin) {
-        docData.verifiedAt = doc.verifiedAt;
-        docData.verifiedBy = doc.verifiedBy;
-        docData.adminNotes = doc.adminNotes;
-      }
-      documentsByUserId[doc.userId].push(docData);
+
+      acc[doc.userId] = acc[doc.userId] || [];
+      acc[doc.userId].push(docData);
+      return acc;
+    }, {});
+
+    // 5. Construct final response with merged data
+    const response = clients.map(client => {
+      const user = client.user || {};
+      return {
+        id: client.id,
+        user_id: client.user_id,
+        status: client.status,
+        createdAt: client.createdAt,
+        updatedAt: client.updatedAt,
+        // User details
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        address: user.address,
+        contactNumber: user.contactNumber,
+        city: user.city,
+        state: user.state,
+        gender: user.gender,
+        profileImage: user.profileImage,
+        // Documents
+        documents: documentsByUserId[client.user_id] || []
+      };
     });
 
-    // Map over the clients to include user details and documents
-    const clientsWithUserDetails = clients.map(client => ({
-      id: client.id,
-      user_id: client.user_id,
-      firstName: client.user.firstName,
-      lastName: client.user.lastName,
-      email: client.user.email,
-      address: client.user.address,
-      contactNumber: client.user.contactNumber,
-      city: client.user.city,
-      state: client.user.state,
-      gender: client.user.gender,
-      profileImage: client.user.profileImage,
-      status: client.status,
-      createdAt: client.createdAt,
-      updatedAt: client.updatedAt,
-      documents: documentsByUserId[client.user_id] || [] // Add documents array
-    }));
+    // 6. Send successful response
+    res.status(200).json({
+      success: true,
+      count: response.length,
+      data: response
+    });
 
-    res.status(200).json(clientsWithUserDetails);
   } catch (error) {
-    console.error('Error retrieving clients:', error);
-    res.status(500).json({ 
-      message: 'Error retrieving clients',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    console.error('Client retrieval failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve clients',
+      error: process.env.NODE_ENV === 'development' ? {
+        name: error.name,
+        message: error.message,
+        ...(error.errors && { details: error.errors.map(e => e.message) })
+      } : undefined
     });
   }
 };
