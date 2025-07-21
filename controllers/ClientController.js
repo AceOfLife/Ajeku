@@ -43,127 +43,125 @@ const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = requir
 
 exports.getAllClients = async (req, res) => {
   try {
-    // 1. Fetch all clients with their associated user data
+    // 1. Fetch all clients with basic user info
     const clients = await Client.findAll({
+      attributes: ['id', 'user_id', 'status', 'createdAt', 'updatedAt'],
       include: [{
         model: User,
         as: 'user',
         attributes: [
-          'firstName', 
-          'lastName', 
-          'email', 
-          'address', 
-          'contactNumber', 
-          'city', 
-          'state', 
-          'gender', 
+          'id',
+          'firstName',
+          'lastName',
+          'email',
+          'address',
+          'contactNumber',
+          'city',
+          'state',
+          'gender',
           'profileImage'
         ]
       }],
-      order: [['createdAt', 'DESC']] // Newest clients first
+      order: [['createdAt', 'DESC']]
     });
 
-    // 2. Extract user IDs for document fetching
-    const clientUserIds = clients.map(client => client.user_id);
+    // 2. Get all client user IDs for batch document fetching
+    const clientUserIds = clients.map(client => client.user_id).filter(Boolean);
 
-    // 3. Fetch documents in a single optimized query
-    let userDocuments = [];
-    if (clientUserIds.length > 0) {
-      try {
-        const documentWhere = {
-          userId: clientUserIds,
-          ...(!req.user.isAdmin && { status: 'APPROVED' }) // Only approved for non-admins
-        };
+    // 3. Fetch ALL documents for these users (no approval filtering)
+    const documents = clientUserIds.length > 0 ? await UserDocument.findAll({
+      where: { userId: { [Op.in]: clientUserIds } },
+      attributes: [
+        'id',
+        'userId',
+        'documentType',
+        'frontUrl',
+        'backUrl',
+        'status',
+        ...(req.user.isAdmin ? [
+          'verifiedAt',
+          'verifiedBy',
+          'adminNotes'
+        ] : [])
+      ],
+      include: req.user.isAdmin ? [{
+        model: User,
+        as: 'verifier',
+        attributes: ['firstName', 'lastName']
+      }] : [],
+      raw: true,
+      nest: true
+    }) : [];
 
-        userDocuments = await UserDocument.findAll({
-          where: documentWhere,
-          attributes: [
-            'id',
-            'userId',
-            'documentType',
-            'frontUrl',
-            'backUrl',
-            'status',
-            ...(req.user.isAdmin ? [
-              'verifiedAt',
-              'verifiedBy',
-              'adminNotes'
-            ] : [])
-          ],
-          include: req.user.isAdmin ? [{
-            model: User,
-            as: 'verifier',
-            attributes: ['firstName', 'lastName']
-          }] : []
-        });
-      } catch (docError) {
-        console.error('Document fetch error:', docError);
-        // Continue with empty documents rather than failing entire request
-      }
-    }
-
-    // 4. Organize documents by user ID for efficient mapping
-    const documentsByUserId = userDocuments.reduce((acc, doc) => {
+    // 4. Organize documents by user ID
+    const documentsMap = documents.reduce((map, doc) => {
       const docData = {
         id: doc.id,
         type: doc.documentType,
         frontUrl: doc.frontUrl,
-        backUrl: doc.backUrl,
+        backUrl: doc.backUrl || null,
         status: doc.status,
         ...(req.user.isAdmin && {
           verifiedAt: doc.verifiedAt,
           verifiedBy: doc.verifier ? 
-            `${doc.verifier.firstName} ${doc.verifier.lastName}` : 
-            null,
+            `${doc.verifier.firstName} ${doc.verifier.lastName}` : null,
           adminNotes: doc.adminNotes
         })
       };
 
-      acc[doc.userId] = acc[doc.userId] || [];
-      acc[doc.userId].push(docData);
-      return acc;
+      if (!map[doc.userId]) map[doc.userId] = [];
+      map[doc.userId].push(docData);
+      return map;
     }, {});
 
-    // 5. Construct final response with merged data
+    // 5. Construct the final response
     const response = clients.map(client => {
       const user = client.user || {};
       return {
         id: client.id,
-        user_id: client.user_id,
+        userId: client.user_id,
         status: client.status,
         createdAt: client.createdAt,
         updatedAt: client.updatedAt,
-        // User details
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        address: user.address,
-        contactNumber: user.contactNumber,
-        city: user.city,
-        state: user.state,
-        gender: user.gender,
-        profileImage: user.profileImage,
-        // Documents
-        documents: documentsByUserId[client.user_id] || []
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          contactNumber: user.contactNumber,
+          profileImage: user.profileImage,
+          ...(req.user.isAdmin && {
+            address: user.address,
+            city: user.city,
+            state: user.state,
+            gender: user.gender
+          })
+        },
+        documents: documentsMap[client.user_id] || []
       };
     });
 
-    // 6. Send successful response
-    res.status(200).json({
+    // 6. Send response
+    res.json({
       success: true,
       count: response.length,
-      data: response
+      data: response,
+      meta: {
+        totalClients: response.length,
+        totalDocuments: documents.length,
+        returnedAt: new Date().toISOString()
+      }
     });
 
   } catch (error) {
-    console.error('Client retrieval failed:', error);
+    console.error('[GET /clients] Error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to retrieve clients',
       error: process.env.NODE_ENV === 'development' ? {
         name: error.name,
         message: error.message,
-        ...(error.errors && { details: error.errors.map(e => e.message) })
+        stack: error.stack
       } : undefined
     });
   }
