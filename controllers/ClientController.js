@@ -302,7 +302,7 @@ exports.getClient = async (req, res) => {
 // };
 
 exports.createClient = [
-  // Validation middleware (keep existing)
+  // Validation middleware (unchanged)
   check('name').notEmpty().withMessage('Name is required'),
   check('email').isEmail().withMessage('Enter a valid email'),
   check('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
@@ -317,17 +317,17 @@ exports.createClient = [
     const io = req.app.get('socketio'); // Get Socket.io instance
 
     try {
-      // Check if email already exists
+      // 1. Check if email exists (existing code)
       const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
         return res.status(400).json({ message: 'Email is already registered' });
       }
 
-      // Hash the password
+      // 2. Hash password (existing code)
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
 
-      // Create the user
+      // 3. Create user (existing code)
       const newUser = await User.create({
         name,
         email,
@@ -335,58 +335,54 @@ exports.createClient = [
         role: 'client',
       });
 
-      // Create the client record
+      // 4. Create client record (existing code)
       const newClient = await Client.create({
         user_id: newUser.id,
       });
 
-      // 1. Create welcome notification for new client
+      /* NEW NOTIFICATION CODE START */
+      // 5. Create client welcome notification (using existing 'user_signup' type)
       const clientNotification = await Notification.create({
         user_id: newUser.id,
-        title: 'Welcome to Our Platform!',
-        message: `Hi ${name}, your client account has been successfully created.`,
-        type: 'client_signup',
+        title: 'Welcome!',
+        message: `Hi ${name}, your client account was successfully created.`,
+        type: 'user_signup', // Using existing enum
         is_read: false
       });
 
-      // 2. Create admin notifications
-      const admins = await User.findAll({ 
-        where: { role: 'admin' } 
-      });
-
-      await Promise.all(
+      // 6. Notify all admins (using existing 'admin_alert' type)
+      const admins = await User.findAll({ where: { role: 'admin' } });
+      const adminNotifications = await Promise.all(
         admins.map(admin => 
           Notification.create({
             user_id: admin.id,
             title: 'New Client Registration',
             message: `New client: ${name} (${email})`,
-            type: 'admin_alert',
+            type: 'admin_alert', // Using existing enum
             is_read: false
           })
         )
       );
 
-      // 3. Real-time notifications
+      // 7. Real-time notifications
       if (io) {
-        // To new client
+        // To client
         io.to(`user_${newUser.id}`).emit('new_notification', {
-          event: 'client_signup',
+          event: 'user_signup',
           data: clientNotification
         });
 
-        // To all admins
-        admins.forEach(admin => {
-          io.to(`user_${admin.id}`).emit('new_notification', {
-            event: 'new_client',
-            data: {
-              title: 'New Client Registration',
-              message: `New client: ${name} (${email})`
-            }
+        // To admins
+        adminNotifications.forEach(notification => {
+          io.to(`user_${notification.user_id}`).emit('new_notification', {
+            event: 'admin_alert',
+            data: notification
           });
         });
       }
+      /* NEW NOTIFICATION CODE END */
 
-      // Keep your existing response structure
+      // 8. Return original response (existing code)
       res.status(201).json({ 
         user: newUser, 
         client: newClient 
