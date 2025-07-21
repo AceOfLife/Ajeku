@@ -241,7 +241,7 @@ exports.verifyPayment = async (req, res) => {
         Notification.create({
           user_id: admin.id,
           title: 'New Payment Received',
-          message: `Client ${user.email} completed a ${payment_type} payment (${paymentData.currency} ${paymentData.amount/100}) for ${property.title}`,
+          message: `Client ${user.email} completed a ${payment_type} payment (${paymentData.currency} ${paymentData.amount/100}) for ${property.name}`,
           type: 'admin_alert',
           related_entity_id: transaction.id,
           metadata: {
