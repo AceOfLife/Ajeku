@@ -90,69 +90,202 @@
 // 18/07/2025
 
 // Error Handling
+// const express = require('express');
+// const http = require('http'); // NEW: Required for Socket.io
+// const bodyParser = require('body-parser');
+// const cors = require('cors');
+// const path = require('path');
+// const favicon = require('serve-favicon');
+// const socketio = require('socket.io'); // NEW: Socket.io import
+// const adminRoutes = require('./routes/admin');
+// const clientRoutes = require('./routes/clientRoutes');
+// const authRoutes = require('./routes/authRoutes');
+// const { sequelize } = require('./models');
+// const paymentRoutes = require("./routes/paymentRoutes");
+// const transactionRoutes = require('./routes/transactionRoutes');
+// const bankOfHeavenRoutes = require('./routes/bankOfHeavenRoutes');
+// const messageRoutes = require('./routes/messageRoutes');
+// const notificationRoutes = require('./routes/notificationRoutes');
+// const cookieParser = require('cookie-parser');
+
+// const app = express();
+// const server = http.createServer(app); // NEW: Create HTTP server
+// const io = socketio(server, { // NEW: Socket.io setup
+//   cors: {
+//     origin: "*", // Adjust in production
+//     methods: ["GET", "POST"]
+//   }
+// });
+
+// // Make io accessible in routes
+// app.set('socketio', io); // NEW: Share io instance
+
+// // Socket.io connection handler
+// io.on('connection', (socket) => {
+//   console.log(`New client connected: ${socket.id}`);
+  
+//   // Join user-specific room
+//   socket.on('join_user_room', (userId) => {
+//     socket.join(`user_${userId}`);
+//     console.log(`User ${userId} joined their notification room`);
+//   });
+
+//   socket.on('disconnect', () => {
+//     console.log(`Client disconnected: ${socket.id}`);
+//   });
+// });
+
+// // Middleware
+// app.use(cors());
+// app.use(express.json());
+// app.use(express.urlencoded({ extended: true }));
+// app.use(cookieParser());
+// app.use(bodyParser.json());
+
+// // Database connection
+// sequelize.authenticate()
+//   .then(() => console.log('Database connection established'))
+//   .catch(err => console.error('Database connection error:', err));
+
+// // Static files
+// app.use(favicon(path.join(__dirname, 'favicon.png')));
+// app.use(express.static(path.join(__dirname)));
+// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// // Routes
+// app.use("/api", paymentRoutes);
+// app.use('/transactions', transactionRoutes);
+// app.use('/api/bank-of-heaven', bankOfHeavenRoutes);
+// app.use('/api/messages', messageRoutes);
+// app.use('/api/notifications', notificationRoutes);
+// app.use('/clients', clientRoutes);
+// app.use('/auth', authRoutes);
+// app.use('/admin', adminRoutes);
+// app.use('/api/documents', require('./routes/documentRoutes'));
+
+// // Health check
+// app.get('/', (req, res) => res.send('Server is running'));
+// app.get('/favicon.png', (req, res) => res.sendFile(path.join(__dirname, 'favicon.png')));
+
+// // Error handling
+// app.use((err, req, res, next) => {
+//   console.error(err.stack);
+//   res.status(500).send('Something went wrong!');
+// });
+
+// // Start server
+// const PORT = process.env.PORT || 5000;
+// server.listen(PORT, () => { // CHANGED: server.listen instead of app.listen
+//   console.log(`Server running with Socket.io on port ${PORT}`);
+// });
+
+// module.exports = app;
+
 const express = require('express');
-const http = require('http'); // NEW: Required for Socket.io
+const http = require('http');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
 const favicon = require('serve-favicon');
-const socketio = require('socket.io'); // NEW: Socket.io import
+const socketio = require('socket.io');
+const cookieParser = require('cookie-parser');
+const db = require('./models'); // Modified to get full db object
+const { createClient } = require('../controllers/ClientController'); // Your controller
+
+// Route imports
 const adminRoutes = require('./routes/admin');
 const clientRoutes = require('./routes/clientRoutes');
 const authRoutes = require('./routes/authRoutes');
-const { sequelize } = require('./models');
 const paymentRoutes = require("./routes/paymentRoutes");
 const transactionRoutes = require('./routes/transactionRoutes');
 const bankOfHeavenRoutes = require('./routes/bankOfHeavenRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
-const cookieParser = require('cookie-parser');
 
 const app = express();
-const server = http.createServer(app); // NEW: Create HTTP server
-const io = socketio(server, { // NEW: Socket.io setup
+const server = http.createServer(app);
+
+// Enhanced Socket.io configuration
+const io = socketio(server, {
   cors: {
-    origin: "*", // Adjust in production
-    methods: ["GET", "POST"]
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
+  },
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+    skipMiddlewares: true
   }
 });
 
-// Make io accessible in routes
-app.set('socketio', io); // NEW: Share io instance
+// Make db and io accessible throughout the app
+app.set('db', db);
+app.set('socketio', io);
 
-// Socket.io connection handler
+// Enhanced middleware setup
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || "*",
+  credentials: true
+}));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cookieParser());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Database connection with retry logic
+const connectWithRetry = async () => {
+  try {
+    await db.sequelize.authenticate();
+    console.log('Database connection established');
+    
+    // Sync models with optional alter in development
+    if (process.env.NODE_ENV === 'development') {
+      await db.sequelize.sync({ alter: true });
+      console.log('Database synced with alter');
+    }
+  } catch (err) {
+    console.error('Database connection error:', err);
+    setTimeout(connectWithRetry, 5000);
+  }
+};
+connectWithRetry();
+
+// Socket.io connection handler with authentication
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  if (token) {
+    // Verify token logic here (JWT verification)
+    return next();
+  }
+  next(new Error('Authentication error'));
+});
+
 io.on('connection', (socket) => {
   console.log(`New client connected: ${socket.id}`);
   
-  // Join user-specific room
   socket.on('join_user_room', (userId) => {
-    socket.join(`user_${userId}`);
-    console.log(`User ${userId} joined their notification room`);
+    if (userId) {
+      socket.join(`user_${userId}`);
+      console.log(`User ${userId} joined their notification room`);
+    }
   });
 
-  socket.on('disconnect', () => {
-    console.log(`Client disconnected: ${socket.id}`);
+  socket.on('disconnect', (reason) => {
+    console.log(`Client disconnected (${socket.id}): ${reason}`);
+  });
+
+  socket.on('error', (err) => {
+    console.error(`Socket error (${socket.id}):`, err);
   });
 });
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-app.use(bodyParser.json());
-
-// Database connection
-sequelize.authenticate()
-  .then(() => console.log('Database connection established'))
-  .catch(err => console.error('Database connection error:', err));
-
-// Static files
+// Static files and routes
 app.use(favicon(path.join(__dirname, 'favicon.png')));
 app.use(express.static(path.join(__dirname)));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Routes
+// API routes
 app.use("/api", paymentRoutes);
 app.use('/transactions', transactionRoutes);
 app.use('/api/bank-of-heaven', bankOfHeavenRoutes);
@@ -163,20 +296,58 @@ app.use('/auth', authRoutes);
 app.use('/admin', adminRoutes);
 app.use('/api/documents', require('./routes/documentRoutes'));
 
-// Health check
-app.get('/', (req, res) => res.send('Server is running'));
+// Health checks
+app.get('/', (req, res) => res.json({ 
+  status: 'running',
+  db: db.sequelize.connectionManager.pool ? 'connected' : 'disconnected',
+  sockets: io.engine?.clientsCount || 0
+}));
+
 app.get('/favicon.png', (req, res) => res.sendFile(path.join(__dirname, 'favicon.png')));
 
-// Error handling
+// Enhanced error handling
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).send('Something went wrong!');
+  
+  if (err.name === 'SequelizeValidationError') {
+    return res.status(422).json({
+      errors: err.errors.map(e => ({
+        field: e.path,
+        message: e.message
+      }))
+    });
+  }
+  
+  res.status(500).json({ 
+    error: 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { details: err.message })
+  });
 });
 
-// Start server
+// Server startup
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => { // CHANGED: server.listen instead of app.listen
-  console.log(`Server running with Socket.io on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  
+  // Periodic connection check
+  setInterval(() => {
+    io.of('/').sockets.forEach(socket => {
+      if (socket.connected) {
+        socket.emit('ping', { timestamp: Date.now() });
+      }
+    });
+  }, 30000); // 30-second heartbeat
 });
 
-module.exports = app;
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received. Closing server...');
+  server.close(() => {
+    db.sequelize.close()
+      .then(() => console.log('Database connection closed'))
+      .catch(err => console.error('Error closing database:', err))
+      .finally(() => process.exit(0));
+  });
+});
+
+module.exports = { app, server, io };

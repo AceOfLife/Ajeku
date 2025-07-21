@@ -1,5 +1,5 @@
 // controllers/ClientController.js
-const { Client, User, UserDocument, Notification } = require('../models');
+const { Client, User, UserDocument } = require('../models');
 const bcrypt = require('bcryptjs');
 const { check, validationResult } = require('express-validator');
 const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
@@ -43,54 +43,64 @@ const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = requir
 
 exports.getAllClients = async (req, res) => {
   try {
-    // 1. Fetch clients with user data
+    // Include the associated User model to fetch the user's profile fields
     const clients = await Client.findAll({
       include: [{
         model: User,
         as: 'user',
-        attributes: ['firstName', 'lastName', 'email', 'address', 
-                   'contactNumber', 'city', 'state', 'gender', 'profileImage']
+        attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage']
       }]
     });
 
-    // 2. Fetch documents if model exists
+    // Get all client user IDs for batch document fetching
     const clientUserIds = clients.map(client => client.user_id);
-    let documentsByUserId = {};
-    
-    if (typeof UserDocument !== 'undefined' && clientUserIds.length > 0) {
+
+    // Fetch all documents for these users in one query (if model exists)
+    let userDocuments = [];
+    if (UserDocument && clientUserIds.length > 0) {
       try {
         const whereCondition = {};
+        
         if (!req.user.isAdmin) {
           whereCondition.status = 'APPROVED';
         }
 
-        // FIX: Changed 'type' to 'documentType' to match your model
-        const documents = await UserDocument.findAll({
+        userDocuments = await UserDocument.findAll({
           where: {
             userId: clientUserIds,
             ...whereCondition
           },
-          attributes: ['userId', 'frontUrl', 'backUrl', 'documentType'] // Updated here
-        });
-
-        // Group by user ID
-        documents.forEach(doc => {
-          if (!documentsByUserId[doc.userId]) {
-            documentsByUserId[doc.userId] = [];
-          }
-          documentsByUserId[doc.userId].push({
-            frontUrl: doc.frontUrl,
-            backUrl: doc.backUrl,
-            type: doc.documentType // Map to expected frontend field name
-          });
+          attributes: req.user.isAdmin 
+            ? ['id', 'userId', 'type', 'url', 'status', 'verifiedAt', 'verifiedBy', 'adminNotes']
+            : ['id', 'userId', 'type', 'url', 'status']
         });
       } catch (docError) {
-        console.error('Document fetch error:', docError.message);
+        console.error('Note: Error fetching documents -', docError.message);
       }
     }
 
-    // 3. Format response (keeping your exact structure)
-    const response = clients.map(client => ({
+    // Group documents by user ID for efficient lookup
+    const documentsByUserId = {};
+    userDocuments.forEach(doc => {
+      if (!documentsByUserId[doc.userId]) {
+        documentsByUserId[doc.userId] = [];
+      }
+      const docData = {
+        id: doc.id,
+        type: doc.type,
+        url: doc.url,
+        status: doc.status
+      };
+      if (req.user.isAdmin) {
+        docData.verifiedAt = doc.verifiedAt;
+        docData.verifiedBy = doc.verifiedBy;
+        docData.adminNotes = doc.adminNotes;
+      }
+      documentsByUserId[doc.userId].push(docData);
+    });
+
+    // Map over the clients to include user details and documents
+    const clientsWithUserDetails = clients.map(client => ({
       id: client.id,
       user_id: client.user_id,
       firstName: client.user.firstName,
@@ -105,11 +115,10 @@ exports.getAllClients = async (req, res) => {
       status: client.status,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt,
-      documents: documentsByUserId[client.user_id] || []
+      documents: documentsByUserId[client.user_id] || [] // Add documents array
     }));
 
-    res.status(200).json(response);
-
+    res.status(200).json(clientsWithUserDetails);
   } catch (error) {
     console.error('Error retrieving clients:', error);
     res.status(500).json({ 
@@ -182,10 +191,6 @@ exports.getClient = async (req, res) => {
       return res.status(404).json({ message: 'Client not found' });
     }
 
-    if (req.user.role === 'client' && client.user_id !== req.user.id) {
-      return res.status(403).json({ message: 'Unauthorized to access this profile' });
-    }
-
     res.status(200).json({
       id: client.id,
       user_id: client.user_id,
@@ -203,11 +208,7 @@ exports.getClient = async (req, res) => {
       updatedAt: client.updatedAt
     });
   } catch (error) {
-    console.error('Error retrieving client:', error);
-    res.status(500).json({ 
-      message: 'Error retrieving client', 
-      error: error.message 
-    });
+    res.status(500).json({ message: 'Error retrieving client', error: error.message });
   }
 };
 
@@ -302,7 +303,7 @@ exports.getClient = async (req, res) => {
 // };
 
 exports.createClient = [
-  // Validation middleware (unchanged)
+  // Validation middleware
   check('name').notEmpty().withMessage('Name is required'),
   check('email').isEmail().withMessage('Enter a valid email'),
   check('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
@@ -314,57 +315,75 @@ exports.createClient = [
     }
 
     const { name, email, password } = req.body;
-    const io = req.app.get('socketio'); // Get Socket.io instance
+    const io = req.app.get('socketio');
+    const { sequelize } = req.app.get('db'); // Get sequelize from app context
+    const t = await sequelize.transaction();
 
     try {
-      // 1. Check if email exists (existing code)
-      const existingUser = await User.findOne({ where: { email } });
+      // 1. Check if email exists
+      const existingUser = await db.User.findOne({ 
+        where: { email },
+        transaction: t 
+      });
+      
       if (existingUser) {
+        await t.rollback();
         return res.status(400).json({ message: 'Email is already registered' });
       }
 
-      // 2. Hash password (existing code)
+      // 2. Hash password
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
 
-      // 3. Create user (existing code)
-      const newUser = await User.create({
+      // 3. Create user
+      const newUser = await db.User.create({
         name,
         email,
         password: hashedPassword,
         role: 'client',
-      });
+      }, { transaction: t });
 
-      // 4. Create client record (existing code)
-      const newClient = await Client.create({
+      // 4. Create client record
+      const newClient = await db.Client.create({
         user_id: newUser.id,
-      });
+      }, { transaction: t });
 
-      /* NEW NOTIFICATION CODE START */
-      // 5. Create client welcome notification (using existing 'user_signup' type)
-      const clientNotification = await Notification.create({
-        user_id: newUser.id,
-        title: 'Welcome!',
-        message: `Hi ${name}, your client account was successfully created.`,
-        type: 'user_signup', // Using existing enum
-        is_read: false
-      });
+      // 5. Create notifications
+      const [clientNotification, adminNotifications] = await Promise.all([
+        // Client notification
+        db.Notification.create({
+          user_id: newUser.id,
+          title: 'Welcome!',
+          message: `Hi ${name}, your client account was successfully created.`,
+          type: 'user_signup',
+          is_read: false
+        }, { transaction: t }),
+        
+        // Admin notifications
+        (async () => {
+          const admins = await db.User.findAll({ 
+            where: { role: 'admin' },
+            transaction: t 
+          });
+          
+          return admins.length > 0 
+            ? Promise.all(admins.map(admin => 
+                db.Notification.create({
+                  user_id: admin.id,
+                  title: 'New Client Registration',
+                  message: `New client: ${name} (${email})`,
+                  type: 'admin_alert',
+                  is_read: false
+                }, { transaction: t })
+              ))
+            : [];
+        })()
+      ]);
 
-      // 6. Notify all admins (using existing 'admin_alert' type)
-      const admins = await User.findAll({ where: { role: 'admin' } });
-      const adminNotifications = await Promise.all(
-        admins.map(admin => 
-          Notification.create({
-            user_id: admin.id,
-            title: 'New Client Registration',
-            message: `New client: ${name} (${email})`,
-            type: 'admin_alert', // Using existing enum
-            is_read: false
-          })
-        )
-      );
+      // Commit transaction
+      await t.commit();
 
-      // 7. Real-time notifications
+      // 6. Real-time notifications
       if (io) {
         // To client
         io.to(`user_${newUser.id}`).emit('new_notification', {
@@ -380,22 +399,40 @@ exports.createClient = [
           });
         });
       }
-      /* NEW NOTIFICATION CODE END */
 
-      // 8. Return original response (existing code)
-      res.status(201).json({ 
-        user: newUser, 
-        client: newClient 
+      // 7. Return response
+      return res.status(201).json({ 
+        success: true,
+        user: _.pick(newUser, ['id', 'name', 'email', 'role']),
+        client: _.pick(newClient, ['id', 'user_id', 'status']),
+        notifications: {
+          client: _.pick(clientNotification, ['id', 'title', 'type']),
+          admins: adminNotifications.map(n => _.pick(n, ['id', 'title', 'type']))
+        }
       });
 
     } catch (error) {
-      console.error('Client creation error:', error);
-      res.status(500).json({ 
+      await t.rollback();
+      console.error('Client creation error:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        ...(error.errors && { errors: error.errors.map(e => e.message) })
+      });
+
+      return res.status(500).json({ 
+        success: false,
         message: 'Error creating client',
-        error: process.env.NODE_ENV === 'development' ? error : undefined
+        ...(process.env.NODE_ENV === 'development' && {
+          error: {
+            name: error.name,
+            message: error.message,
+            ...(error.errors && { errors: error.errors.map(e => e.message) })
+          }
+        })
       });
     }
-  },
+  }
 ];
 
 // exports.updateClient = async (req, res) => {
