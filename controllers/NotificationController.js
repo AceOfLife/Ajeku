@@ -222,61 +222,55 @@ exports.notificationStream = async (req, res) => {
   }
 };
 
-exports.getNotification = async (req, res) => {
+exports.getUserNotificationsById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const userId = req.user.id;
+    const { user_id } = req.params;
+    const currentUserId = req.user.id;
     const userRole = req.user.role;
 
-    // Base query conditions
-    const where = { id };
-
     // Clients can only access their own notifications
-    if (userRole === 'client') {
-      where.user_id = userId;
+    if (userRole === 'client' && parseInt(user_id) !== currentUserId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized to view these notifications'
+      });
     }
-    // Admins can access any notification but need to see the owner
-    else if (userRole === 'admin') {
-      // Include owner information
-      const notification = await Notification.findOne({
+
+    // Base query conditions
+    const where = { user_id };
+
+    // For admins viewing other users' notifications
+    if (userRole === 'admin' && parseInt(user_id) !== currentUserId) {
+      const notifications = await Notification.findAll({
         where,
         include: [{
           model: User,
           as: 'user',
           attributes: ['id', 'firstName', 'lastName', 'email', 'role']
-        }]
+        }],
+        order: [['created_at', 'DESC']]
       });
-
-      if (!notification) {
-        return res.status(404).json({
-          success: false,
-          message: 'Notification not found'
-        });
-      }
 
       return res.status(200).json({
         success: true,
-        data: notification,
+        data: notifications,
         meta: {
           access_level: 'admin_view',
+          user_id: parseInt(user_id),
           timestamp: new Date().toISOString()
         }
       });
     }
 
-    // For clients and other roles
-    const notification = await Notification.findOne({ where });
-
-    if (!notification) {
-      return res.status(404).json({
-        success: false,
-        message: 'Notification not found or unauthorized'
-      });
-    }
+    // For users viewing their own notifications
+    const notifications = await Notification.findAll({
+      where,
+      order: [['created_at', 'DESC']]
+    });
 
     res.status(200).json({
       success: true,
-      data: notification,
+      data: notifications,
       meta: {
         access_level: 'owner_view',
         timestamp: new Date().toISOString()
@@ -284,10 +278,10 @@ exports.getNotification = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Get Notification Error:", error);
+    console.error("Get User Notifications Error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve notification',
+      message: 'Failed to retrieve notifications',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
