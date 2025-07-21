@@ -87,7 +87,7 @@ exports.getAllClients = async (req, res) => {
       }
       const docData = {
         id: doc.id,
-        type: doc.type,
+        DocumentType: doc.DocumentType,
         url: doc.url,
         status: doc.status
       };
