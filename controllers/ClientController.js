@@ -302,7 +302,7 @@ exports.getClient = async (req, res) => {
 // };
 
 exports.createClient = [
-  // Validation middleware
+  // Validation middleware (keep existing)
   check('name').notEmpty().withMessage('Name is required'),
   check('email').isEmail().withMessage('Enter a valid email'),
   check('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
@@ -314,12 +314,13 @@ exports.createClient = [
     }
 
     const { name, email, password } = req.body;
+    const io = req.app.get('socketio'); // Get Socket.io instance
 
     try {
       // Check if email already exists
       const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
-        return res.status(400).json({ message: 'Email is already' });
+        return res.status(400).json({ message: 'Email is already registered' });
       }
 
       // Hash the password
@@ -334,14 +335,69 @@ exports.createClient = [
         role: 'client',
       });
 
-      // Create the client record using the new user's ID
+      // Create the client record
       const newClient = await Client.create({
         user_id: newUser.id,
       });
 
-      res.status(201).json({ user: newUser, client: newClient });
+      // 1. Create welcome notification for new client
+      const clientNotification = await Notification.create({
+        user_id: newUser.id,
+        title: 'Welcome to Our Platform!',
+        message: `Hi ${name}, your client account has been successfully created.`,
+        type: 'client_signup',
+        is_read: false
+      });
+
+      // 2. Create admin notifications
+      const admins = await User.findAll({ 
+        where: { role: 'admin' } 
+      });
+
+      await Promise.all(
+        admins.map(admin => 
+          Notification.create({
+            user_id: admin.id,
+            title: 'New Client Registration',
+            message: `New client: ${name} (${email})`,
+            type: 'admin_alert',
+            is_read: false
+          })
+        )
+      );
+
+      // 3. Real-time notifications
+      if (io) {
+        // To new client
+        io.to(`user_${newUser.id}`).emit('new_notification', {
+          event: 'client_signup',
+          data: clientNotification
+        });
+
+        // To all admins
+        admins.forEach(admin => {
+          io.to(`user_${admin.id}`).emit('new_notification', {
+            event: 'new_client',
+            data: {
+              title: 'New Client Registration',
+              message: `New client: ${name} (${email})`
+            }
+          });
+        });
+      }
+
+      // Keep your existing response structure
+      res.status(201).json({ 
+        user: newUser, 
+        client: newClient 
+      });
+
     } catch (error) {
-      res.status(500).json({ message: 'Error creating client', error });
+      console.error('Client creation error:', error);
+      res.status(500).json({ 
+        message: 'Error creating client',
+        error: process.env.NODE_ENV === 'development' ? error : undefined
+      });
     }
   },
 ];
