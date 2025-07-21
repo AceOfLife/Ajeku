@@ -5,42 +5,6 @@ const { check, validationResult } = require('express-validator');
 const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
 
 
-// 30th June 2025
-// exports.getAllClients = async (req, res) => {
-//   try {
-//     // Include the associated User model to fetch the user's profile fields
-//     const clients = await Client.findAll({
-//       include: [{
-//         model: User,
-//         as: 'user',  // as defined in the Client.associate method
-//         attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage' ] // Include all new fields
-//       }]
-//     });
-
-//     // Map over the clients to include user details in the response
-//     const clientsWithUserDetails = clients.map(client => ({
-//       id: client.id,
-//       user_id: client.user_id,
-//       firstName: client.user.firstName,
-//       lastName: client.user.lastName,
-//       email: client.user.email,
-//       address: client.user.address,
-//       contactNumber: client.user.contactNumber,
-//       city: client.user.city,
-//       state: client.user.state,
-//       gender: client.user.gender,
-//       profileImage: client.user.profileImage,
-//       status: client.status,  // Add the status here
-//       createdAt: client.createdAt,
-//       updatedAt: client.updatedAt
-//     }));
-
-//     res.status(200).json(clientsWithUserDetails);
-//   } catch (error) {
-//     res.status(500).json({ message: 'Error retrieving clients', error });
-//   }
-// };
-
 exports.getAllClients = async (req, res) => {
   try {
     // 1. Fetch all clients with their associated user data
@@ -170,47 +134,6 @@ exports.getAllClients = async (req, res) => {
 };
 
 
-// exports.getClient = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-
-//     // Find the client by ID, including the associated user details
-//     const client = await Client.findOne({
-//       where: { id },
-//       include: [{
-//         model: User,
-//         as: 'user',
-//         attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state'] // Fetching all the new fields from User
-//       }]
-//     });
-
-//     if (!client) {
-//       return res.status(404).json({ message: 'Client not found' });
-//     }
-
-//     // Prepare the response, including the client's user details
-//     const clientWithUserDetails = {
-//       id: client.id,
-//       user_id: client.user_id,
-//       firstName: client.user.firstName,
-//       lastName: client.user.lastName,
-//       email: client.user.email,
-//       address: client.user.address,
-//       contactNumber: client.user.contactNumber,
-//       city: client.user.city,
-//       state: client.user.state,
-//       status: client.status,  // Add the status here
-//       createdAt: client.createdAt,
-//       updatedAt: client.updatedAt
-//     };
-
-//     res.status(200).json(clientWithUserDetails);
-//   } catch (error) {
-//     res.status(500).json({ message: 'Error retrieving client', error });
-//   }
-// };
-
-//30/06/2025
 
 exports.getClient = async (req, res) => {
   try {
@@ -367,7 +290,7 @@ exports.createClient = [
           Notification.create({
             user_id: admin.id,
             title: 'New Client Registration',
-            message: `New client: ${name} (${email})`,
+            message: `New client: Name: ${name} Email: (${email})`,
             type: 'admin_alert', // Existing valid type
             is_read: false
           }, { transaction })
