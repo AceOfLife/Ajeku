@@ -216,6 +216,7 @@ exports.getClient = async (req, res) => {
   try {
     const clientId = req.params.id;
 
+    // 1. Fetch the client with user data
     const client = await Client.findByPk(clientId, {
       include: [{
         model: User,
@@ -232,6 +233,50 @@ exports.getClient = async (req, res) => {
       return res.status(404).json({ message: 'Client not found' });
     }
 
+    // 2. Fetch ALL documents for this client
+    let userDocuments = [];
+    try {
+      userDocuments = await UserDocument.findAll({
+        where: { userId: client.user_id },
+        attributes: [
+          'id',
+          'documentType',
+          'frontUrl',
+          'backUrl',
+          'status',
+          ...(req.user.isAdmin ? [
+            'verifiedAt',
+            'verifiedBy',
+            'adminNotes'
+          ] : [])
+        ],
+        include: req.user.isAdmin ? [{
+          model: User,
+          as: 'verifier',
+          attributes: ['firstName', 'lastName']
+        }] : []
+      });
+    } catch (docError) {
+      console.error('Document fetch error:', docError);
+      // Continue with empty documents array
+    }
+
+    // 3. Format documents (maintaining same structure as getAllClients)
+    const documents = userDocuments.map(doc => ({
+      id: doc.id,
+      type: doc.documentType,
+      frontUrl: doc.frontUrl,
+      backUrl: doc.backUrl,
+      status: doc.status,
+      ...(req.user.isAdmin && {
+        verifiedAt: doc.verifiedAt,
+        verifiedBy: doc.verifier ? 
+          `${doc.verifier.firstName} ${doc.verifier.lastName}` : null,
+        adminNotes: doc.adminNotes
+      })
+    }));
+
+    // 4. Return response with exact same structure as before, plus documents
     res.status(200).json({
       id: client.id,
       user_id: client.user_id,
@@ -246,10 +291,15 @@ exports.getClient = async (req, res) => {
       profileImage: client.user.profileImage,
       status: client.status,
       createdAt: client.createdAt,
-      updatedAt: client.updatedAt
+      updatedAt: client.updatedAt,
+      documents: documents // Added this line while keeping all other fields identical
     });
+
   } catch (error) {
-    res.status(500).json({ message: 'Error retrieving client', error: error.message });
+    res.status(500).json({ 
+      message: 'Error retrieving client', 
+      error: error.message 
+    });
   }
 };
 
