@@ -55,9 +55,9 @@ exports.getAllClients = async (req, res) => {
     // Get all client user IDs for batch document fetching
     const clientUserIds = clients.map(client => client.user_id);
 
-    // Fetch all documents for these users in one query (if model exists)
+    // Fetch all documents for these users in one query
     let userDocuments = [];
-    if (UserDocument && clientUserIds.length > 0) {
+    if (clientUserIds.length > 0) {
       try {
         const whereCondition = {};
         
@@ -71,11 +71,12 @@ exports.getAllClients = async (req, res) => {
             ...whereCondition
           },
           attributes: req.user.isAdmin 
-            ? ['id', 'userId', 'type', 'url', 'status', 'verifiedAt', 'verifiedBy', 'adminNotes']
-            : ['id', 'userId', 'type', 'url', 'status']
+            ? ['id', 'userId', 'documentType', 'url', 'status', 'verifiedAt', 'verifiedBy', 'adminNotes']
+            : ['id', 'userId', 'documentType', 'url', 'status']
         });
       } catch (docError) {
-        console.error('Note: Error fetching documents -', docError.message);
+        console.error('Error fetching documents:', docError.message);
+        // Continue with empty documents array if there's an error
       }
     }
 
@@ -87,7 +88,7 @@ exports.getAllClients = async (req, res) => {
       }
       const docData = {
         id: doc.id,
-        documentType: doc.documentType,
+        documentType: doc.documentType, // Changed from 'type' to 'documentType'
         url: doc.url,
         status: doc.status
       };
@@ -111,7 +112,7 @@ exports.getAllClients = async (req, res) => {
       city: client.user.city,
       state: client.user.state,
       gender: client.user.gender,
-      // profileImage: client.user.profileImage,
+      profileImage: client.user.profileImage,
       status: client.status,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt,
