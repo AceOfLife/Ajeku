@@ -20,5 +20,5 @@ router.patch('/mark-all-read', authenticate, notificationController.markAllAsRea
 
 // Delete notification
 router.delete('/:id', authenticate, notificationController.deleteNotification);
-
+router.get('/:id', authenticate, notificationController.getNotification);
 module.exports = router;

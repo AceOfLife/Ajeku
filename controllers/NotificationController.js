@@ -221,3 +221,74 @@ exports.notificationStream = async (req, res) => {
     res.status(500).json({ message: 'SSE connection failed' });
   }
 };
+
+exports.getNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Base query conditions
+    const where = { id };
+
+    // Clients can only access their own notifications
+    if (userRole === 'client') {
+      where.user_id = userId;
+    }
+    // Admins can access any notification but need to see the owner
+    else if (userRole === 'admin') {
+      // Include owner information
+      const notification = await Notification.findOne({
+        where,
+        include: [{
+          model: User,
+          as: 'user',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'role']
+        }]
+      });
+
+      if (!notification) {
+        return res.status(404).json({
+          success: false,
+          message: 'Notification not found'
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: notification,
+        meta: {
+          access_level: 'admin_view',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    // For clients and other roles
+    const notification = await Notification.findOne({ where });
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: 'Notification not found or unauthorized'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: notification,
+      meta: {
+        access_level: 'owner_view',
+        timestamp: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error("Get Notification Error:", error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve notification',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
