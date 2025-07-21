@@ -318,10 +318,15 @@ exports.createClient = [
     const { name, email, password } = req.body;
     const io = req.app.get('socketio'); // Get Socket.io instance if available
 
+    const transaction = await sequelize.transaction(); // Start transaction
     try {
       // Check if email already exists
-      const existingUser = await User.findOne({ where: { email } });
+      const existingUser = await User.findOne({ 
+        where: { email },
+        transaction 
+      });
       if (existingUser) {
+        await transaction.rollback();
         return res.status(400).json({ message: 'Email is already registered' });
       }
 
@@ -335,41 +340,48 @@ exports.createClient = [
         email,
         password: hashedPassword,
         role: 'client',
-      });
+      }, { transaction });
 
       // Create the client record
       const newClient = await Client.create({
         user_id: newUser.id,
-      });
+      }, { transaction });
 
-      // 1. Create client welcome notification
+      // 1. Create client welcome notification (using 'system' type temporarily)
       const clientNotification = await Notification.create({
         user_id: newUser.id,
         title: 'Welcome!',
         message: `Hi ${name}, your client account was successfully created.`,
-        type: 'user_signup',
+        type: 'system', // Using existing enum value
         is_read: false
-      });
+      }, { transaction });
 
-      // 2. Notify admins about new client (find all admins)
-      const admins = await User.findAll({ where: { role: 'admin' } });
+      // 2. Notify admins about new client (using existing 'admin_alert' type)
+      const admins = await User.findAll({ 
+        where: { role: 'admin' },
+        transaction 
+      });
+      
       const adminNotifications = await Promise.all(
         admins.map(admin => 
           Notification.create({
             user_id: admin.id,
             title: 'New Client Registration',
             message: `New client: ${name} (${email})`,
-            type: 'admin_alert',
+            type: 'admin_alert', // Existing valid type
             is_read: false
-          })
+          }, { transaction })
         )
       );
 
-      // 3. Real-time notifications (if Socket.io is available)
+      // Commit transaction if everything succeeds
+      await transaction.commit();
+
+      // 3. Real-time notifications (only after successful commit)
       if (io) {
         // To client
         io.to(`user_${newUser.id}`).emit('new_notification', {
-          event: 'user_signup',
+          event: 'system', // Matches the notification type
           data: clientNotification
         });
 
@@ -389,6 +401,7 @@ exports.createClient = [
       });
 
     } catch (error) {
+      await transaction.rollback();
       console.error('Client creation error:', error);
       res.status(500).json({ 
         message: 'Error creating client',
@@ -397,7 +410,6 @@ exports.createClient = [
     }
   },
 ];
-
 // exports.updateClient = async (req, res) => {
 //   try {
 //     const { id } = req.params;
