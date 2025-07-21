@@ -1,5 +1,5 @@
 // controllers/ClientController.js
-const { Client, User, UserDocument } = require('../models');
+const { Client, User, UserDocument, Notification } = require('../models');
 const bcrypt = require('bcryptjs');
 const { check, validationResult } = require('express-validator');
 const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
@@ -303,96 +303,6 @@ exports.getClient = async (req, res) => {
   }
 };
 
-
-
-// 07/07/
-// exports.getClient = async (req, res) => {
-//   try {
-//     let clientId = req.params.id;
-//     const userId = req.user.id;
-
-//     if (!req.user.isAdmin) {
-//       clientId = userId;
-//     }
-
-//     // First try to find by client ID (primary key)
-//     let client = await Client.findOne({
-//       where: { id: clientId },
-//       include: [{
-//         model: User,
-//         as: 'user',
-//         attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage']
-//       }]
-//     });
-
-//     // If not found by ID, try by user_id
-//     if (!client) {
-//       client = await Client.findOne({
-//         where: { user_id: clientId },
-//         include: [{
-//           model: User,
-//           as: 'user',
-//           attributes: ['firstName', 'lastName', 'email', 'address', 'contactNumber', 'city', 'state', 'gender', 'profileImage']
-//         }]
-//       });
-//     }
-
-//     if (!client) {
-//       return res.status(404).json({ message: 'Client not found' });
-//     }
-
-//     // NEW: Fetch documents separately to avoid modifying original query
-//     const documents = req.user.isAdmin 
-//       ? await UserDocument.findAll({ where: { userId: client.user_id } })
-//       : await UserDocument.findAll({ 
-//           where: { 
-//             userId: client.user_id,
-//             status: 'APPROVED'
-//           }
-//         });
-
-//     // Original response structure + NEW documents field
-//     const response = {
-//       // ALL ORIGINAL FIELDS (unchanged)
-//       id: client.id,
-//       user_id: client.user_id,
-//       firstName: client.user.firstName,
-//       lastName: client.user.lastName,
-//       email: client.user.email,
-//       address: client.user.address,
-//       contactNumber: client.user.contactNumber,
-//       city: client.user.city,
-//       state: client.user.state,
-//       gender: client.user.gender,
-//       profileImage: client.user.profileImage,
-//       status: client.status,
-//       createdAt: client.createdAt,
-//       updatedAt: client.updatedAt,
-      
-//       // NEW FIELD (added at the end)
-//       documents: documents.map(doc => ({
-//         id: doc.id,
-//         type: doc.type,
-//         url: doc.url,
-//         status: doc.status,
-//         ...(req.user.isAdmin && { 
-//           verifiedAt: doc.verifiedAt,
-//           verifiedBy: doc.verifiedBy,
-//           adminNotes: doc.adminNotes
-//         })
-//       }))
-//     };
-
-//     res.status(200).json(response);
-//   } catch (error) {
-//     console.error('Error retrieving client:', error);
-//     res.status(500).json({ 
-//       message: 'Error retrieving client',
-//       error: process.env.NODE_ENV === 'development' ? error.message : undefined
-//     });
-//   }
-// };
-
 exports.createClient = [
   // Validation middleware
   check('name').notEmpty().withMessage('Name is required'),
@@ -406,6 +316,7 @@ exports.createClient = [
     }
 
     const { name, email, password } = req.body;
+    const io = req.app.get('socketio'); // Get Socket.io instance if available
 
     try {
       // Check if email already exists
@@ -426,14 +337,63 @@ exports.createClient = [
         role: 'client',
       });
 
-      // Create the client record using the new user's ID
+      // Create the client record
       const newClient = await Client.create({
         user_id: newUser.id,
       });
 
-      res.status(201).json({ user: newUser, client: newClient });
+      // 1. Create client welcome notification
+      const clientNotification = await Notification.create({
+        user_id: newUser.id,
+        title: 'Welcome!',
+        message: `Hi ${name}, your client account was successfully created.`,
+        type: 'user_signup',
+        is_read: false
+      });
+
+      // 2. Notify admins about new client (find all admins)
+      const admins = await User.findAll({ where: { role: 'admin' } });
+      const adminNotifications = await Promise.all(
+        admins.map(admin => 
+          Notification.create({
+            user_id: admin.id,
+            title: 'New Client Registration',
+            message: `New client: ${name} (${email})`,
+            type: 'admin_alert',
+            is_read: false
+          })
+        )
+      );
+
+      // 3. Real-time notifications (if Socket.io is available)
+      if (io) {
+        // To client
+        io.to(`user_${newUser.id}`).emit('new_notification', {
+          event: 'user_signup',
+          data: clientNotification
+        });
+
+        // To admins
+        adminNotifications.forEach(notification => {
+          io.to(`user_${notification.user_id}`).emit('new_notification', {
+            event: 'admin_alert',
+            data: notification
+          });
+        });
+      }
+
+      // Return original response (unchanged structure)
+      res.status(201).json({ 
+        user: newUser, 
+        client: newClient 
+      });
+
     } catch (error) {
-      res.status(500).json({ message: 'Error creating client', error });
+      console.error('Client creation error:', error);
+      res.status(500).json({ 
+        message: 'Error creating client',
+        error: process.env.NODE_ENV === 'development' ? error : undefined
+      });
     }
   },
 ];
