@@ -413,6 +413,7 @@ exports.createClient = [
 exports.updateProfile = async (req, res) => {
   try {
     const { firstName, lastName, email, address, contactNumber, city, state, gender } = req.body;
+    const io = req.app.get('socketio'); // Get Socket.io instance if available
 
     // Find the client associated with the authenticated user (using req.user.id)
     const client = await Client.findOne({
@@ -428,14 +429,13 @@ exports.updateProfile = async (req, res) => {
     }
 
     const user = client.user;
-
-    console.log('Uploaded files:', req.files);
+    const oldEmail = user.email; // Store for comparison
 
     // If profile image is uploaded, handle the file and save the URL
     if (req.files && req.files.length > 0) {
       const uploadedImages = await uploadImagesToCloudinary(req.files);
-      const profileImageUrl = uploadedImages[0]; // Assuming only one image for profile
-      user.profileImage = profileImageUrl; // Save the Cloudinary URL to the profileImage field
+      const profileImageUrl = uploadedImages[0];
+      user.profileImage = profileImageUrl;
     }
 
     // Update the user's profile fields
@@ -448,8 +448,78 @@ exports.updateProfile = async (req, res) => {
     user.state = state || user.state;
     user.gender = gender || user.gender;
 
-    await user.save(); // Save the updated user details
+    await user.save();
 
+    // ========== NOTIFICATION INTEGRATION START ==========
+    // 1. Notification to user
+    const userNotification = await Notification.create({
+      user_id: req.user.id,
+      title: 'Profile Updated',
+      message: 'Your profile information was successfully updated',
+      type: 'system',
+      metadata: {
+        updated_fields: {
+          firstName: firstName !== undefined,
+          lastName: lastName !== undefined,
+          email: email !== undefined && email !== oldEmail,
+          address: address !== undefined,
+          contactNumber: contactNumber !== undefined,
+          profileImage: req.files?.length > 0
+        }
+      }
+    });
+
+    // 2. Notify admins if email was changed
+    if (email && email !== oldEmail) {
+      const admins = await User.findAll({ where: { role: 'admin' } });
+      
+      await Promise.all(
+        admins.map(admin => 
+          Notification.create({
+            user_id: admin.id,
+            title: 'User Changed Email',
+            message: `User ${oldEmail} changed their email to ${email}`,
+            type: 'admin_alert',
+            metadata: {
+              user_id: req.user.id,
+              old_email: oldEmail,
+              new_email: email
+            }
+          })
+        )
+      );
+    }
+
+    // Real-time notifications
+    if (io) {
+      // To user
+      io.to(`user_${req.user.id}`).emit('new_notification', {
+        event: 'profile_updated',
+        data: userNotification
+      });
+
+      // To admins only if email changed
+      if (email && email !== oldEmail) {
+        const adminNotifications = await Notification.findAll({
+          where: { 
+            type: 'admin_alert',
+            'metadata.new_email': email
+          },
+          order: [['created_at', 'DESC']],
+          limit: 1
+        });
+
+        if (adminNotifications.length > 0) {
+          io.to(`admin_dashboard`).emit('admin_notification', {
+            event: 'email_changed',
+            data: adminNotifications[0]
+          });
+        }
+      }
+    }
+    // ========== NOTIFICATION INTEGRATION END ==========
+
+    // Maintain EXACT same response structure
     res.status(200).json({
       message: 'Profile updated successfully',
       user: {
@@ -461,12 +531,16 @@ exports.updateProfile = async (req, res) => {
         city: user.city,
         state: user.state,
         gender: user.gender,
-        profileImage: user.profileImage, // Return the Cloudinary image URL
+        profileImage: user.profileImage,
       },
     });
+
   } catch (error) {
     console.error('Error updating profile:', error); 
-    res.status(500).json({ message: 'Error updating profile', error: error.message });
+    res.status(500).json({ 
+      message: 'Error updating profile', 
+      error: error.message 
+    });
   }
 };
 
