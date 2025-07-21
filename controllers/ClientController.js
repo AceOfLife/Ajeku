@@ -72,7 +72,7 @@ exports.getAllClients = async (req, res) => {
       try {
         const documentWhere = {
           userId: clientUserIds,
-          ...(!req.user.isAdmin && { status: 'APPROVED' }) // Only approved for non-admins
+          ...(!req.user.isAdmin) // Only approved for non-admins
         };
 
         userDocuments = await UserDocument.findAll({
