@@ -319,7 +319,7 @@ exports.createClient = [
       // Check if email already exists
       const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
-        return res.status(400).json({ message: 'Email is already registered' });
+        return res.status(400).json({ message: 'Email is already' });
       }
 
       // Hash the password
