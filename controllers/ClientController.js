@@ -315,124 +315,36 @@ exports.createClient = [
     }
 
     const { name, email, password } = req.body;
-    const io = req.app.get('socketio');
-    const { sequelize } = req.app.get('db'); // Get sequelize from app context
-    const t = await sequelize.transaction();
 
     try {
-      // 1. Check if email exists
-      const existingUser = await db.User.findOne({ 
-        where: { email },
-        transaction: t 
-      });
-      
+      // Check if email already exists
+      const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
-        await t.rollback();
         return res.status(400).json({ message: 'Email is already registered' });
       }
 
-      // 2. Hash password
+      // Hash the password
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
 
-      // 3. Create user
-      const newUser = await db.User.create({
+      // Create the user
+      const newUser = await User.create({
         name,
         email,
         password: hashedPassword,
         role: 'client',
-      }, { transaction: t });
+      });
 
-      // 4. Create client record
-      const newClient = await db.Client.create({
+      // Create the client record using the new user's ID
+      const newClient = await Client.create({
         user_id: newUser.id,
-      }, { transaction: t });
-
-      // 5. Create notifications
-      const [clientNotification, adminNotifications] = await Promise.all([
-        // Client notification
-        db.Notification.create({
-          user_id: newUser.id,
-          title: 'Welcome!',
-          message: `Hi ${name}, your client account was successfully created.`,
-          type: 'user_signup',
-          is_read: false
-        }, { transaction: t }),
-        
-        // Admin notifications
-        (async () => {
-          const admins = await db.User.findAll({ 
-            where: { role: 'admin' },
-            transaction: t 
-          });
-          
-          return admins.length > 0 
-            ? Promise.all(admins.map(admin => 
-                db.Notification.create({
-                  user_id: admin.id,
-                  title: 'New Client Registration',
-                  message: `New client: ${name} (${email})`,
-                  type: 'admin_alert',
-                  is_read: false
-                }, { transaction: t })
-              ))
-            : [];
-        })()
-      ]);
-
-      // Commit transaction
-      await t.commit();
-
-      // 6. Real-time notifications
-      if (io) {
-        // To client
-        io.to(`user_${newUser.id}`).emit('new_notification', {
-          event: 'user_signup',
-          data: clientNotification
-        });
-
-        // To admins
-        adminNotifications.forEach(notification => {
-          io.to(`user_${notification.user_id}`).emit('new_notification', {
-            event: 'admin_alert',
-            data: notification
-          });
-        });
-      }
-
-      // 7. Return response
-      return res.status(201).json({ 
-        success: true,
-        user: _.pick(newUser, ['id', 'name', 'email', 'role']),
-        client: _.pick(newClient, ['id', 'user_id', 'status']),
-        notifications: {
-          client: _.pick(clientNotification, ['id', 'title', 'type']),
-          admins: adminNotifications.map(n => _.pick(n, ['id', 'title', 'type']))
-        }
       });
 
+      res.status(201).json({ user: newUser, client: newClient });
     } catch (error) {
-      await t.rollback();
-      console.error('Client creation error:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        ...(error.errors && { errors: error.errors.map(e => e.message) })
-      });
-
-      return res.status(500).json({ 
-        success: false,
-        message: 'Error creating client',
-        ...(process.env.NODE_ENV === 'development' && {
-          error: {
-            name: error.name,
-            message: error.message,
-            ...(error.errors && { errors: error.errors.map(e => e.message) })
-          }
-        })
-      });
+      res.status(500).json({ message: 'Error creating client', error });
     }
-  }
+  },
 ];
 
 // exports.updateClient = async (req, res) => {
