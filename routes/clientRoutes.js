@@ -66,5 +66,27 @@ router.post('/notifications', authenticate, NotificationController.createNotific
 router.get('/notifications', authenticate, NotificationController.getUserNotifications);
 router.put('/notifications/:id/read', authenticate, NotificationController.markAsRead);
 
+// Relist
+// Check relist eligibility
+router.get(
+  '/properties/:propertyId/can-relist', 
+  authenticate, 
+  RelistController.checkRelistEligibility
+);
+
+// Relist entire property
+router.post(
+  '/properties/:propertyId/relist', 
+  authenticate, 
+  RelistController.relistProperty
+);
+
+// Relist specific slots
+router.post(
+  '/properties/:propertyId/relist-slots', 
+  authenticate, 
+  RelistController.relistSlots
+);
+
 
 module.exports = router;

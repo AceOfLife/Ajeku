@@ -20,6 +20,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
+      is_relisted: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
+      },
+      relist_price: {
+        type: DataTypes.FLOAT,
+        allowNull: true
+      },
     });
   
     FractionalOwnership.associate = (models) => {

@@ -189,6 +189,18 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
+    is_relisted: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false
+    },
+    original_owner_id: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Users',
+        key: 'id'
+      },
+      allowNull: true
+    },
   });
 
   Property.associate = function(models) {
