@@ -5,6 +5,7 @@ const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware'
 const { upload } = require('../config/multerConfig');
 const PropertyController = require('../controllers/PropertyController');
 const NotificationController = require('../controllers/NotificationController');
+const RelistController = require('../controllers/RelistController');
 
 // Client registration (no authentication)
 router.post('/register', ClientController.createClient);
