@@ -30,7 +30,6 @@ const login = async (req, res) => {
         name: user.name, 
         email: user.email,  // Ensure email is in the token for future use
         role: user.role,
-        clientId
       },
       process.env.JWT_SECRET, // Use the secret from environment variables
       { expiresIn: '1h' } // Token expiration time
