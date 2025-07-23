@@ -213,7 +213,7 @@ exports.verifyPayment = async (req, res) => {
       payment_type
     }, { transaction: t });
 
-    // ========== NOTIFICATION INTEGRATION START ==========
+    // ========== NOTIFICATION INTEGRATION (UNCHANGED) ==========
     const io = req.app.get('socketio');
 
     // Client notification
@@ -252,9 +252,9 @@ exports.verifyPayment = async (req, res) => {
         }, { transaction: t })
       )
     );
-    // ========== NOTIFICATION INTEGRATION END ==========
+    // ========== END NOTIFICATION INTEGRATION ==========
 
-    // 6. Process different payment types
+    // 6. Process different payment types (ORIGINAL LOGIC RESTORED)
     const getAvailableFractionalSlots = async (propertyId) => {
       const ownerships = await FractionalOwnership.findAll({ 
         where: { property_id: propertyId },
@@ -302,8 +302,186 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // [Keep all other payment type handlers exactly as they were...]
-    // Fractional Installment, Standard Installment, Rental payment handlers remain unchanged
+    // Fractional Installment
+    if (payment_type === "fractionalInstallment" && property.is_fractional && property.isFractionalInstallment) {
+      const today = new Date();
+      let ownership = await InstallmentOwnership.findOne({
+        where: { user_id, property_id },
+        transaction: t
+      });
+
+      if (!ownership) {
+        const availableSlots = await getAvailableFractionalSlots(property.id);
+        if (slots > availableSlots) {
+          await t.rollback();
+          return res.status(400).json({ message: 'Not enough fractional slots available (post-payment)' });
+        }
+
+        ownership = await InstallmentOwnership.create({
+          user_id,
+          property_id,
+          start_date: today,
+          total_months: property.isFractionalDuration,
+          months_paid: 1,
+          status: property.isFractionalDuration === 1 ? "completed" : "ongoing"
+        }, { transaction: t });
+
+        await FractionalOwnership.create({
+          user_id,
+          property_id,
+          slots_purchased: slots
+        }, { transaction: t });
+      } else {
+        ownership.months_paid += 1;
+        if (ownership.months_paid >= ownership.total_months) {
+          ownership.status = "completed";
+        }
+        await ownership.save({ transaction: t });
+      }
+
+      await InstallmentPayment.create({
+        ownership_id: ownership.id,
+        user_id,
+        property_id,
+        amount_paid: paymentData.amount / 100,
+        payment_month: today.getMonth() + 1,
+        payment_year: today.getFullYear()
+      }, { transaction: t });
+
+      await t.commit();
+
+      // Real-time notifications
+      if (io) {
+        io.to(`user_${user_id}`).emit('new_notification', {
+          event: 'payment_success',
+          data: clientNotification
+        });
+
+        adminNotifications.forEach(notif => {
+          io.to(`user_${notif.user_id}`).emit('new_notification', {
+            event: 'admin_payment_alert',
+            data: notif
+          });
+        });
+      }
+
+      return res.status(200).json({
+        message: "Fractional installment payment verified successfully",
+        transaction,
+        monthsPaid: ownership.months_paid,
+        monthsRemaining: ownership.total_months - ownership.months_paid,
+        status: ownership.status,
+        availableSlots: await getAvailableFractionalSlots(property.id)
+      });
+    }
+
+    // Standard Installment
+    if (payment_type === "installment" && property.isInstallment && !property.is_fractional) {
+      const today = new Date();
+      let ownership = await InstallmentOwnership.findOne({
+        where: { user_id, property_id },
+        transaction: t
+      });
+
+      if (!ownership) {
+        ownership = await InstallmentOwnership.create({
+          user_id,
+          property_id,
+          start_date: today,
+          total_months: parseInt(property.duration),
+          months_paid: 1,
+          status: parseInt(property.duration) === 1 ? "completed" : "ongoing"
+        }, { transaction: t });
+      } else {
+        ownership.months_paid += 1;
+        if (ownership.months_paid >= ownership.total_months) {
+          ownership.status = "completed";
+        }
+        await ownership.save({ transaction: t });
+      }
+
+      await InstallmentPayment.create({
+        ownership_id: ownership.id,
+        user_id,
+        property_id,
+        amount_paid: paymentData.amount / 100,
+        payment_month: today.getMonth() + 1,
+        payment_year: today.getFullYear()
+      }, { transaction: t });
+
+      await t.commit();
+
+      // Real-time notifications
+      if (io) {
+        io.to(`user_${user_id}`).emit('new_notification', {
+          event: 'payment_success',
+          data: clientNotification
+        });
+
+        adminNotifications.forEach(notif => {
+          io.to(`user_${notif.user_id}`).emit('new_notification', {
+            event: 'admin_payment_alert',
+            data: notif
+          });
+        });
+      }
+
+      return res.status(200).json({
+        message: "Installment payment verified successfully",
+        transaction,
+        monthsPaid: ownership.months_paid,
+        monthsRemaining: ownership.total_months - ownership.months_paid,
+        status: ownership.status
+      });
+    }
+
+    // Rental Payment
+    if (payment_type === "rental" && property.isRental) {
+      const roomsBooked = parseInt(rooms) || 1;
+      
+      const rental = await RentalBooking.create({
+        user_id,
+        property_id,
+        rooms_booked: roomsBooked,
+        amount_paid: paymentData.amount / 100,
+        start_date: new Date(),
+        end_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+      }, { transaction: t });
+
+      await Property.decrement('rental_rooms', {
+        by: roomsBooked,
+        where: { id: property.id },
+        transaction: t
+      });
+
+      await t.commit();
+
+      // Real-time notifications
+      if (io) {
+        io.to(`user_${user_id}`).emit('new_notification', {
+          event: 'payment_success',
+          data: clientNotification
+        });
+
+        adminNotifications.forEach(notif => {
+          io.to(`user_${notif.user_id}`).emit('new_notification', {
+            event: 'admin_payment_alert',
+            data: notif
+          });
+        });
+      }
+
+      return res.status(200).json({
+        message: "Rental payment verified successfully",
+        transaction,
+        rentalDetails: {
+          bookingId: rental.id,
+          roomsBooked,
+          startDate: rental.start_date,
+          endDate: rental.end_date
+        }
+      });
+    }
 
     // Default case
     await t.commit();

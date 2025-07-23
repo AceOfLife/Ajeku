@@ -118,3 +118,15 @@ exports.checkRelistEligibility = async (req, res) => {
     });
   }
 };
+
+
+const getRelistedSlots = async (req, res) => {
+  const { propertyId } = req.params;
+  const relistedSlots = await FractionalOwnership.findAll({
+    where: { 
+      property_id: propertyId,
+      is_relisted: true 
+    }
+  });
+  res.json(relistedSlots);
+};

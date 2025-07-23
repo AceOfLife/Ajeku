@@ -1,7 +1,7 @@
 // PropertyImage Table Update
 
 // const { Property, User, PropertyImage } = require('../models');
-const { Property, User, PropertyImage, FractionalOwnership, InstallmentOwnership, Transaction, sequelize } = require('../models');
+const { Property, User, PropertyImage, FractionalOwnership, InstallmentOwnership, Transaction, sequelize} = require('../models');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
@@ -1037,5 +1037,18 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       message: "Error retrieving user analytics",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  }
+};
+
+
+const getRelistedProperties = async (req, res) => {
+  try {
+    const relistedProperties = await Property.findAll({
+      where: { is_relisted: true },
+      include: [FractionalOwnership] // Include slots if needed
+    });
+    res.json(relistedProperties);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch relisted properties" });
   }
 };

@@ -89,5 +89,8 @@ router.post(
   RelistController.relistSlots
 );
 
+// Get Relisted properties & slots
+router.get('/properties/relisted', PropertyController.getRelistedProperties);
+router.get('/properties/:propertyId/relisted-slots', RelistController.getRelistedSlots);
 
 module.exports = router;
