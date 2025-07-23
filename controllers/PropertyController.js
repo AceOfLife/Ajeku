@@ -1041,14 +1041,49 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
 };
 
 
-const getRelistedProperties = async (req, res) => {
+exports.getRelistedProperties = async (req, res) => {
   try {
     const relistedProperties = await Property.findAll({
       where: { is_relisted: true },
-      include: [FractionalOwnership] // Include slots if needed
+      include: [
+        {
+          model: PropertyImage,
+          as: 'images',
+          attributes: ['image_url']
+        },
+        {
+          model: FractionalOwnership,
+          where: { is_relisted: true },
+          required: false
+        }
+      ],
+      order: [['updatedAt', 'DESC']] // Show most recently relisted first
     });
-    res.json(relistedProperties);
+
+    // Calculate available slots for fractional properties
+    const propertiesWithSlots = await Promise.all(
+      relistedProperties.map(async property => {
+        if (property.is_fractional) {
+          const purchasedSlots = await FractionalOwnership.sum('slots_purchased', {
+            where: { property_id: property.id }
+          });
+          property.dataValues.available_slots = property.fractional_slots - (purchasedSlots || 0);
+        }
+        return property;
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      count: relistedProperties.length,
+      properties: propertiesWithSlots
+    });
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch relisted properties" });
+    console.error('Error fetching relisted properties:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch relisted properties',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };

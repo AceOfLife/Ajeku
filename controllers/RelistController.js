@@ -120,13 +120,58 @@ exports.checkRelistEligibility = async (req, res) => {
 };
 
 
-const getRelistedSlots = async (req, res) => {
-  const { propertyId } = req.params;
-  const relistedSlots = await FractionalOwnership.findAll({
-    where: { 
-      property_id: propertyId,
-      is_relisted: true 
+exports.getRelistedSlots = async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    // Verify property exists
+    const property = await Property.findByPk(propertyId);
+    if (!property) {
+      return res.status(404).json({
+        success: false,
+        message: 'Property not found'
+      });
     }
-  });
-  res.json(relistedSlots);
+
+    // Get all relisted slots with owner info
+    const relistedSlots = await FractionalOwnership.findAll({
+      where: { 
+        property_id: propertyId,
+        is_relisted: true 
+      },
+      include: [
+        {
+          model: User,
+          attributes: ['id', 'name', 'email', 'phone'],
+          as: 'owner'
+        }
+      ],
+      order: [['relist_price', 'ASC']] // Cheapest first
+    });
+
+    // Calculate stats
+    const totalSlots = property.fractional_slots;
+    const availableSlots = totalSlots - await FractionalOwnership.sum('slots_purchased', {
+      where: { property_id: propertyId }
+    });
+
+    res.status(200).json({
+      success: true,
+      property: {
+        id: property.id,
+        name: property.name,
+        total_slots: totalSlots,
+        available_slots: availableSlots
+      },
+      slots: relistedSlots,
+      count: relistedSlots.length
+    });
+  } catch (error) {
+    console.error('Error fetching relisted slots:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch relisted slots',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 };
