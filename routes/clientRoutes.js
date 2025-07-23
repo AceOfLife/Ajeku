@@ -28,22 +28,25 @@ router.put('/:id/status', authenticate, authorizeAdmin, ClientController.updateC
 // Route for logged-in client to get their own profile (authentication required)
 router.get('/profile', authenticate, async (req, res) => {
   try {
-    if (req.user.role === 'client') {
-      if (!req.user.clientId) {
-        return res.status(403).json({
-          message: 'No client profile associated with this account'
-        });
-      }
-      req.params = { id: req.user.clientId };
-      return ClientController.getClient(req, res);
+    if (req.user.role !== 'client') {
+      return res.status(403).json({ message: 'For clients only' });
     }
-    
-    return res.status(403).json({
-      message: 'This endpoint is for client profiles only'
-    });
+
+    // Fetch clientId if not in token
+    const clientId = req.user.clientId || (await Client.findOne({ 
+      where: { user_id: req.user.id },
+      attributes: ['id']
+    }))?.id;
+
+    if (!clientId) {
+      return res.status(404).json({ message: 'Client profile not found' });
+    }
+
+    req.params = { id: clientId };
+    return ClientController.getClient(req, res);
   } catch (error) {
-    console.error('Error in profile route:', error);
-    return res.status(500).json({ message: 'Server error' });
+    console.error('Profile route error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
