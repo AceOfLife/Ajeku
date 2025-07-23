@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { Client } = require('../models');
 const ClientController = require('../controllers/ClientController');
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
 const { upload } = require('../config/multerConfig');
