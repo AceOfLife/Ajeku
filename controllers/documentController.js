@@ -48,60 +48,60 @@ exports.uploadDocuments = async (req, res) => {
   }
 };
 
-// exports.verifyDocument = async (req, res) => {
-//   try {
-//     const { documentId } = req.params;
-//     const { status, adminNotes } = req.body;
+exports.verifyDocument = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const { status, adminNotes } = req.body;
 
-//     // Match EXACTLY what's in your database enum (uppercase)
-//     const allowedStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
+    // Match EXACTLY what's in your database enum (uppercase)
+    const allowedStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
     
-//     // Convert input to uppercase to match enum
-//     const statusUpperCase = status.toUpperCase();
+    // Convert input to uppercase to match enum
+    const statusUpperCase = status.toUpperCase();
     
-//     if (!allowedStatuses.includes(statusUpperCase)) {
-//       return res.status(400).json({
-//         success: false,
-//         message: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}`
-//       });
-//     }
+    if (!allowedStatuses.includes(statusUpperCase)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}`
+      });
+    }
 
-//     const document = await UserDocument.findByPk(documentId);
-//     if (!document) {
-//       return res.status(404).json({ 
-//         success: false, 
-//         message: 'Document not found' 
-//       });
-//     }
+    const document = await UserDocument.findByPk(documentId);
+    if (!document) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Document not found' 
+      });
+    }
 
-//     // Update using the uppercase status
-//     await document.update({
-//       status: statusUpperCase,  // Must be 'APPROVED' or 'REJECTED'
-//       adminNotes: adminNotes || null,
-//       verifiedBy: req.user.id,
-//       verifiedAt: new Date()
-//     });
+    // Update using the uppercase status
+    await document.update({
+      status: statusUpperCase,  // Must be 'APPROVED' or 'REJECTED'
+      adminNotes: adminNotes || null,
+      verifiedBy: req.user.id,
+      verifiedAt: new Date()
+    });
 
-//     return res.json({
-//       success: true,
-//       message: `Document ${statusUpperCase}`,
-//       document: {
-//         id: document.id,
-//         status: document.status,
-//         verifiedBy: document.verifiedBy,
-//         verifiedAt: document.verifiedAt
-//       }
-//     });
+    return res.json({
+      success: true,
+      message: `Document ${statusUpperCase}`,
+      document: {
+        id: document.id,
+        status: document.status,
+        verifiedBy: document.verifiedBy,
+        verifiedAt: document.verifiedAt
+      }
+    });
 
-//   } catch (error) {
-//     console.error('Admin document verification error:', error);
-//     return res.status(500).json({
-//       success: false,
-//       message: 'Verification failed',
-//       error: process.env.NODE_ENV === 'development' ? error.message : undefined
-//     });
-//   }
-// };   10/07/2025 revert here
+  } catch (error) {
+    console.error('Admin document verification error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Verification failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};   // 10/07/2025 revert here (Came back here after request to remove user verification)
 
 // exports.verifyDocument = async (req, res) => {
 //   try {
@@ -188,88 +188,88 @@ exports.uploadDocuments = async (req, res) => {
 //   }
 // };  //16/07/2025 Not working properly
 
-exports.verifyDocument = async (req, res) => {
-  try {
-    const { documentId } = req.params;
-    const { status, adminNotes } = req.body;
-    const adminId = req.user.id; // The admin verifying the document
+// exports.verifyDocument = async (req, res) => {
+//   try {
+//     const { documentId } = req.params;
+//     const { status, adminNotes } = req.body;
+//     const adminId = req.user.id; // The admin verifying the document
 
-    // Validate status
-    const allowedStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
-    const statusUpperCase = status?.toUpperCase();
+//     // Validate status
+//     const allowedStatuses = ['PENDING', 'APPROVED', 'REJECTED'];
+//     const statusUpperCase = status?.toUpperCase();
     
-    if (!statusUpperCase || !allowedStatuses.includes(statusUpperCase)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}`
-      });
-    }
+//     if (!statusUpperCase || !allowedStatuses.includes(statusUpperCase)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `Invalid status. Allowed values: ${allowedStatuses.join(', ')}`
+//       });
+//     }
 
-    // Start transaction to ensure both updates succeed or fail together
-    const transaction = await sequelize.transaction();
+//     // Start transaction to ensure both updates succeed or fail together
+//     const transaction = await sequelize.transaction();
 
-    try {
-      // Find document with associated user
-      const document = await UserDocument.findOne({
-        where: { id: documentId },
-        include: [{ model: User, as: 'user', required: true }],
-        transaction
-      });
+//     try {
+//       // Find document with associated user
+//       const document = await UserDocument.findOne({
+//         where: { id: documentId },
+//         include: [{ model: User, as: 'user', required: true }],
+//         transaction
+//       });
 
-      if (!document) {
-        await transaction.rollback();
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Document not found or no associated user' 
-        });
-      }
+//       if (!document) {
+//         await transaction.rollback();
+//         return res.status(404).json({ 
+//           success: false, 
+//           message: 'Document not found or no associated user' 
+//         });
+//       }
 
-      // Update document
-      const updateData = {
-        status: statusUpperCase,
-        adminNotes: adminNotes || null,
-        verifiedBy: adminId,
-        verifiedAt: new Date()
-      };
+//       // Update document
+//       const updateData = {
+//         status: statusUpperCase,
+//         adminNotes: adminNotes || null,
+//         verifiedBy: adminId,
+//         verifiedAt: new Date()
+//       };
 
-      await document.update(updateData, { transaction });
+//       await document.update(updateData, { transaction });
 
-      // If approved, update client status
-      if (statusUpperCase === 'APPROVED') {
-        await Client.update(
-          { status: 'Verified' },
-          { 
-            where: { user_id: document.user.id },
-            transaction
-          }
-        );
-      }
+//       // If approved, update client status
+//       if (statusUpperCase === 'APPROVED') {
+//         await Client.update(
+//           { status: 'Verified' },
+//           { 
+//             where: { user_id: document.user.id },
+//             transaction
+//           }
+//         );
+//       }
 
-      // Commit the transaction
-      await transaction.commit();
+//       // Commit the transaction
+//       await transaction.commit();
 
-      return res.json({
-        success: true,
-        message: `Document ${statusUpperCase}`,
-        document: {
-          id: document.id,
-          status: document.status,
-          verifiedBy: document.verifiedBy,
-          verifiedAt: document.verifiedAt
-        }
-      });
+//       return res.json({
+//         success: true,
+//         message: `Document ${statusUpperCase}`,
+//         document: {
+//           id: document.id,
+//           status: document.status,
+//           verifiedBy: document.verifiedBy,
+//           verifiedAt: document.verifiedAt
+//         }
+//       });
 
-    } catch (error) {
-      await transaction.rollback();
-      throw error; // This will be caught by the outer catch block
-    }
+//     } catch (error) {
+//       await transaction.rollback();
+//       throw error; // This will be caught by the outer catch block
+//     }
 
-  } catch (error) {
-    console.error('Admin document verification error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Verification failed',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
+//   } catch (error) {
+//     console.error('Admin document verification error:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Verification failed',
+//       error: process.env.NODE_ENV === 'development' ? error.message : undefined
+//     });
+//   }
+// };  Reverted to old code without verifying the user
