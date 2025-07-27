@@ -45,20 +45,75 @@ exports.relistProperty = async (req, res) => {
   }
 };
 
+// exports.relistSlots = async (req, res) => {
+//   const t = await sequelize.transaction();
+//   try {
+//     const { propertyId, slotIds, pricePerSlot } = req.body;
+//     const userId = req.user.id;
+
+//     // Verify slot ownership
+//     const canRelist = await OwnershipService.verifySlotOwnership(
+//       userId, 
+//       propertyId, 
+//       slotIds
+//     );
+    
+//     if (!canRelist) {
+//       await t.rollback();
+//       return res.status(403).json({ 
+//         success: false,
+//         message: "You don't own these slots or payments are incomplete" 
+//       });
+//     }
+
+//     // Update slots
+//     await FractionalOwnership.update({
+//       is_relisted: true,
+//       relist_price: pricePerSlot
+//     }, { 
+//       where: { 
+//         id: { [Op.in]: slotIds },
+//         user_id: userId
+//       },
+//       transaction: t 
+//     });
+
+//     await t.commit();
+    
+//     res.status(200).json({ 
+//       success: true,
+//       message: "Slots relisted successfully" 
+//     });
+
+//   } catch (error) {
+//     await t.rollback();
+//     res.status(500).json({ 
+//       success: false,
+//       message: "Failed to relist slots",
+//       error: process.env.NODE_ENV === 'development' ? error.message : undefined
+//     });
+//   }
+// };
+
 exports.relistSlots = async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const { propertyId, slotIds, pricePerSlot } = req.body;
     const userId = req.user.id;
 
-    // Verify slot ownership
-    const canRelist = await OwnershipService.verifySlotOwnership(
-      userId, 
-      propertyId, 
-      slotIds
-    );
+    // Verify ownership (with explicit table name)
+    const canRelist = await FractionalOwnership.findAll({
+      where: { 
+        id: { [Op.in]: slotIds },
+        user_id: userId,
+        property_id: propertyId
+      },
+      transaction: t,
+      // 👇 Critical override
+      tableName: 'FractionalOwnerships' 
+    });
     
-    if (!canRelist) {
+    if (canRelist.length !== slotIds.length) {
       await t.rollback();
       return res.status(403).json({ 
         success: false,
@@ -66,27 +121,28 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Update slots
-    await FractionalOwnership.update({
-      is_relisted: true,
-      relist_price: pricePerSlot
-    }, { 
-      where: { 
-        id: { [Op.in]: slotIds },
-        user_id: userId
-      },
-      transaction: t 
-    });
+    // Update slots (with explicit table name)
+    await sequelize.query(
+      `UPDATE "FractionalOwnerships" 
+       SET is_relisted = true, relist_price = :price 
+       WHERE id IN (:slotIds) AND user_id = :userId`,
+      {
+        replacements: { 
+          price: pricePerSlot,
+          slotIds: slotIds,
+          userId: userId
+        },
+        transaction: t,
+        type: sequelize.QueryTypes.UPDATE
+      }
+    );
 
     await t.commit();
-    
-    res.status(200).json({ 
-      success: true,
-      message: "Slots relisted successfully" 
-    });
+    res.status(200).json({ success: true, message: "Slots relisted successfully" });
 
   } catch (error) {
     await t.rollback();
+    console.error('Relist error (raw query):', error);
     res.status(500).json({ 
       success: false,
       message: "Failed to relist slots",
