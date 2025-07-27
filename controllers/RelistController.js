@@ -1,36 +1,32 @@
 const { Property, FractionalOwnership, sequelize } = require('../models');
 const { Op } = require('sequelize'); 
+const { sequelize } = require('../models');
 const OwnershipService = require('../services/OwnershipService');
 
 
 exports.relistProperty = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { propertyId, price } = req.body;
+    const { propertyId } = req.params; // Get from URL params
+    const { price: relistPrice, reason } = req.body;
     const userId = req.user.id;
 
-    console.log('Attempting property relist:', { userId, propertyId }); // Debug log
-
-    // 1. Verify ownership using raw SQL
-    const ownershipCheck = await sequelize.query(
+    // 1. Verify full ownership using positional parameters
+    const [ownershipResult] = await sequelize.query(
       `SELECT 1 FROM "FractionalOwnerships"
-       WHERE property_id = :propertyId
-       AND user_id = :userId
+       WHERE property_id = $1 AND user_id = $2
        GROUP BY property_id
-       HAVING COUNT(id) = (
-         SELECT fractional_slots FROM "Properties" WHERE id = :propertyId
+       HAVING COUNT(*) = (
+         SELECT fractional_slots FROM "Properties" WHERE id = $1
        )`,
       {
-        replacements: { 
-          propertyId: propertyId,
-          userId: userId
-        },
+        bind: [propertyId, userId],
         type: sequelize.QueryTypes.SELECT,
         transaction: t
       }
     );
 
-    if (ownershipCheck.length === 0) {
+    if (!ownershipResult) {
       await t.rollback();
       return res.status(403).json({ 
         success: false,
@@ -39,21 +35,18 @@ exports.relistProperty = async (req, res) => {
       });
     }
 
-    // 2. Update property using raw SQL
+    // 2. Update property using positional parameters
     await sequelize.query(
       `UPDATE "Properties"
        SET is_relisted = true,
-           original_owner_id = :userId,
-           price = :price,
+           original_owner_id = $1,
+           price = $2,
+           relist_reason = $3,
            agent_id = NULL,
            updated_at = NOW()
-       WHERE id = :propertyId`,
+       WHERE id = $4`,
       {
-        replacements: {
-          userId: userId,
-          price: price,
-          propertyId: propertyId
-        },
+        bind: [userId, relistPrice, reason, propertyId],
         transaction: t,
         type: sequelize.QueryTypes.UPDATE
       }
@@ -64,8 +57,8 @@ exports.relistProperty = async (req, res) => {
     res.status(200).json({ 
       success: true,
       message: "Property relisted successfully",
-      propertyId: propertyId,
-      newPrice: price
+      propertyId,
+      newPrice: relistPrice
     });
 
   } catch (error) {
@@ -73,15 +66,13 @@ exports.relistProperty = async (req, res) => {
     console.error('Property relist error:', {
       message: error.message,
       stack: error.stack,
+      params: req.params,
       body: req.body
     });
     res.status(500).json({ 
       success: false,
       message: "Failed to relist property",
-      error: process.env.NODE_ENV === 'development' ? {
-        message: error.message,
-        sql: error.sql // Shows the failing SQL query
-      } : undefined
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
