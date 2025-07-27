@@ -1,4 +1,5 @@
 const { Property, FractionalOwnership, sequelize } = require('../models');
+const { Op } = require('sequelize'); 
 const OwnershipService = require('../services/OwnershipService');
 
 exports.relistProperty = async (req, res) => {
