@@ -213,7 +213,7 @@ exports.verifyPayment = async (req, res) => {
       payment_type
     }, { transaction: t });
 
-    // ========== NOTIFICATION INTEGRATION (UNCHANGED) ==========
+    // ========== NOTIFICATION INTEGRATION ==========
     const io = req.app.get('socketio');
 
     // Client notification
@@ -254,7 +254,7 @@ exports.verifyPayment = async (req, res) => {
     );
     // ========== END NOTIFICATION INTEGRATION ==========
 
-    // 6. Process different payment types (ORIGINAL LOGIC RESTORED)
+    // 6. Process different payment types
     const getAvailableFractionalSlots = async (propertyId) => {
       const ownerships = await FractionalOwnership.findAll({ 
         where: { property_id: propertyId },
@@ -262,6 +262,42 @@ exports.verifyPayment = async (req, res) => {
       });
       return property.fractional_slots - ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
     };
+
+    // Full/Outright Payment
+    if (payment_type === "full" || payment_type === "outright") {
+      await FullOwnership.create({
+        user_id,
+        property_id,
+        purchase_date: new Date(),
+        purchase_amount: paymentData.amount / 100
+      }, { transaction: t });
+
+      await Property.update(
+        { is_sold: true },
+        { where: { id: property_id }, transaction: t }
+      );
+
+      await t.commit();
+      
+      if (io) {
+        io.to(`user_${user_id}`).emit('new_notification', {
+          event: 'payment_success',
+          data: clientNotification
+        });
+
+        adminNotifications.forEach(notif => {
+          io.to(`user_${notif.user_id}`).emit('new_notification', {
+            event: 'admin_payment_alert',
+            data: notif
+          });
+        });
+      }
+
+      return res.status(200).json({
+        message: "Full/outright payment verified successfully",
+        transaction
+      });
+    }
 
     // Fractional Outright Payment
     if (payment_type === "fractional" && property.is_fractional) {
@@ -279,7 +315,6 @@ exports.verifyPayment = async (req, res) => {
 
       await t.commit();
       
-      // Real-time notifications after successful commit
       if (io) {
         io.to(`user_${user_id}`).emit('new_notification', {
           event: 'payment_success',
@@ -350,7 +385,6 @@ exports.verifyPayment = async (req, res) => {
 
       await t.commit();
 
-      // Real-time notifications
       if (io) {
         io.to(`user_${user_id}`).emit('new_notification', {
           event: 'payment_success',
@@ -411,7 +445,6 @@ exports.verifyPayment = async (req, res) => {
 
       await t.commit();
 
-      // Real-time notifications
       if (io) {
         io.to(`user_${user_id}`).emit('new_notification', {
           event: 'payment_success',
@@ -456,7 +489,6 @@ exports.verifyPayment = async (req, res) => {
 
       await t.commit();
 
-      // Real-time notifications
       if (io) {
         io.to(`user_${user_id}`).emit('new_notification', {
           event: 'payment_success',
@@ -486,7 +518,6 @@ exports.verifyPayment = async (req, res) => {
     // Default case
     await t.commit();
     
-    // Real-time notifications for default case
     if (io) {
       io.to(`user_${user_id}`).emit('new_notification', {
         event: 'payment_success',
