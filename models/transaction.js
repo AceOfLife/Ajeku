@@ -137,6 +137,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     payment_type: {
       type: DataTypes.ENUM(
+        'full',
         'fractional',
         'fractionalInstallment',
         'installment',

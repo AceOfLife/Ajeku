@@ -222,6 +222,10 @@ module.exports = (sequelize, DataTypes) => {
     foreignKey: 'property_id',
     as: 'fractionalOwnerships'
   });
+   Property.hasMany(models.FullOwnership, {
+    foreignKey: 'property_id',
+    as: 'fullOwnerships'
+  });
     
   };
 
