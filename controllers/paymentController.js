@@ -135,8 +135,9 @@ exports.initializePayment = async (req, res) => {
 };
 
 exports.verifyPayment = async (req, res) => {
+  // [UPDATED] Changed isolation level for debugging
   const t = await sequelize.transaction({
-    isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.REPEATABLE_READ
+    isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
   });
   
   try {
@@ -146,7 +147,7 @@ exports.verifyPayment = async (req, res) => {
       return res.status(400).json({ message: "Transaction reference is required" });
     }
 
-    // 1. Check for existing transaction
+    // 1. Check for existing transaction (EXISTING)
     const existingTransaction = await Transaction.findOne({ 
       where: { reference },
       transaction: t
@@ -160,7 +161,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // 2. Verify with Paystack
+    // 2. Verify with Paystack (EXISTING)
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
@@ -178,14 +179,16 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // 3. Extract metadata
+    // 3. Extract metadata (EXISTING with added debug log)
     const { user_id, property_id, payment_type, slots = 1, rooms = 1 } = paymentData.metadata || {};
+    console.log('[DEBUG] Payment metadata:', { user_id, property_id, payment_type }); // [ADDED]
+    
     if (!user_id || !property_id || !payment_type) {
       await t.rollback();
       return res.status(400).json({ message: "Incomplete payment metadata" });
     }
 
-    // 4. Get user and property with lock
+    // 4. Get user and property with lock (EXISTING)
     const [user, property] = await Promise.all([
       User.findByPk(user_id, { transaction: t }),
       Property.findByPk(property_id, { 
@@ -201,7 +204,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // 5. Create transaction record
+    // 5. Create transaction record (EXISTING with added logging)
     const transaction = await Transaction.create({
       user_id,
       property_id,
@@ -211,9 +214,12 @@ exports.verifyPayment = async (req, res) => {
       status: paymentData.status,
       transaction_date: new Date(paymentData.transaction_date),
       payment_type
-    }, { transaction: t });
+    }, { 
+      transaction: t,
+      logging: console.log // [ADDED] Log SQL query
+    });
 
-    // ========== NOTIFICATION INTEGRATION ==========
+    // ========== NOTIFICATION INTEGRATION (EXISTING) ==========
     const io = req.app.get('socketio');
 
     // Client notification
@@ -254,7 +260,7 @@ exports.verifyPayment = async (req, res) => {
     );
     // ========== END NOTIFICATION INTEGRATION ==========
 
-    // 6. Process different payment types
+    // 6. Process different payment types (EXISTING)
     const getAvailableFractionalSlots = async (propertyId) => {
       const ownerships = await FractionalOwnership.findAll({ 
         where: { property_id: propertyId },
@@ -263,43 +269,79 @@ exports.verifyPayment = async (req, res) => {
       return property.fractional_slots - ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
     };
 
-    // Full/Outright Payment
+    // [UPDATED] Full/Outright Payment - COMPLETELY REWORKED
     if (payment_type === "full" || payment_type === "outright") {
-      await FullOwnership.create({
-        user_id,
-        property_id,
-        purchase_date: new Date(),
-        purchase_amount: paymentData.amount / 100
-      }, { transaction: t });
+      try {
+        console.log('[DEBUG] Processing full/outright payment'); // [ADDED]
+        
+        // Verify FullOwnership model exists
+        if (!sequelize.models.FullOwnership) {
+          throw new Error('FullOwnership model not registered with Sequelize');
+        }
 
-      await Property.update(
-        { is_sold: true },
-        { where: { id: property_id }, transaction: t }
-      );
-
-      await t.commit();
-      
-      if (io) {
-        io.to(`user_${user_id}`).emit('new_notification', {
-          event: 'payment_success',
-          data: clientNotification
+        // Create ownership record
+        const fullOwnership = await FullOwnership.create({
+          user_id,
+          property_id,
+          purchase_date: new Date(),
+          purchase_amount: paymentData.amount / 100
+        }, { 
+          transaction: t,
+          logging: console.log // [ADDED] Log SQL
         });
 
-        adminNotifications.forEach(notif => {
-          io.to(`user_${notif.user_id}`).emit('new_notification', {
-            event: 'admin_payment_alert',
-            data: notif
+        console.log(`[DEBUG] Created FullOwnership ID: ${fullOwnership.id}`); // [ADDED]
+
+        // Mark property as sold
+        const [updatedCount] = await Property.update(
+          { is_sold: true },
+          { 
+            where: { id: property_id }, 
+            transaction: t,
+            individualHooks: true
+          }
+        );
+
+        if (updatedCount !== 1) {
+          throw new Error(`Failed to update property status. Updated ${updatedCount} records`);
+        }
+
+        await t.commit();
+        
+        // Real-time notifications
+        if (io) {
+          io.to(`user_${user_id}`).emit('new_notification', {
+            event: 'payment_success',
+            data: clientNotification
           });
+
+          adminNotifications.forEach(notif => {
+            io.to(`user_${notif.user_id}`).emit('new_notification', {
+              event: 'admin_payment_alert',
+              data: notif
+            });
+          });
+        }
+
+        return res.status(200).json({
+          message: "Full/outright payment verified successfully",
+          transaction,
+          ownershipId: fullOwnership.id
+        });
+
+      } catch (err) {
+        console.error('[ERROR] Full payment processing failed:', err);
+        if (!t.finished) {
+          await t.rollback();
+        }
+        return res.status(500).json({
+          message: "Failed to process full payment",
+          error: process.env.NODE_ENV === 'development' ? err.message : undefined
         });
       }
-
-      return res.status(200).json({
-        message: "Full/outright payment verified successfully",
-        transaction
-      });
     }
 
-    // Fractional Outright Payment
+    // [EXISTING] Fractional Outright Payment (no changes)
     if (payment_type === "fractional" && property.is_fractional) {
       const availableSlots = await getAvailableFractionalSlots(property.id);
       if (slots > availableSlots) {
@@ -337,7 +379,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // Fractional Installment
+    // [EXISTING] Fractional Installment (no changes)
     if (payment_type === "fractionalInstallment" && property.is_fractional && property.isFractionalInstallment) {
       const today = new Date();
       let ownership = await InstallmentOwnership.findOne({
@@ -409,7 +451,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // Standard Installment
+    // [EXISTING] Standard Installment (no changes)
     if (payment_type === "installment" && property.isInstallment && !property.is_fractional) {
       const today = new Date();
       let ownership = await InstallmentOwnership.findOne({
@@ -468,7 +510,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // Rental Payment
+    // [EXISTING] Rental Payment (no changes)
     if (payment_type === "rental" && property.isRental) {
       const roomsBooked = parseInt(rooms) || 1;
       
@@ -515,35 +557,26 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // Default case
-    await t.commit();
-    
-    if (io) {
-      io.to(`user_${user_id}`).emit('new_notification', {
-        event: 'payment_success',
-        data: clientNotification
-      });
-
-      adminNotifications.forEach(notif => {
-        io.to(`user_${notif.user_id}`).emit('new_notification', {
-          event: 'admin_payment_alert',
-          data: notif
-        });
-      });
-    }
-
-    return res.status(200).json({
-      message: "Payment verified, but no specific ownership type was processed",
-      transaction
+    // [UPDATED] Default case - now explicitly rejects unsupported types
+    await t.rollback();
+    return res.status(400).json({
+      message: "Unsupported payment type",
+      payment_type: payment_type,
+      supported_types: ["full", "outright", "fractional", "fractionalInstallment", "installment", "rental"]
     });
 
   } catch (error) {
-    await t.rollback();
     console.error("Payment Verification Error:", {
       message: error.message,
-      reference: req.query.reference,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      stack: error.stack,
+      reference: req.query.reference
     });
+    
+    // [UPDATED] Safety check for transaction state
+    if (!t.finished) {
+      await t.rollback();
+    }
+    
     return res.status(500).json({ 
       message: "Error verifying payment",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
