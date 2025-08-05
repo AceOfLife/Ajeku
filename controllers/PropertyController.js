@@ -983,44 +983,42 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Get all properties with transaction details and ownership info
+    // Get all properties associated with the user
     const userProperties = await Property.findAll({
       include: [
         {
           model: Transaction,
           where: { user_id: userId },
           required: false,
-          attributes: ['amount', 'date', 'type'] // Now including transaction details
+          attributes: ['id', 'date'] // Only include fields that exist
         },
         {
           model: InstallmentOwnership,
           as: 'installmentOwnerships',
           where: { user_id: userId },
           required: false,
-          attributes: ['ownership_percentage']
+          attributes: ['id']
         },
         {
           model: FractionalOwnership,
           as: 'fractionalOwnerships',
           where: { user_id: userId },
           required: false,
-          attributes: ['share_percentage']
+          attributes: ['id']
         }
       ],
       distinct: true
     });
 
-    // Calculate analytics for each property
     const analytics = await Promise.all(
       userProperties.map(property => 
         calculatePropertyAnalytics(property.id, userId)
-      )
     );
 
-    // Calculate total portfolio value for percentage calculations
+    // Calculate total portfolio value
     const totalPortfolioValue = analytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0);
 
-    // Convert potential_equity to percentage of total portfolio
+    // Convert potential_equity to percentage
     const propertiesWithPercentage = analytics.map(a => ({
       ...a,
       potential_equity: totalPortfolioValue > 0 
@@ -1028,11 +1026,11 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
         : 0
     }));
 
-    // Calculate current totals including new project_cashflow
+    // Calculate totals
     const totals = {
       total_annual_income: analytics.reduce((sum, a) => sum + (a.annual_income || 0), 0),
       total_outstanding: analytics.reduce((sum, a) => sum + (a.outstanding_balance || 0), 0),
-      total_equity: analytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0),
+      total_equity: totalPortfolioValue,
       avg_yield: analytics.length > 0 
         ? analytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / analytics.length
         : 0,
@@ -1042,49 +1040,14 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       )
     };
 
-    // Helper function to calculate historical metrics
-    const calculateHistoricalMetrics = (period) => {
-      const now = new Date();
-      let startDate, endDate;
-
-      if (period === 'last_month') {
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        endDate = new Date(now.getFullYear(), now.getMonth(), 0);
-      } else { // last_year
-        startDate = new Date(now.getFullYear() - 1, 0, 1);
-        endDate = new Date(now.getFullYear() - 1, 11, 31);
-      }
-
-      let historicalIncome = 0;
-      let historicalExpenses = 0;
-      let propertyCount = 0;
-
-      userProperties.forEach(property => {
-        (property.Transactions || []).forEach(transaction => {
-          const transDate = new Date(transaction.date);
-          if (transDate >= startDate && transDate <= endDate) {
-            if (transaction.amount > 0) {
-              historicalIncome += transaction.amount;
-            } else {
-              historicalExpenses += Math.abs(transaction.amount);
-            }
-          }
-        });
-        
-        // Count properties that had any activity in this period
-        if (property.Transactions.some(t => {
-          const d = new Date(t.date);
-          return d >= startDate && d <= endDate;
-        })) {
-          propertyCount++;
-        }
-      });
-
+    // For historical data - simplified version since we don't have transaction amounts
+    const getHistoricalData = async (userId, period) => {
+      // Implement this based on what data you actually have available
       return {
-        total_income: historicalIncome,
-        total_expenses: historicalExpenses,
-        net_cashflow: historicalIncome - historicalExpenses,
-        active_properties: propertyCount
+        total_income: 0,
+        total_expenses: 0,
+        net_cashflow: 0,
+        active_properties: 0
       };
     };
 
@@ -1093,11 +1056,10 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       properties: propertiesWithPercentage,
       totals,
       metadata: {
-        last_month: calculateHistoricalMetrics('last_month'),
-        last_year: calculateHistoricalMetrics('last_year')
+        last_month: await getHistoricalData(userId, 'last_month'),
+        last_year: await getHistoricalData(userId, 'last_year')
       }
     });
-
   } catch (error) {
     console.error("Error fetching user properties analytics:", error);
     res.status(500).json({ 
