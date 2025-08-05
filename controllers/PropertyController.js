@@ -983,38 +983,38 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Get all properties associated with the user with transaction details
+    // Get all properties associated with the user with correct attributes
     const userProperties = await Property.findAll({
       include: [
         {
           model: Transaction,
           where: { user_id: userId },
           required: false,
-          attributes: ['id', 'transaction_date', 'price', 'status'] // Using correct field names
+          attributes: ['id', 'transaction_date', 'price', 'status'] // Verified fields
         },
         {
           model: InstallmentOwnership,
           as: 'installmentOwnerships',
           where: { user_id: userId },
           required: false,
-          attributes: ['id', 'ownership_percentage']
+          attributes: ['id', 'total_months', 'months_paid', 'status'] // Actual fields
         },
         {
           model: FractionalOwnership,
           as: 'fractionalOwnerships',
           where: { user_id: userId },
           required: false,
-          attributes: ['id', 'share_percentage']
+          attributes: ['id', 'slots_purchased', 'relist_price'] // Actual fields
         }
       ],
       distinct: true
     });
 
-    // Calculate analytics for each property
     const analytics = await Promise.all(
       userProperties.map(property => 
         calculatePropertyAnalytics(property.id, userId)
-    ));
+      )
+    );
 
     // Calculate total portfolio value for percentage calculations
     const totalPortfolioValue = analytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0);
@@ -1027,7 +1027,7 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
         : 0
     }));
 
-    // Calculate current totals including project_cashflow
+    // Calculate totals including project cashflow
     const totals = {
       total_annual_income: analytics.reduce((sum, a) => sum + (a.annual_income || 0), 0),
       total_outstanding: analytics.reduce((sum, a) => sum + (a.outstanding_balance || 0), 0),
@@ -1041,7 +1041,7 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       )
     };
 
-    // Helper function to calculate historical metrics
+    // Calculate historical metrics using transaction data
     const calculateHistoricalMetrics = (period) => {
       const now = new Date();
       let startDate, endDate;
@@ -1062,7 +1062,7 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
         (property.Transactions || []).forEach(transaction => {
           const transDate = new Date(transaction.transaction_date);
           if (transDate >= startDate && transDate <= endDate) {
-            if (transaction.price > 0) { // Using 'price' field for amount
+            if (transaction.price > 0) {
               historicalIncome += transaction.price;
             } else {
               historicalExpenses += Math.abs(transaction.price);
@@ -1070,7 +1070,6 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
           }
         });
 
-        // Count properties with transactions in this period
         if ((property.Transactions || []).some(t => {
           const d = new Date(t.transaction_date);
           return d >= startDate && d <= endDate;
