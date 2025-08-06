@@ -951,7 +951,7 @@ exports.getPropertyAnalytics = async (req, res) => {
   }
 };
 
-const { Op } = require('sequelize');
+
 
 exports.getTopPerformingProperty = async (req, res) => {
   try {
