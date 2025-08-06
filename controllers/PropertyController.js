@@ -951,6 +951,8 @@ exports.getPropertyAnalytics = async (req, res) => {
   }
 };
 
+const { Op } = require('sequelize');
+
 exports.getTopPerformingProperty = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -983,8 +985,6 @@ exports.getTopPerformingProperty = async (req, res) => {
     const propertiesWithAnalytics = await Promise.all(
       properties.map(async property => {
         const analytics = await calculatePropertyAnalytics(property.id, userId);
-        
-        // Determine purchase date from various sources
         const purchaseDate = property.Transactions?.[0]?.transaction_date || 
                            property.installmentOwnerships?.createdAt ||
                            property.fractionalOwnerships?.createdAt ||
@@ -999,18 +999,16 @@ exports.getTopPerformingProperty = async (req, res) => {
           purchase_date: purchaseDate,
           analytics: {
             ...analytics,
-            // Convert potential equity to percentage
             potential_equity: property.market_value > 0 
               ? Math.round((analytics.estimated_value / property.market_value) * 100 * 100) / 100
               : 0,
-            // Add project cashflow
             project_cashflow: Math.round((analytics.annual_income - analytics.annual_expense) * 100) / 100
           }
         };
       })
     );
 
-    // Sort by net yield (descending) to find top performer
+    // Sort by net yield (descending)
     const sorted = propertiesWithAnalytics.sort((a, b) => b.analytics.net_yield - a.analytics.net_yield);
     const topProperty = sorted[0] || null;
 
@@ -1029,6 +1027,7 @@ exports.getTopPerformingProperty = async (req, res) => {
           endDate = new Date(now.getFullYear() - 1, 11, 31);
         }
 
+        // Get historical transactions
         const historicalTransactions = await Transaction.findAll({
           where: {
             property_id: topProperty.propertyId,
@@ -1037,14 +1036,36 @@ exports.getTopPerformingProperty = async (req, res) => {
           }
         });
 
+        // Get historical property value (using first recorded market value in period)
+        const historicalProperty = await Property.findOne({
+          where: { id: topProperty.propertyId },
+          include: [{
+            model: Transaction,
+            where: { 
+              user_id: userId,
+              transaction_date: { [Op.lte]: endDate }
+            },
+            order: [['transaction_date', 'DESC']],
+            limit: 1
+          }]
+        });
+
+        const historicalMarketValue = historicalProperty?.market_value || topProperty.analytics.estimated_value;
         const historicalIncome = historicalTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
         const historicalExpenses = historicalTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
+        const historicalCashflow = historicalIncome - historicalExpenses;
 
         return {
-          avg_potential_equity: topProperty.analytics.potential_equity,
-          project_cashflow: Math.round((historicalIncome - historicalExpenses) * 100) / 100,
-          avg_gross_yield: topProperty.analytics.gross_yield,
-          avg_net_yield: topProperty.analytics.net_yield
+          avg_potential_equity: historicalMarketValue > 0
+            ? Math.round((topProperty.analytics.estimated_value / historicalMarketValue) * 100 * 100) / 100
+            : 0,
+          project_cashflow: Math.round(historicalCashflow * 100) / 100,
+          avg_gross_yield: historicalMarketValue > 0
+            ? Math.round((historicalIncome / historicalMarketValue) * 100 * 100) / 100
+            : 0,
+          avg_net_yield: historicalMarketValue > 0
+            ? Math.round(((historicalIncome - historicalExpenses) / historicalMarketValue) * 100 * 100) / 100
+            : 0
         };
       };
 
