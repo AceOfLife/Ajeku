@@ -950,12 +950,13 @@ exports.getPropertyAnalytics = async (req, res) => {
   }
 };
 
+const { Op } = require('sequelize');
+
 exports.getTopPerformingProperty = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { Op } = require('sequelize'); // Add this at top of file
     
-    // Get all properties with only existing columns
+    // Get all properties with only verified existing columns
     const properties = await Property.findAll({
       where: { isRental: true },
       attributes: ['id', 'name', 'number_of_baths', 'number_of_rooms', 'features', 'market_value', 'createdAt'],
@@ -969,12 +970,12 @@ exports.getTopPerformingProperty = async (req, res) => {
         {
           model: InstallmentOwnership,
           as: 'installmentOwnerships',
-          attributes: ['id', 'start_date'] // Removed target_equity
+          attributes: ['id', 'createdAt'] // Using createdAt instead of start_date
         },
         {
           model: FractionalOwnership,
           as: 'fractionalOwnerships',
-          attributes: ['id', 'purchase_date'] // Removed target_equity
+          attributes: ['id', 'createdAt'] // Using createdAt instead of purchase_date
         }
       ]
     });
@@ -983,9 +984,12 @@ exports.getTopPerformingProperty = async (req, res) => {
     const propertiesWithAnalytics = await Promise.all(
       properties.map(async property => {
         const analytics = await calculatePropertyAnalytics(property.id, userId);
-        const purchaseDate = property.installmentOwnerships?.start_date || 
-                           property.fractionalOwnerships?.purchase_date || 
-                           property.Transactions?.[0]?.transaction_date;
+        
+        // Fallback to property createdAt if no other date exists
+        const purchaseDate = property.Transactions?.[0]?.transaction_date || 
+                           property.installmentOwnerships?.createdAt ||
+                           property.fractionalOwnerships?.createdAt ||
+                           property.createdAt;
         
         return {
           propertyId: property.id,
@@ -994,13 +998,12 @@ exports.getTopPerformingProperty = async (req, res) => {
           number_of_rooms: property.number_of_rooms,
           features: property.features,
           purchase_date: purchaseDate,
-          // Removed target_equity since column doesn't exist
           analytics: {
             ...analytics,
             potential_equity: property.market_value > 0 
               ? Math.round((analytics.estimated_value / property.market_value) * 100 * 100) / 100
               : 0,
-            project_cashflow: analytics.annual_income - analytics.annual_expense
+            project_cashflow: Math.round((analytics.annual_income - analytics.annual_expense) * 100) / 100
           }
         };
       })
