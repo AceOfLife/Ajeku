@@ -8,7 +8,6 @@ const cloudinary = require('../config/cloudinaryConfig');
 const { upload, uploadImagesToCloudinary} = require('../config/multerConfig');
 
 
-
 // Document upload 30/12/2024
 
 const uploadDocumentToCloudinary = async (fileBuffer, fileName) => {
@@ -951,121 +950,32 @@ exports.getPropertyAnalytics = async (req, res) => {
   }
 };
 
-const { Op } = require('sequelize');
-
 exports.getTopPerformingProperty = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.id; // Get from token
     
-    // Get all properties with only verified existing columns
     const properties = await Property.findAll({
-      where: { isRental: true },
-      attributes: ['id', 'name', 'number_of_baths', 'number_of_rooms', 'features', 'market_value', 'createdAt'],
-      include: [
-        {
-          model: Transaction,
-          where: { user_id: userId },
-          required: false,
-          attributes: ['id', 'transaction_date', 'price']
-        },
-        {
-          model: InstallmentOwnership,
-          as: 'installmentOwnerships',
-          attributes: ['id', 'createdAt'] // Using createdAt instead of start_date
-        },
-        {
-          model: FractionalOwnership,
-          as: 'fractionalOwnerships',
-          attributes: ['id', 'createdAt'] // Using createdAt instead of purchase_date
-        }
-      ]
+      where: { isRental: true } // Or your criteria for "performance"
     });
 
-    // Calculate analytics for each property
     const propertiesWithAnalytics = await Promise.all(
-      properties.map(async property => {
-        const analytics = await calculatePropertyAnalytics(property.id, userId);
-        
-        // Fallback to property createdAt if no other date exists
-        const purchaseDate = property.Transactions?.[0]?.transaction_date || 
-                           property.installmentOwnerships?.createdAt ||
-                           property.fractionalOwnerships?.createdAt ||
-                           property.createdAt;
-        
-        return {
-          propertyId: property.id,
-          name: property.name,
-          number_of_baths: property.number_of_baths,
-          number_of_rooms: property.number_of_rooms,
-          features: property.features,
-          purchase_date: purchaseDate,
-          analytics: {
-            ...analytics,
-            potential_equity: property.market_value > 0 
-              ? Math.round((analytics.estimated_value / property.market_value) * 100 * 100) / 100
-              : 0,
-            project_cashflow: Math.round((analytics.annual_income - analytics.annual_expense) * 100) / 100
-          }
-        };
-      })
+      properties.map(async property => ({
+        propertyId: property.id,
+        name: property.name,
+        analytics: await calculatePropertyAnalytics(property.id, userId)
+      }))
     );
 
     // Sort by net yield (descending)
     const sorted = propertiesWithAnalytics.sort((a, b) => b.analytics.net_yield - a.analytics.net_yield);
-    const topProperty = sorted[0] || null;
-
-    // Historical data calculation
-    const calculateHistory = async (propertyId, period) => {
-      const now = new Date();
-      let startDate, endDate;
-
-      if (period === 'last_month') {
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        endDate = new Date(now.getFullYear(), now.getMonth(), 0);
-      } else { // last_year
-        startDate = new Date(now.getFullYear() - 1, 0, 1);
-        endDate = new Date(now.getFullYear() - 1, 11, 31);
-      }
-
-      const historicalTransactions = await Transaction.findAll({
-        where: {
-          property_id: propertyId,
-          user_id: userId,
-          transaction_date: { [Op.between]: [startDate, endDate] }
-        }
-      });
-
-      const historicalIncome = historicalTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
-      const historicalExpenses = historicalTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
-
-      return {
-        income: Math.round(historicalIncome * 100) / 100,
-        expenses: Math.round(historicalExpenses * 100) / 100,
-        cashflow: Math.round((historicalIncome - historicalExpenses) * 100) / 100
-      };
-    };
-
-    // Add history if we have a top property
-    let history = null;
-    if (topProperty) {
-      history = {
-        last_month: await calculateHistory(topProperty.propertyId, 'last_month'),
-        last_year: await calculateHistory(topProperty.propertyId, 'last_year')
-      };
-    }
-
+    
     res.status(200).json({
       message: 'Top performing property retrieved',
-      property: topProperty,
-      history
+      property: sorted[0] || null
     });
-
   } catch (error) {
     console.error("Error:", error);
-    res.status(500).json({ 
-      message: "Error retrieving top property",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    res.status(500).json({ message: "Error retrieving top property" });
   }
 };
 
