@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
 const { upload, uploadImagesToCloudinary} = require('../config/multerConfig');
+const { Op } = require('sequelize');
 
 
 // Document upload 30/12/2024
@@ -493,7 +494,7 @@ exports.getPropertyById = async (req, res) => {
 
 
 
-const { Op } = require('sequelize');
+
 
 exports.getFilteredProperties = async (req, res) => {
     const { name, number_of_baths, number_of_rooms, type } = req.query;
@@ -952,30 +953,119 @@ exports.getPropertyAnalytics = async (req, res) => {
 
 exports.getTopPerformingProperty = async (req, res) => {
   try {
-    const userId = req.user.id; // Get from token
+    const userId = req.user.id;
     
+    // Get all rental properties with their details
     const properties = await Property.findAll({
-      where: { isRental: true } // Or your criteria for "performance"
+      where: { isRental: true },
+      attributes: ['id', 'name', 'number_of_baths', 'number_of_rooms', 'features', 'market_value', 'createdAt'],
+      include: [
+        {
+          model: Transaction,
+          where: { user_id: userId },
+          required: false,
+          attributes: ['id', 'transaction_date', 'price']
+        },
+        {
+          model: InstallmentOwnership,
+          as: 'installmentOwnerships',
+          attributes: ['id', 'createdAt']
+        },
+        {
+          model: FractionalOwnership,
+          as: 'fractionalOwnerships',
+          attributes: ['id', 'createdAt']
+        }
+      ]
     });
 
+    // Calculate analytics for each property
     const propertiesWithAnalytics = await Promise.all(
-      properties.map(async property => ({
-        propertyId: property.id,
-        name: property.name,
-        analytics: await calculatePropertyAnalytics(property.id, userId)
-      }))
+      properties.map(async property => {
+        const analytics = await calculatePropertyAnalytics(property.id, userId);
+        
+        // Determine purchase date from various sources
+        const purchaseDate = property.Transactions?.[0]?.transaction_date || 
+                           property.installmentOwnerships?.createdAt ||
+                           property.fractionalOwnerships?.createdAt ||
+                           property.createdAt;
+        
+        return {
+          propertyId: property.id,
+          name: property.name,
+          number_of_baths: property.number_of_baths,
+          number_of_rooms: property.number_of_rooms,
+          features: property.features,
+          purchase_date: purchaseDate,
+          analytics: {
+            ...analytics,
+            // Convert potential equity to percentage
+            potential_equity: property.market_value > 0 
+              ? Math.round((analytics.estimated_value / property.market_value) * 100 * 100) / 100
+              : 0,
+            // Add project cashflow
+            project_cashflow: Math.round((analytics.annual_income - analytics.annual_expense) * 100) / 100
+          }
+        };
+      })
     );
 
-    // Sort by net yield (descending)
+    // Sort by net yield (descending) to find top performer
     const sorted = propertiesWithAnalytics.sort((a, b) => b.analytics.net_yield - a.analytics.net_yield);
-    
+    const topProperty = sorted[0] || null;
+
+    // Calculate historical data for the top property
+    let history = null;
+    if (topProperty) {
+      const calculateHistory = async (period) => {
+        const now = new Date();
+        let startDate, endDate;
+
+        if (period === 'last_month') {
+          startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+        } else { // last_year
+          startDate = new Date(now.getFullYear() - 1, 0, 1);
+          endDate = new Date(now.getFullYear() - 1, 11, 31);
+        }
+
+        const historicalTransactions = await Transaction.findAll({
+          where: {
+            property_id: topProperty.propertyId,
+            user_id: userId,
+            transaction_date: { [Op.between]: [startDate, endDate] }
+          }
+        });
+
+        const historicalIncome = historicalTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
+        const historicalExpenses = historicalTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
+
+        return {
+          avg_potential_equity: topProperty.analytics.potential_equity,
+          project_cashflow: Math.round((historicalIncome - historicalExpenses) * 100) / 100,
+          avg_gross_yield: topProperty.analytics.gross_yield,
+          avg_net_yield: topProperty.analytics.net_yield
+        };
+      };
+
+      history = {
+        last_month: await calculateHistory('last_month'),
+        last_year: await calculateHistory('last_year')
+      };
+    }
+
     res.status(200).json({
       message: 'Top performing property retrieved',
-      property: sorted[0] || null
+      property: topProperty,
+      history
     });
+
   } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({ message: "Error retrieving top property" });
+    console.error("Error retrieving top property:", error);
+    res.status(500).json({ 
+      message: "Error retrieving top property",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
