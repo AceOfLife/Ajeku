@@ -983,9 +983,9 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Get all properties with their names and creation dates
+    // Get all properties with creation dates
     const userProperties = await Property.findAll({
-      attributes: ['id', 'name', 'createdAt'], // Include name and createdAt
+      attributes: ['id', 'createdAt'],
       include: [
         {
           model: Transaction,
@@ -998,55 +998,100 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
           as: 'installmentOwnerships',
           where: { user_id: userId },
           required: false,
-          attributes: ['id', 'total_months', 'months_paid', 'status']
+          attributes: ['id']
         },
         {
           model: FractionalOwnership,
           as: 'fractionalOwnerships',
           where: { user_id: userId },
           required: false,
-          attributes: ['id', 'slots_purchased', 'relist_price']
+          attributes: ['id']
         }
       ],
       distinct: true
     });
 
+    // Calculate current analytics
     const analytics = await Promise.all(
       userProperties.map(property => 
         calculatePropertyAnalytics(property.id, userId)
-    ));
-
-    // Calculate total portfolio value
-    const totalPortfolioValue = analytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0);
-
-    // Enhance analytics with property name and creation date
-    const enhancedAnalytics = userProperties.map((property, index) => ({
-      ...analytics[index],
-      property_name: property.name,
-      created_at: property.createdAt,
-      potential_equity: totalPortfolioValue > 0 
-        ? Math.round(((analytics[index].estimated_value || 0) / totalPortfolioValue * 100 * 100)) / 100
-        : 0
-    }));
+      )
+    );
 
     // Calculate totals
+    const totalPortfolioValue = analytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0);
     const totals = {
-      total_annual_income: Math.round(enhancedAnalytics.reduce((sum, a) => sum + (a.annual_income || 0), 0) * 100) / 100,
-      total_outstanding: Math.round(enhancedAnalytics.reduce((sum, a) => sum + (a.outstanding_balance || 0), 0) * 100) / 100,
-      total_equity: Math.round(totalPortfolioValue * 100) / 100,
-      avg_yield: enhancedAnalytics.length > 0 
-        ? Math.round(enhancedAnalytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / enhancedAnalytics.length * 100) / 100
+      avg_potential_equity: totalPortfolioValue > 0 
+        ? Math.round((analytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0) / totalPortfolioValue * 100) * 100) / 100
         : 0,
-      project_cashflow: Math.round(enhancedAnalytics.reduce(
+      project_cashflow: Math.round(analytics.reduce(
         (sum, a) => sum + (a.annual_income || 0) - (a.annual_expense || 0), 
         0
-      ) * 100) / 100
+      ) * 100) / 100,
+      avg_gross_yield: analytics.length > 0 
+        ? Math.round(analytics.reduce((sum, a) => sum + (a.gross_yield || 0), 0) / analytics.length * 100) / 100
+        : 0,
+      avg_net_yield: analytics.length > 0 
+        ? Math.round(analytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / analytics.length * 100) / 100
+        : 0
+    };
+
+    // Helper function to calculate historical metrics
+    const calculateHistory = async (period) => {
+      const now = new Date();
+      let startDate, endDate;
+
+      if (period === 'last_month') {
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+      } else { // last_year
+        startDate = new Date(now.getFullYear() - 1, 0, 1);
+        endDate = new Date(now.getFullYear() - 1, 11, 31);
+      }
+
+      // Filter properties created in the period
+      const historicalProperties = userProperties.filter(property => {
+        const createdAt = new Date(property.createdAt);
+        return createdAt >= startDate && createdAt <= endDate;
+      });
+
+      // Calculate analytics for historical properties
+      const historicalAnalytics = await Promise.all(
+        historicalProperties.map(property => 
+          calculatePropertyAnalytics(property.id, userId)
+        )
+      );
+
+      const historicalPortfolioValue = historicalAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0);
+
+      return {
+        avg_potential_equity: historicalPortfolioValue > 0
+          ? Math.round((historicalAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0) / historicalPortfolioValue * 100) * 100) / 100
+          : 0,
+        project_cashflow: Math.round(historicalAnalytics.reduce(
+          (sum, a) => sum + (a.annual_income || 0) - (a.annual_expense || 0),
+          0
+        ) * 100) / 100,
+        avg_gross_yield: historicalAnalytics.length > 0
+          ? Math.round(historicalAnalytics.reduce((sum, a) => sum + (a.gross_yield || 0), 0) / historicalAnalytics.length * 100) / 100
+          : 0,
+        avg_net_yield: historicalAnalytics.length > 0
+          ? Math.round(historicalAnalytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / historicalAnalytics.length * 100) / 100
+          : 0
+      };
+    };
+
+    // Calculate history
+    const history = {
+      last_month: await calculateHistory('last_month'),
+      last_year: await calculateHistory('last_year')
     };
 
     res.status(200).json({
       message: 'User property analytics retrieved',
-      properties: enhancedAnalytics,
-      totals
+      properties: analytics,
+      totals,
+      history
     });
 
   } catch (error) {
