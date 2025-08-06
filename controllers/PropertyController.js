@@ -953,8 +953,9 @@ exports.getPropertyAnalytics = async (req, res) => {
 exports.getTopPerformingProperty = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { Op } = require('sequelize'); // Add this at top of file
     
-    // Get all properties with detailed attributes
+    // Get all properties with only existing columns
     const properties = await Property.findAll({
       where: { isRental: true },
       attributes: ['id', 'name', 'number_of_baths', 'number_of_rooms', 'features', 'market_value', 'createdAt'],
@@ -968,12 +969,12 @@ exports.getTopPerformingProperty = async (req, res) => {
         {
           model: InstallmentOwnership,
           as: 'installmentOwnerships',
-          attributes: ['start_date', 'target_equity']
+          attributes: ['id', 'start_date'] // Removed target_equity
         },
         {
           model: FractionalOwnership,
           as: 'fractionalOwnerships',
-          attributes: ['purchase_date', 'target_equity']
+          attributes: ['id', 'purchase_date'] // Removed target_equity
         }
       ]
     });
@@ -993,8 +994,7 @@ exports.getTopPerformingProperty = async (req, res) => {
           number_of_rooms: property.number_of_rooms,
           features: property.features,
           purchase_date: purchaseDate,
-          target_equity: property.installmentOwnerships?.target_equity || 
-                        property.fractionalOwnerships?.target_equity,
+          // Removed target_equity since column doesn't exist
           analytics: {
             ...analytics,
             potential_equity: property.market_value > 0 
@@ -1035,10 +1035,9 @@ exports.getTopPerformingProperty = async (req, res) => {
       const historicalExpenses = historicalTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
 
       return {
-        income: historicalIncome,
-        expenses: historicalExpenses,
-        cashflow: historicalIncome - historicalExpenses,
-        // Add other historical metrics as needed
+        income: Math.round(historicalIncome * 100) / 100,
+        expenses: Math.round(historicalExpenses * 100) / 100,
+        cashflow: Math.round((historicalIncome - historicalExpenses) * 100) / 100
       };
     };
 
