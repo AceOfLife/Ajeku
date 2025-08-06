@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
 const { upload, uploadImagesToCloudinary} = require('../config/multerConfig');
+const { Op } = require('sequelize');
 
 
 // Document upload 30/12/2024
