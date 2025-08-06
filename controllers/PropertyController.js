@@ -1,7 +1,7 @@
 // PropertyImage Table Update
 
 // const { Property, User, PropertyImage } = require('../models');
-const { Property, User, PropertyImage, FractionalOwnership, InstallmentOwnership, Transaction, sequelize} = require('../models');
+const { Property, User, PropertyImage, FractionalOwnership, InstallmentOwnership, Transaction} = require('../models');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
