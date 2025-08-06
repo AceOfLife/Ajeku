@@ -1102,7 +1102,7 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
           model: Transaction,
           where: { user_id: userId },
           required: false,
-          attributes: ['id', 'transaction_date', 'price', 'status']
+          attributes: ['name', 'id', 'transaction_date', 'price', 'status']
         },
         {
           model: InstallmentOwnership,

@@ -98,63 +98,73 @@ module.exports = (sequelize, DataTypes) => {
   const Transaction = sequelize.define('Transaction', {
     id: {
       type: DataTypes.INTEGER,
-      autoIncrement: true,
       primaryKey: true,
-      allowNull: false,
+      autoIncrement: true
     },
     user_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      references: {
-        model: "Users",
-        key: "id",
-      },
+      references: { model: 'Users', key: 'id' }
     },
     property_id: {
       type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: "Properties",
-        key: "id",
-      },
+      allowNull: true, // Matches your schema (is_nullable = YES)
+      references: { model: 'Properties', key: 'id' }
+    },
+    client_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true, // Matches your schema
+      references: { model: 'Users', key: 'id' }
     },
     reference: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(255),
       allowNull: false,
-      unique: true,
+      unique: true
     },
     price: {
-      type: DataTypes.DECIMAL,
-      allowNull: false,
+      type: DataTypes.DECIMAL(10,2),
+      allowNull: false
     },
     status: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    transaction_date: {
-      type: DataTypes.DATE,
-      allowNull: false,
+      type: DataTypes.STRING(255),
+      allowNull: false
     },
     payment_type: {
       type: DataTypes.ENUM(
         'full',
+        'outright',
         'fractional',
         'fractionalInstallment',
         'installment',
         'rental'
       ),
-      allowNull: false,
-      defaultValue: 'fractional'
+      allowNull: false
     },
+    transaction_date: {
+      type: DataTypes.DATE,
+      allowNull: false
+    }
   }, {
     tableName: 'Transactions',
-    timestamps: true
+    timestamps: true, // Matches your createdAt/updatedAt columns
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+    underscored: false // Column names are camelCase in your schema
   });
 
-  // ✅ Add associations here
-  Transaction.associate = function(models) {
-    Transaction.belongsTo(models.User, { foreignKey: 'user_id', as: 'user' });
-    Transaction.belongsTo(models.Property, { foreignKey: 'property_id', as: 'property' });
+  Transaction.associate = (models) => {
+    Transaction.belongsTo(models.User, { 
+      foreignKey: 'user_id',
+      as: 'user'
+    });
+    Transaction.belongsTo(models.Property, { 
+      foreignKey: 'property_id',
+      as: 'property'
+    });
+    Transaction.belongsTo(models.User, {
+      foreignKey: 'client_id',
+      as: 'client'
+    });
   };
 
   return Transaction;
