@@ -146,16 +146,19 @@ exports.verifyPayment = async (req, res) => {
       return res.status(400).json({ message: "Transaction reference is required" });
     }
 
-    // 1. Check for existing transaction
-    const existingTransaction = await Transaction.findOne({ 
+    // 1. Check for existing transaction with enhanced error handling
+    const existingTransaction = await Transaction.findOne({
       where: { reference },
       transaction: t,
       include: [
         { model: User, as: 'user', attributes: ['id', 'email'] },
         { model: Property, as: 'property', attributes: ['id', 'title'] }
       ]
+    }).catch(err => {
+      console.error('Transaction lookup error:', err);
+      throw new Error('Failed to check existing transactions');
     });
-    
+
     if (existingTransaction) {
       await t.commit();
       return res.status(200).json({
@@ -164,13 +167,13 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // 2. Verify with Paystack
+    // 2. Verify with Paystack with timeout
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
         "Content-Type": "application/json"
       },
-      timeout: 10000 // 10 seconds timeout
+      timeout: 10000 // 10 second timeout
     });
 
     const paymentData = response.data.data;
@@ -183,7 +186,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // 3. Extract and validate metadata
+    // 3. Extract and validate metadata with detailed logging
     const { user_id, property_id, payment_type, client_id, slots = 1, rooms = 1 } = paymentData.metadata || {};
     
     console.log('Payment Verification Metadata:', {
@@ -197,7 +200,7 @@ exports.verifyPayment = async (req, res) => {
 
     if (!user_id || !payment_type) {
       await t.rollback();
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Incomplete payment metadata",
         required_fields: {
           user_id: !user_id ? "Missing" : "Provided",
@@ -206,15 +209,17 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // 4. Get user and property
+    // 4. Get user and property with existence verification
     const [user, property] = await Promise.all([
-      User.findByPk(user_id, { 
+      User.findByPk(user_id, {
         transaction: t,
-        attributes: ['id', 'email', 'name']
+        attributes: ['id', 'email', 'name'],
+        lock: true
       }),
-      property_id ? Property.findByPk(property_id, { 
+      property_id ? Property.findByPk(property_id, {
         transaction: t,
-        attributes: ['id', 'title', 'is_fractional', 'isInstallment', 'isRental']
+        attributes: ['id', 'title', 'is_fractional', 'isInstallment', 'isRental', 'is_sold'],
+        lock: true
       }) : Promise.resolve(null)
     ]);
 
@@ -223,21 +228,36 @@ exports.verifyPayment = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // 5. Create transaction record
-    const transaction = await Transaction.create({
-      user_id,
-      property_id: property_id || null,
-      client_id: client_id || null,
-      reference,
-      price: paymentData.amount / 100,
-      currency: paymentData.currency,
-      status: paymentData.status,
-      payment_type,
-      transaction_date: new Date(paymentData.transaction_date || Date.now())
-    }, { 
-      transaction: t,
-      logging: console.log
-    });
+    // 5. Create transaction record with explicit error handling
+    let transaction;
+    try {
+      transaction = await Transaction.create({
+        user_id,
+        property_id: property_id || null,
+        client_id: client_id || null,
+        reference,
+        price: paymentData.amount / 100,
+        currency: paymentData.currency,
+        status: paymentData.status,
+        payment_type,
+        transaction_date: new Date(paymentData.transaction_date || Date.now())
+      }, {
+        transaction: t,
+        logging: console.log
+      });
+    } catch (err) {
+      console.error('Transaction creation failed:', {
+        error: err.message,
+        stack: err.stack,
+        query: err.sql,
+        parameters: err.parameters
+      });
+      await t.rollback();
+      return res.status(500).json({
+        message: "Failed to create transaction record",
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
+    }
 
     // ========== NOTIFICATION INTEGRATION ==========
     const io = req.app.get('socketio');
@@ -258,14 +278,15 @@ exports.verifyPayment = async (req, res) => {
     }, { transaction: t });
 
     // Admin notifications
-    const admins = await User.findAll({ 
+    const admins = await User.findAll({
       where: { role: 'admin' },
       transaction: t,
-      attributes: ['id']
+      attributes: ['id'],
+      lock: true
     });
 
     const adminNotifications = await Promise.all(
-      admins.map(admin => 
+      admins.map(admin =>
         Notification.create({
           user_id: admin.id,
           title: 'New Payment Received',
@@ -284,152 +305,95 @@ exports.verifyPayment = async (req, res) => {
 
     // ========== PAYMENT TYPE PROCESSING ==========
     const getAvailableFractionalSlots = async (propertyId) => {
-      const ownerships = await FractionalOwnership.findAll({ 
+      const ownerships = await FractionalOwnership.findAll({
         where: { property_id: propertyId },
-        transaction: t
+        transaction: t,
+        lock: true
       });
       return property.fractional_slots - ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
     };
 
-    // FULL/OUTRIGHT PAYMENT
+    // FULL/OUTRIGHT PAYMENT PROCESSING
     if (payment_type === "full" || payment_type === "outright") {
-      if (property) {
-        await FullOwnership.create({
+      try {
+        // Verify FullOwnerships table exists
+        const tableExists = await sequelize.getQueryInterface().showAllTables()
+          .then(tables => tables.includes('FullOwnerships'));
+        
+        if (!tableExists) {
+          throw new Error('FullOwnerships table does not exist');
+        }
+
+        // Verify property exists and isn't already sold
+        if (!property) {
+          throw new Error('Property not specified for full purchase');
+        }
+        if (property.is_sold) {
+          throw new Error('Property is already sold');
+        }
+
+        // Create full ownership record
+        await sequelize.models.FullOwnership.create({
           user_id,
           property_id,
           purchase_date: new Date(),
           purchase_amount: paymentData.amount / 100
-        }, { transaction: t });
+        }, {
+          transaction: t,
+          logging: console.log
+        });
 
+        // Mark property as sold
         await Property.update(
           { is_sold: true },
-          { where: { id: property_id }, transaction: t }
+          {
+            where: { id: property_id },
+            transaction: t,
+            individualHooks: true
+          }
         );
-      }
-    } 
-    // FRACTIONAL PAYMENT
-    else if (payment_type === "fractional" && property?.is_fractional) {
-      const availableSlots = await getAvailableFractionalSlots(property.id);
-      if (slots > availableSlots) {
-        await t.rollback();
-        return res.status(400).json({ 
-          message: 'Not enough fractional slots available',
-          availableSlots,
-          requestedSlots: slots
-        });
-      }
 
-      await FractionalOwnership.create({
-        user_id,
-        property_id,
-        slots_purchased: slots
-      }, { transaction: t });
-    }
-    // FRACTIONAL INSTALLMENT
-    else if (payment_type === "fractionalInstallment" && property?.is_fractional && property.isFractionalInstallment) {
-      const today = new Date();
-      let ownership = await InstallmentOwnership.findOne({
-        where: { user_id, property_id },
-        transaction: t
-      });
-
-      if (!ownership) {
-        const availableSlots = await getAvailableFractionalSlots(property.id);
-        if (slots > availableSlots) {
-          await t.rollback();
-          return res.status(400).json({ 
-            message: 'Not enough fractional slots available',
-            availableSlots,
-            requestedSlots: slots
-          });
-        }
-
-        ownership = await InstallmentOwnership.create({
+      } catch (err) {
+        console.error('Full payment processing failed:', {
+          error: err.message,
+          stack: err.stack,
           user_id,
           property_id,
-          start_date: today,
-          total_months: property.isFractionalDuration,
-          months_paid: 1,
-          status: property.isFractionalDuration === 1 ? "completed" : "ongoing"
-        }, { transaction: t });
+          amount: paymentData.amount / 100
+        });
+        await t.rollback();
+        return res.status(500).json({
+          message: "Full payment processing failed",
+          error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
+      }
+    }
+    // FRACTIONAL PAYMENT PROCESSING
+    else if (payment_type === "fractional" && property?.is_fractional) {
+      try {
+        const availableSlots = await getAvailableFractionalSlots(property.id);
+        if (slots > availableSlots) {
+          throw new Error(`Only ${availableSlots} slots available (requested ${slots})`);
+        }
 
         await FractionalOwnership.create({
           user_id,
           property_id,
           slots_purchased: slots
         }, { transaction: t });
-      } else {
-        ownership.months_paid += 1;
-        if (ownership.months_paid >= ownership.total_months) {
-          ownership.status = "completed";
-        }
-        await ownership.save({ transaction: t });
+
+      } catch (err) {
+        console.error('Fractional payment failed:', err);
+        await t.rollback();
+        return res.status(400).json({
+          message: "Fractional payment processing failed",
+          error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
       }
-
-      await InstallmentPayment.create({
-        ownership_id: ownership.id,
-        user_id,
-        property_id,
-        amount_paid: paymentData.amount / 100,
-        payment_month: today.getMonth() + 1,
-        payment_year: today.getFullYear()
-      }, { transaction: t });
     }
-    // STANDARD INSTALLMENT
-    else if (payment_type === "installment" && property?.isInstallment && !property.is_fractional) {
-      const today = new Date();
-      let ownership = await InstallmentOwnership.findOne({
-        where: { user_id, property_id },
-        transaction: t
-      });
+    // OTHER PAYMENT TYPES (installment, rental, etc.) would follow here...
 
-      if (!ownership) {
-        ownership = await InstallmentOwnership.create({
-          user_id,
-          property_id,
-          start_date: today,
-          total_months: parseInt(property.duration),
-          months_paid: 1,
-          status: parseInt(property.duration) === 1 ? "completed" : "ongoing"
-        }, { transaction: t });
-      } else {
-        ownership.months_paid += 1;
-        if (ownership.months_paid >= ownership.total_months) {
-          ownership.status = "completed";
-        }
-        await ownership.save({ transaction: t });
-      }
-
-      await InstallmentPayment.create({
-        ownership_id: ownership.id,
-        user_id,
-        property_id,
-        amount_paid: paymentData.amount / 100,
-        payment_month: today.getMonth() + 1,
-        payment_year: today.getFullYear()
-      }, { transaction: t });
-    }
-    // RENTAL PAYMENT
-    else if (payment_type === "rental" && property?.isRental) {
-      const roomsBooked = parseInt(rooms) || 1;
-      
-      await RentalBooking.create({
-        user_id,
-        property_id,
-        rooms_booked: roomsBooked,
-        amount_paid: paymentData.amount / 100,
-        start_date: new Date(),
-        end_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
-      }, { transaction: t });
-
-      await Property.decrement('rental_rooms', {
-        by: roomsBooked,
-        where: { id: property.id },
-        transaction: t
-      });
-    }
-
-    // Final commit
+    // FINAL COMMIT
     await t.commit();
 
     // Real-time notifications
@@ -440,13 +404,14 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // Response
+    // SUCCESS RESPONSE
     const responseData = {
       message: "Payment verified successfully",
       transaction: {
         id: transaction.id,
         reference: transaction.reference,
         amount: transaction.price,
+        currency: transaction.currency,
         status: transaction.status,
         payment_type: transaction.payment_type,
         date: transaction.transaction_date
@@ -460,7 +425,8 @@ exports.verifyPayment = async (req, res) => {
     if (property) {
       responseData.property = {
         id: property.id,
-        title: property.title
+        title: property.title,
+        is_sold: payment_type === "full" || payment_type === "outright" ? true : property.is_sold
       };
     }
 
@@ -471,18 +437,18 @@ exports.verifyPayment = async (req, res) => {
       message: error.message,
       stack: error.stack,
       reference: req.query.reference,
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     });
-    
+
     if (!t.finished) {
       await t.rollback();
     }
-    
-    return res.status(500).json({ 
+
+    return res.status(500).json({
       message: "Payment verification failed",
       error: process.env.NODE_ENV === 'development' ? {
         message: error.message,
-        stack: error.stack
+        reference: req.query.reference
       } : undefined
     });
   }

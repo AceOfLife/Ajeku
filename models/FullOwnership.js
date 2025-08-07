@@ -1,3 +1,4 @@
+// models/FullOwnership.js
 module.exports = (sequelize, DataTypes) => {
   const FullOwnership = sequelize.define('FullOwnership', {
     user_id: {
@@ -18,11 +19,22 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DECIMAL(10,2),
       allowNull: false
     }
+  }, {
+    tableName: 'FullOwnerships', 
+    timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at'
   });
 
   FullOwnership.associate = (models) => {
-    FullOwnership.belongsTo(models.User, { foreignKey: 'user_id' });
-    FullOwnership.belongsTo(models.Property, { foreignKey: 'property_id' });
+    FullOwnership.belongsTo(models.User, { 
+      foreignKey: 'user_id',
+      as: 'user'
+    });
+    FullOwnership.belongsTo(models.Property, { 
+      foreignKey: 'property_id',
+      as: 'property'
+    });
   };
 
   return FullOwnership;
