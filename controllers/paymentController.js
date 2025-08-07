@@ -156,16 +156,12 @@ exports.verifyPayment = async (req, res) => {
       return res.status(400).json({ message: "Transaction reference is required" });
     }
 
-    // 1. Check for existing transaction (simplified but robust)
+    // 1. Check for existing transaction (simplified query)
     const existingTransaction = await Transaction.findOne({
       where: { reference },
       transaction: t,
       attributes: ['id', 'reference', 'status', 'payment_type', 'price'],
       raw: true
-    }).catch(async (err) => {
-      console.error('Transaction lookup failed:', err);
-      await t.rollback();
-      throw new Error('Transaction verification failed');
     });
 
     if (existingTransaction) {
@@ -176,7 +172,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // 2. Verify with Paystack with enhanced error handling
+    // 2. Verify with Paystack (independent of DB transaction)
     let paymentData;
     try {
       const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
@@ -205,68 +201,71 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // 3. Extract and validate metadata with strict checks
+    // 3. Extract and validate metadata
     const { user_id, property_id, payment_type, client_id, slots = 1, rooms = 1 } = paymentData.metadata || {};
     
     if (!user_id || !payment_type) {
       await t.rollback();
       return res.status(400).json({
         message: "Incomplete payment metadata",
-        required: {
-          user_id: !!user_id,
-          payment_type: !!payment_type
+        required_fields: {
+          user_id: !user_id ? "Missing" : "Provided",
+          payment_type: !payment_type ? "Missing" : "Provided"
         }
       });
     }
 
-    // 4. Get user and property with proper locking
-    const [user, property] = await Promise.all([
-      User.findByPk(user_id, {
-        transaction: t,
-        attributes: ['id', 'email', 'name'],
-        lock: true
-      }),
-      property_id ? Property.findByPk(property_id, {
-        transaction: t,
-        attributes: ['id', 'title', 'is_fractional', 'isInstallment', 'isRental', 'is_sold', 'fractional_slots'],
-        lock: true
-      }) : Promise.resolve(null)
-    ]);
-
-    if (!user) {
+    // 4. Verify user exists (simple count query)
+    const userExists = await User.count({
+      where: { id: user_id },
+      transaction: t
+    });
+    if (!userExists) {
       await t.rollback();
       return res.status(404).json({ message: "User not found" });
     }
 
-    // 5. Create transaction record with validation
-    let transaction;
-    try {
-      transaction = await Transaction.create({
-        user_id,
-        property_id: property_id || null,
-        client_id: client_id || null,
-        reference,
-        price: paymentData.amount / 100,
-        currency: paymentData.currency,
-        status: paymentData.status,
-        payment_type,
-        transaction_date: new Date(paymentData.transaction_date || Date.now())
-      }, {
-        transaction: t,
-        logging: console.log
-      });
-    } catch (err) {
-      console.error('Transaction creation failed:', {
-        error: err.message,
-        query: err.sql,
-        parameters: err.parameters
-      });
-      await t.rollback();
-      return res.status(500).json({
-        message: "Failed to record transaction",
-        error: process.env.NODE_ENV === 'development' ? err.message : undefined
-      });
+    // 5. Get property details if property_id exists
+    let property = null;
+    if (property_id) {
+      try {
+        property = await Property.findOne({
+          where: { id: property_id },
+          transaction: t,
+          attributes: ['id', 'title', 'is_fractional', 'isInstallment', 'isRental', 'is_sold', 'fractional_slots'],
+          lock: true,
+          raw: true
+        });
+
+        if (!property) {
+          await t.rollback();
+          return res.status(404).json({ message: "Property not found" });
+        }
+      } catch (err) {
+        console.error('Property lookup failed:', err);
+        await t.rollback();
+        return res.status(500).json({
+          message: "Property verification failed",
+          error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
+      }
     }
+
+    // 6. Create transaction record
+    const transaction = await Transaction.create({
+      user_id,
+      property_id: property_id || null,
+      client_id: client_id || null,
+      reference,
+      price: paymentData.amount / 100,
+      currency: paymentData.currency,
+      status: paymentData.status,
+      payment_type,
+      transaction_date: new Date(paymentData.transaction_date || Date.now())
+    }, {
+      transaction: t,
+      logging: console.log
+    });
 
     // ========== NOTIFICATION INTEGRATION ==========
     const io = req.app.get('socketio');
@@ -281,7 +280,8 @@ exports.verifyPayment = async (req, res) => {
       metadata: {
         transaction_id: transaction.id,
         amount: paymentData.amount / 100,
-        currency: paymentData.currency
+        currency: paymentData.currency,
+        reference
       }
     }, { transaction: t });
 
@@ -300,7 +300,13 @@ exports.verifyPayment = async (req, res) => {
           title: 'New Payment Received',
           message: `Client ${user.email} completed a ${payment_type} payment (${paymentData.currency} ${paymentData.amount/100}) ${property ? `for ${property.title}` : ''}`,
           type: 'admin_alert',
-          related_entity_id: transaction.id
+          related_entity_id: transaction.id,
+          metadata: {
+            user_id,
+            property_id,
+            payment_type,
+            reference
+          }
         }, { transaction: t })
       )
     );
@@ -310,7 +316,8 @@ exports.verifyPayment = async (req, res) => {
       const ownerships = await FractionalOwnership.findAll({
         where: { property_id: propertyId },
         transaction: t,
-        lock: true
+        lock: true,
+        raw: true
       });
       return property.fractional_slots - ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
     };
@@ -326,20 +333,15 @@ exports.verifyPayment = async (req, res) => {
           throw new Error("Property is already sold");
         }
 
-        // Verify FullOwnership table exists
-        const tableExists = await sequelize.getQueryInterface().showAllTables()
-          .then(tables => tables.includes('FullOwnerships'));
-
-        if (!tableExists) {
-          throw new Error("FullOwnerships table not found in database");
-        }
-
         await FullOwnership.create({
           user_id,
           property_id,
           purchase_date: new Date(),
           purchase_amount: paymentData.amount / 100
-        }, { transaction: t });
+        }, { 
+          transaction: t,
+          logging: console.log
+        });
 
         await Property.update(
           { is_sold: true },
@@ -368,7 +370,7 @@ exports.verifyPayment = async (req, res) => {
       try {
         const availableSlots = await getAvailableFractionalSlots(property.id);
         if (slots > availableSlots) {
-          throw new Error(`Requested ${slots} slots but only ${availableSlots} available`);
+          throw new Error(`Only ${availableSlots} fractional slots available (requested ${slots})`);
         }
 
         await FractionalOwnership.create({
@@ -381,11 +383,12 @@ exports.verifyPayment = async (req, res) => {
         await t.rollback();
         return res.status(400).json({
           message: "Fractional payment processing failed",
-          error: process.env.NODE_ENV === 'development' ? err.message : undefined
+          error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+          availableSlots: property?.fractional_slots
         });
       }
     }
-    // OTHER PAYMENT TYPES (installment, rental) would follow here...
+    // OTHER PAYMENT TYPES (installment, rental) would be here...
 
     // FINAL COMMIT
     await t.commit();
@@ -394,9 +397,9 @@ exports.verifyPayment = async (req, res) => {
     if (io) {
       io.to(`user_${user_id}`).emit('new_notification', clientNotification);
       admins.forEach(admin => {
-        io.to(`user_${admin.id}`).emit('notification', {
+        io.to(`user_${admin.id}`).emit('new_notification', {
           title: 'New Payment',
-          message: `New ${payment_type} payment received`
+          message: `New ${payment_type} payment received from ${user.email}`
         });
       });
     }
@@ -408,8 +411,10 @@ exports.verifyPayment = async (req, res) => {
         id: transaction.id,
         reference: transaction.reference,
         amount: transaction.price,
+        currency: transaction.currency,
         status: transaction.status,
-        payment_type: transaction.payment_type
+        payment_type: transaction.payment_type,
+        date: transaction.transaction_date
       },
       user: {
         id: user.id,
