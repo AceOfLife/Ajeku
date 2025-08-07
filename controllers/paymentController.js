@@ -135,28 +135,37 @@ exports.initializePayment = async (req, res) => {
 };
 
 exports.verifyPayment = async (req, res) => {
-  const t = await sequelize.transaction({
-    isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
-  });
-
+  let t;
   try {
+    // Initialize transaction with retry capability
+    t = await sequelize.transaction({
+      isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+      retry: {
+        max: 3,
+        match: [
+          Sequelize.ConnectionError,
+          Sequelize.ConnectionRefusedError,
+          Sequelize.ConnectionTimedOutError
+        ]
+      }
+    });
+
     const { reference } = req.query;
     if (!reference) {
       await t.rollback();
       return res.status(400).json({ message: "Transaction reference is required" });
     }
 
-    // 1. Check for existing transaction with enhanced error handling
+    // 1. Check for existing transaction (simplified but robust)
     const existingTransaction = await Transaction.findOne({
       where: { reference },
       transaction: t,
-      include: [
-        { model: User, as: 'user', attributes: ['id', 'email'] },
-        { model: Property, as: 'property', attributes: ['id', 'title'] }
-      ]
-    }).catch(err => {
-      console.error('Transaction lookup error:', err);
-      throw new Error('Failed to check existing transactions');
+      attributes: ['id', 'reference', 'status', 'payment_type', 'price'],
+      raw: true
+    }).catch(async (err) => {
+      console.error('Transaction lookup failed:', err);
+      await t.rollback();
+      throw new Error('Transaction verification failed');
     });
 
     if (existingTransaction) {
@@ -167,16 +176,26 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // 2. Verify with Paystack with timeout
-    const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
-      headers: {
-        Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-        "Content-Type": "application/json"
-      },
-      timeout: 10000 // 10 second timeout
-    });
+    // 2. Verify with Paystack with enhanced error handling
+    let paymentData;
+    try {
+      const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+          "Content-Type": "application/json"
+        },
+        timeout: 15000
+      });
+      paymentData = response.data.data;
+    } catch (err) {
+      console.error('Paystack verification failed:', err);
+      await t.rollback();
+      return res.status(502).json({
+        message: "Payment provider verification failed",
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
+    }
 
-    const paymentData = response.data.data;
     if (paymentData.status !== "success") {
       await t.rollback();
       return res.status(400).json({
@@ -186,30 +205,21 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // 3. Extract and validate metadata with detailed logging
+    // 3. Extract and validate metadata with strict checks
     const { user_id, property_id, payment_type, client_id, slots = 1, rooms = 1 } = paymentData.metadata || {};
     
-    console.log('Payment Verification Metadata:', {
-      user_id,
-      property_id,
-      payment_type,
-      client_id,
-      amount: paymentData.amount / 100,
-      currency: paymentData.currency
-    });
-
     if (!user_id || !payment_type) {
       await t.rollback();
       return res.status(400).json({
         message: "Incomplete payment metadata",
-        required_fields: {
-          user_id: !user_id ? "Missing" : "Provided",
-          payment_type: !payment_type ? "Missing" : "Provided"
+        required: {
+          user_id: !!user_id,
+          payment_type: !!payment_type
         }
       });
     }
 
-    // 4. Get user and property with existence verification
+    // 4. Get user and property with proper locking
     const [user, property] = await Promise.all([
       User.findByPk(user_id, {
         transaction: t,
@@ -218,7 +228,7 @@ exports.verifyPayment = async (req, res) => {
       }),
       property_id ? Property.findByPk(property_id, {
         transaction: t,
-        attributes: ['id', 'title', 'is_fractional', 'isInstallment', 'isRental', 'is_sold'],
+        attributes: ['id', 'title', 'is_fractional', 'isInstallment', 'isRental', 'is_sold', 'fractional_slots'],
         lock: true
       }) : Promise.resolve(null)
     ]);
@@ -228,7 +238,7 @@ exports.verifyPayment = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // 5. Create transaction record with explicit error handling
+    // 5. Create transaction record with validation
     let transaction;
     try {
       transaction = await Transaction.create({
@@ -248,13 +258,12 @@ exports.verifyPayment = async (req, res) => {
     } catch (err) {
       console.error('Transaction creation failed:', {
         error: err.message,
-        stack: err.stack,
         query: err.sql,
         parameters: err.parameters
       });
       await t.rollback();
       return res.status(500).json({
-        message: "Failed to create transaction record",
+        message: "Failed to record transaction",
         error: process.env.NODE_ENV === 'development' ? err.message : undefined
       });
     }
@@ -272,8 +281,7 @@ exports.verifyPayment = async (req, res) => {
       metadata: {
         transaction_id: transaction.id,
         amount: paymentData.amount / 100,
-        currency: paymentData.currency,
-        reference
+        currency: paymentData.currency
       }
     }, { transaction: t });
 
@@ -285,20 +293,14 @@ exports.verifyPayment = async (req, res) => {
       lock: true
     });
 
-    const adminNotifications = await Promise.all(
+    await Promise.all(
       admins.map(admin =>
         Notification.create({
           user_id: admin.id,
           title: 'New Payment Received',
           message: `Client ${user.email} completed a ${payment_type} payment (${paymentData.currency} ${paymentData.amount/100}) ${property ? `for ${property.title}` : ''}`,
           type: 'admin_alert',
-          related_entity_id: transaction.id,
-          metadata: {
-            user_id,
-            property_id,
-            payment_type,
-            reference
-          }
+          related_entity_id: transaction.id
         }, { transaction: t })
       )
     );
@@ -313,37 +315,32 @@ exports.verifyPayment = async (req, res) => {
       return property.fractional_slots - ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
     };
 
-    // FULL/OUTRIGHT PAYMENT PROCESSING
+    // FULL/OUTRIGHT PAYMENT
     if (payment_type === "full" || payment_type === "outright") {
       try {
-        // Verify FullOwnerships table exists
+        if (!property) {
+          throw new Error("Property not specified for full purchase");
+        }
+
+        if (property.is_sold) {
+          throw new Error("Property is already sold");
+        }
+
+        // Verify FullOwnership table exists
         const tableExists = await sequelize.getQueryInterface().showAllTables()
           .then(tables => tables.includes('FullOwnerships'));
-        
+
         if (!tableExists) {
-          throw new Error('FullOwnerships table does not exist');
+          throw new Error("FullOwnerships table not found in database");
         }
 
-        // Verify property exists and isn't already sold
-        if (!property) {
-          throw new Error('Property not specified for full purchase');
-        }
-        if (property.is_sold) {
-          throw new Error('Property is already sold');
-        }
-
-        // Create full ownership record
-        await sequelize.models.FullOwnership.create({
+        await FullOwnership.create({
           user_id,
           property_id,
           purchase_date: new Date(),
           purchase_amount: paymentData.amount / 100
-        }, {
-          transaction: t,
-          logging: console.log
-        });
+        }, { transaction: t });
 
-        // Mark property as sold
         await Property.update(
           { is_sold: true },
           {
@@ -352,14 +349,12 @@ exports.verifyPayment = async (req, res) => {
             individualHooks: true
           }
         );
-
       } catch (err) {
         console.error('Full payment processing failed:', {
           error: err.message,
           stack: err.stack,
           user_id,
-          property_id,
-          amount: paymentData.amount / 100
+          property_id
         });
         await t.rollback();
         return res.status(500).json({
@@ -368,12 +363,12 @@ exports.verifyPayment = async (req, res) => {
         });
       }
     }
-    // FRACTIONAL PAYMENT PROCESSING
+    // FRACTIONAL PAYMENT
     else if (payment_type === "fractional" && property?.is_fractional) {
       try {
         const availableSlots = await getAvailableFractionalSlots(property.id);
         if (slots > availableSlots) {
-          throw new Error(`Only ${availableSlots} slots available (requested ${slots})`);
+          throw new Error(`Requested ${slots} slots but only ${availableSlots} available`);
         }
 
         await FractionalOwnership.create({
@@ -381,7 +376,6 @@ exports.verifyPayment = async (req, res) => {
           property_id,
           slots_purchased: slots
         }, { transaction: t });
-
       } catch (err) {
         console.error('Fractional payment failed:', err);
         await t.rollback();
@@ -391,7 +385,7 @@ exports.verifyPayment = async (req, res) => {
         });
       }
     }
-    // OTHER PAYMENT TYPES (installment, rental, etc.) would follow here...
+    // OTHER PAYMENT TYPES (installment, rental) would follow here...
 
     // FINAL COMMIT
     await t.commit();
@@ -399,38 +393,34 @@ exports.verifyPayment = async (req, res) => {
     // Real-time notifications
     if (io) {
       io.to(`user_${user_id}`).emit('new_notification', clientNotification);
-      adminNotifications.forEach(notif => {
-        io.to(`user_${notif.user_id}`).emit('new_notification', notif);
+      admins.forEach(admin => {
+        io.to(`user_${admin.id}`).emit('notification', {
+          title: 'New Payment',
+          message: `New ${payment_type} payment received`
+        });
       });
     }
 
     // SUCCESS RESPONSE
-    const responseData = {
+    return res.status(200).json({
       message: "Payment verified successfully",
       transaction: {
         id: transaction.id,
         reference: transaction.reference,
         amount: transaction.price,
-        currency: transaction.currency,
         status: transaction.status,
-        payment_type: transaction.payment_type,
-        date: transaction.transaction_date
+        payment_type: transaction.payment_type
       },
       user: {
         id: user.id,
         email: user.email
-      }
-    };
-
-    if (property) {
-      responseData.property = {
+      },
+      property: property ? {
         id: property.id,
         title: property.title,
         is_sold: payment_type === "full" || payment_type === "outright" ? true : property.is_sold
-      };
-    }
-
-    return res.status(200).json(responseData);
+      } : null
+    });
 
   } catch (error) {
     console.error("Payment Verification Error:", {
@@ -440,7 +430,7 @@ exports.verifyPayment = async (req, res) => {
       timestamp: new Date().toISOString()
     });
 
-    if (!t.finished) {
+    if (t && !t.finished) {
       await t.rollback();
     }
 
