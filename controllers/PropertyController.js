@@ -957,10 +957,10 @@ exports.getTopPerformingProperty = async (req, res) => {
   try {
     const userId = req.user.id;
     
-    // Get all rental properties with their details
+   
     const properties = await Property.findAll({
       where: { isRental: true },
-      attributes: ['id', 'name', 'number_of_baths', 'number_of_rooms', 'features', 'market_value', 'createdAt'],
+      attributes: ['id', 'name', 'number_of_baths', 'number_of_rooms', 'features', 'market_value',, 'images', 'createdAt'],
       include: [
         {
           model: Transaction,
@@ -1096,13 +1096,13 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
 
     // Get all properties with creation dates
     const userProperties = await Property.findAll({
-      attributes: ['id', 'createdAt'],
+      attributes: ['id', 'name', 'createdAt'],
       include: [
         {
           model: Transaction,
           where: { user_id: userId },
           required: false,
-          attributes: ['name', 'id', 'transaction_date', 'price', 'status']
+          attributes: ['id', 'transaction_date', 'price', 'status']
         },
         {
           model: InstallmentOwnership,
