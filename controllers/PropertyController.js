@@ -956,11 +956,16 @@ exports.getPropertyAnalytics = async (req, res) => {
 exports.getTopPerformingProperty = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { Op } = require('sequelize');
     
-   
+    // Get all rental properties with their details
     const properties = await Property.findAll({
       where: { isRental: true },
-      attributes: ['id', 'name', 'number_of_baths', 'number_of_rooms', 'features', 'market_value', 'imageUrl', 'createdAt'],
+      attributes: [
+        'id', 'name', 'number_of_baths', 'number_of_rooms', 
+        'features', 'market_value', 'imageUrl', 'createdAt',
+        'annual_rent', 'monthly_expense', 'estimated_value'
+      ],
       include: [
         {
           model: Transaction,
@@ -971,32 +976,29 @@ exports.getTopPerformingProperty = async (req, res) => {
         {
           model: InstallmentOwnership,
           as: 'installmentOwnerships',
-          attributes: ['id', 'createdAt']
+          attributes: ['id', 'createdAt'],
+          required: false
         },
         {
           model: FractionalOwnership,
           as: 'fractionalOwnerships',
-          attributes: ['id', 'createdAt']
+          attributes: ['id', 'createdAt'],
+          required: false
         }
       ]
     });
 
     // Calculate analytics for each property
     const propertiesWithAnalytics = await Promise.all(
-      properties.map(async property => {
+      properties.map(async (property) => {
         const analytics = await calculatePropertyAnalytics(property.id, userId);
         const purchaseDate = property.Transactions?.[0]?.transaction_date || 
-                           property.installmentOwnerships?.createdAt ||
-                           property.fractionalOwnerships?.createdAt ||
+                           property.installmentOwnerships?.[0]?.createdAt ||
+                           property.fractionalOwnerships?.[0]?.createdAt ||
                            property.createdAt;
         
         return {
-          propertyId: property.id,
-          name: property.name,
-          number_of_baths: property.number_of_baths,
-          number_of_rooms: property.number_of_rooms,
-          features: property.features,
-          imageUrl: property.imageUrl,
+          ...property.get({ plain: true }), // Include all property data
           purchase_date: purchaseDate,
           analytics: {
             ...analytics,
@@ -1010,7 +1012,10 @@ exports.getTopPerformingProperty = async (req, res) => {
     );
 
     // Sort by net yield (descending)
-    const sorted = propertiesWithAnalytics.sort((a, b) => b.analytics.net_yield - a.analytics.net_yield);
+    const sorted = propertiesWithAnalytics.sort((a, b) => 
+      (b.analytics?.net_yield || 0) - (a.analytics?.net_yield || 0)
+    );
+    
     const topProperty = sorted[0] || null;
 
     // Calculate historical data for the top property
@@ -1031,15 +1036,15 @@ exports.getTopPerformingProperty = async (req, res) => {
         // Get historical transactions
         const historicalTransactions = await Transaction.findAll({
           where: {
-            property_id: topProperty.propertyId,
+            property_id: topProperty.id,
             user_id: userId,
             transaction_date: { [Op.between]: [startDate, endDate] }
           }
         });
 
-        // Get historical property value (using first recorded market value in period)
+        // Get historical property value
         const historicalProperty = await Property.findOne({
-          where: { id: topProperty.propertyId },
+          where: { id: topProperty.id },
           include: [{
             model: Transaction,
             where: { 
@@ -1047,11 +1052,12 @@ exports.getTopPerformingProperty = async (req, res) => {
               transaction_date: { [Op.lte]: endDate }
             },
             order: [['transaction_date', 'DESC']],
-            limit: 1
+            limit: 1,
+            required: false
           }]
         });
 
-        const historicalMarketValue = historicalProperty?.market_value || topProperty.analytics.estimated_value;
+        const historicalMarketValue = historicalProperty?.market_value || topProperty.market_value || 0;
         const historicalIncome = historicalTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
         const historicalExpenses = historicalTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
         const historicalCashflow = historicalIncome - historicalExpenses;
