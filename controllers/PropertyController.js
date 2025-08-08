@@ -996,6 +996,7 @@ exports.getTopPerformingProperty = async (req, res) => {
           number_of_baths: property.number_of_baths,
           number_of_rooms: property.number_of_rooms,
           features: property.features,
+          images: property.imageUrl,
           purchase_date: purchaseDate,
           analytics: {
             ...analytics,
