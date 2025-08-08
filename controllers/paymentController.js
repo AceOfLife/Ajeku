@@ -135,132 +135,144 @@ exports.initializePayment = async (req, res) => {
 };
 
 exports.verifyPayment = async (req, res) => {
-  let t;
-  try {
-    // Initialize transaction with simpler isolation level
-    t = await sequelize.transaction({
-      isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
-    });
+  // Use SERIALIZABLE isolation level for stronger consistency
+  const t = await sequelize.transaction({
+    isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+  });
 
+  try {
     const { reference } = req.query;
     if (!reference) {
+      await t.rollback();
       return res.status(400).json({ message: "Transaction reference is required" });
     }
 
-    // 1. Check for existing transaction (simplest possible query)
-    const existingTransaction = await Transaction.findOne({
+    // 1. Check for existing transaction with row locking
+    const existingTransaction = await Transaction.findOne({ 
       where: { reference },
       transaction: t,
-      attributes: ['id', 'reference', 'status'],
-      raw: true
+      lock: t.LOCK.UPDATE,
+      include: [
+        { model: User, as: 'user', attributes: ['id', 'email'] },
+        { model: Property, as: 'property', attributes: ['id', 'title', 'is_sold'] }
+      ]
     });
-
+    
     if (existingTransaction) {
       await t.commit();
       return res.status(200).json({
         message: "Payment already verified",
-        transactionId: existingTransaction.id
+        transaction: existingTransaction
       });
     }
 
-    // 2. Verify with Paystack (outside transaction)
-    let paymentData;
-    try {
-      const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
-        headers: {
-          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-          "Content-Type": "application/json"
-        },
-        timeout: 10000
-      });
-      paymentData = response.data.data;
-    } catch (err) {
-      console.error('Paystack verification failed:', err);
-      return res.status(400).json({
-        message: "Payment verification failed",
-        error: process.env.NODE_ENV === 'development' ? err.message : undefined
-      });
-    }
-
-    if (paymentData.status !== "success") {
-      return res.status(400).json({
-        message: "Payment not successful",
-        status: paymentData.status
-      });
-    }
-
-    // 3. METADATA EXTRACTION - Handle both Paystack metadata formats
-    const metadata = paymentData.metadata || {};
-    const custom_fields = metadata.custom_fields || [];
-    
-    // Helper to get fields from either root metadata or custom_fields
-    const getMetadataValue = (fieldName) => {
-      return metadata[fieldName] || 
-             custom_fields.find(f => f.variable_name === fieldName)?.value;
-    };
-
-    const user_id = parseInt(getMetadataValue('user_id')) || null;
-    const property_id = parseInt(getMetadataValue('property_id')) || null;
-    const payment_type = getMetadataValue('payment_type') || null;
-    const client_id = parseInt(getMetadataValue('client_id')) || null;
-    const slots = parseInt(getMetadataValue('slots')) || 1;
-    const rooms = parseInt(getMetadataValue('rooms')) || 1;
-
-    console.log('Extracted metadata:', {
-      user_id, property_id, payment_type, client_id, slots, rooms
+    // 2. Verify with Paystack
+    const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+      headers: {
+        Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+        "Content-Type": "application/json"
+      },
+      timeout: 10000
     });
 
-    // Validation
-    if (!user_id || !payment_type) {
+    const paymentData = response.data.data;
+    if (paymentData.status !== "success") {
       await t.rollback();
       return res.status(400).json({
-        message: "Missing required metadata fields",
-        required: {
-          user_id: !!user_id,
-          payment_type: !!payment_type
+        message: "Payment not successful",
+        status: paymentData.status,
+        gateway_response: paymentData.gateway_response
+      });
+    }
+
+    // 3. Extract and validate metadata
+    const { user_id, property_id, payment_type, client_id, slots = 1, rooms = 1 } = paymentData.metadata || {};
+    
+    console.log('Payment Verification Metadata:', {
+      user_id,
+      property_id,
+      payment_type,
+      client_id,
+      amount: paymentData.amount / 100,
+      currency: paymentData.currency
+    });
+
+    if (!user_id || !payment_type) {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: "Incomplete payment metadata",
+        required_fields: {
+          user_id: !user_id ? "Missing" : "Provided",
+          payment_type: !payment_type ? "Missing" : "Provided"
         }
       });
     }
 
-    // 4. Verify user exists
-    const user = await User.findByPk(user_id, {
-      transaction: t,
-      attributes: ['id', 'email'],
-      raw: true
-    });
+    // 4. Get user and property with locking
+    const [user, property] = await Promise.all([
+      User.findByPk(user_id, { 
+        transaction: t,
+        attributes: ['id', 'email', 'name'],
+        lock: t.LOCK.UPDATE
+      }),
+      property_id ? Property.findByPk(property_id, { 
+        transaction: t,
+        attributes: ['id', 'title', 'is_fractional', 'isInstallment', 'isRental', 'is_sold'],
+        lock: t.LOCK.UPDATE
+      }) : Promise.resolve(null)
+    ]);
 
     if (!user) {
       await t.rollback();
       return res.status(404).json({ message: "User not found" });
     }
 
-    // 5. Get property if specified
-    let property = null;
-    if (property_id) {
-      property = await Property.findByPk(property_id, {
-        transaction: t,
-        attributes: ['id', 'title', 'is_fractional', 'isInstallment', 'isRental', 'is_sold', 'fractional_slots'],
-        raw: true
-      });
-
-      if (!property) {
-        await t.rollback();
-        return res.status(404).json({ message: "Property not found" });
-      }
-    }
-
-    // 6. Create transaction record
+    // 5. Create transaction record first
     const transaction = await Transaction.create({
       user_id,
-      property_id,
-      client_id,
+      property_id: property_id || null,
+      client_id: client_id || null,
       reference,
       price: paymentData.amount / 100,
       currency: paymentData.currency,
       status: paymentData.status,
       payment_type,
       transaction_date: new Date(paymentData.transaction_date || Date.now())
-    }, { transaction: t });
+    }, { 
+      transaction: t
+    });
+
+    // ========== PAYMENT TYPE SPECIFIC CHECKS ==========
+    if (payment_type === "full" || payment_type === "outright") {
+      if (!property) {
+        await t.rollback();
+        return res.status(404).json({ message: "Property not found for full payment" });
+      }
+
+      // Check for existing full ownership
+      const existingFullOwnership = await FullOwnership.findOne({
+        where: { property_id: property.id },
+        transaction: t,
+        lock: t.LOCK.UPDATE
+      });
+
+      if (existingFullOwnership) {
+        await t.rollback();
+        return res.status(400).json({
+          message: "Property already has a full owner",
+          existing_owner_id: existingFullOwnership.user_id
+        });
+      }
+
+      // Check if property is already sold
+      if (property.is_sold) {
+        await t.rollback();
+        return res.status(400).json({ 
+          message: "Property is already sold",
+          property_id: property.id
+        });
+      }
+    }
 
     // ========== NOTIFICATION INTEGRATION ==========
     const io = req.app.get('socketio');
@@ -275,133 +287,267 @@ exports.verifyPayment = async (req, res) => {
       metadata: {
         transaction_id: transaction.id,
         amount: paymentData.amount / 100,
-        currency: paymentData.currency
+        currency: paymentData.currency,
+        reference
       }
     }, { transaction: t });
 
     // Admin notifications
-    const admins = await User.findAll({
+    const admins = await User.findAll({ 
       where: { role: 'admin' },
       transaction: t,
-      attributes: ['id', 'email'],
-      raw: true
+      attributes: ['id'],
+      lock: t.LOCK.UPDATE
     });
 
-    await Promise.all(
-      admins.map(admin =>
+    const adminNotifications = await Promise.all(
+      admins.map(admin => 
         Notification.create({
           user_id: admin.id,
           title: 'New Payment Received',
           message: `Client ${user.email} completed a ${payment_type} payment (${paymentData.currency} ${paymentData.amount/100}) ${property ? `for ${property.title}` : ''}`,
           type: 'admin_alert',
-          related_entity_id: transaction.id
+          related_entity_id: transaction.id,
+          metadata: {
+            user_id,
+            property_id,
+            payment_type,
+            reference
+          }
         }, { transaction: t })
       )
     );
 
     // ========== PAYMENT TYPE PROCESSING ==========
-    const getAvailableFractionalSlots = async () => {
-      const ownerships = await FractionalOwnership.findAll({
-        where: { property_id },
+    const getAvailableFractionalSlots = async (propertyId) => {
+      const ownerships = await FractionalOwnership.findAll({ 
+        where: { property_id: propertyId },
         transaction: t,
-        raw: true
+        lock: t.LOCK.UPDATE
       });
       return property.fractional_slots - ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
     };
 
     // FULL/OUTRIGHT PAYMENT
-    if ((payment_type === "full" || payment_type === "outright") && property) {
+    if (payment_type === "full" || payment_type === "outright") {
       try {
-        if (property.is_sold) {
-          throw new Error('Property already sold');
-        }
-
-        await FullOwnership.create({
+        // Create full ownership record
+        const fullOwnership = await FullOwnership.create({
           user_id,
           property_id,
-          purchase_amount: paymentData.amount / 100,
-          purchase_date: new Date()
-        }, { transaction: t });
-
-        await Property.update(
-          { is_sold: true },
-          { where: { id: property_id }, transaction: t }
-        );
-      } catch (err) {
-        console.error('Full payment processing failed:', err);
-        await t.rollback();
-        return res.status(400).json({
-          message: "Full payment processing failed",
-          error: process.env.NODE_ENV === 'development' ? err.message : undefined
+          purchase_date: new Date(),
+          purchase_amount: paymentData.amount / 100
+        }, { 
+          transaction: t 
         });
+
+        console.log('Created FullOwnership:', fullOwnership.id);
+
+        // Mark property as sold
+        const [updatedCount] = await Property.update(
+          { is_sold: true },
+          { 
+            where: { id: property_id }, 
+            transaction: t 
+          }
+        );
+
+        if (updatedCount !== 1) {
+          throw new Error('Failed to update property status');
+        }
+
+        console.log('Property marked as sold:', property_id);
+      } catch (err) {
+        console.error('Full payment processing error:', err);
+        throw err; // Will be caught by outer try-catch
       }
-    }
+    } 
     // FRACTIONAL PAYMENT
     else if (payment_type === "fractional" && property?.is_fractional) {
-      try {
-        const availableSlots = await getAvailableFractionalSlots();
+      const availableSlots = await getAvailableFractionalSlots(property.id);
+      if (slots > availableSlots) {
+        await t.rollback();
+        return res.status(400).json({ 
+          message: 'Not enough fractional slots available',
+          availableSlots,
+          requestedSlots: slots
+        });
+      }
+
+      await FractionalOwnership.create({
+        user_id,
+        property_id,
+        slots_purchased: slots
+      }, { transaction: t });
+    }
+    // FRACTIONAL INSTALLMENT
+    else if (payment_type === "fractionalInstallment" && property?.is_fractional && property.isFractionalInstallment) {
+      const today = new Date();
+      let ownership = await InstallmentOwnership.findOne({
+        where: { user_id, property_id },
+        transaction: t,
+        lock: t.LOCK.UPDATE
+      });
+
+      if (!ownership) {
+        const availableSlots = await getAvailableFractionalSlots(property.id);
         if (slots > availableSlots) {
-          throw new Error(`Only ${availableSlots} slots available`);
+          await t.rollback();
+          return res.status(400).json({ 
+            message: 'Not enough fractional slots available',
+            availableSlots,
+            requestedSlots: slots
+          });
         }
+
+        ownership = await InstallmentOwnership.create({
+          user_id,
+          property_id,
+          start_date: today,
+          total_months: property.isFractionalDuration,
+          months_paid: 1,
+          status: property.isFractionalDuration === 1 ? "completed" : "ongoing"
+        }, { transaction: t });
 
         await FractionalOwnership.create({
           user_id,
           property_id,
           slots_purchased: slots
         }, { transaction: t });
-      } catch (err) {
-        console.error('Fractional payment failed:', err);
-        await t.rollback();
-        return res.status(400).json({
-          message: "Fractional payment failed",
-          error: process.env.NODE_ENV === 'development' ? err.message : undefined
-        });
+      } else {
+        ownership.months_paid += 1;
+        if (ownership.months_paid >= ownership.total_months) {
+          ownership.status = "completed";
+        }
+        await ownership.save({ transaction: t });
       }
-    }
-    // OTHER PAYMENT TYPES (installment, rental) would be here...
 
-    // FINAL COMMIT
+      await InstallmentPayment.create({
+        ownership_id: ownership.id,
+        user_id,
+        property_id,
+        amount_paid: paymentData.amount / 100,
+        payment_month: today.getMonth() + 1,
+        payment_year: today.getFullYear()
+      }, { transaction: t });
+    }
+    // STANDARD INSTALLMENT
+    else if (payment_type === "installment" && property?.isInstallment && !property.is_fractional) {
+      const today = new Date();
+      let ownership = await InstallmentOwnership.findOne({
+        where: { user_id, property_id },
+        transaction: t,
+        lock: t.LOCK.UPDATE
+      });
+
+      if (!ownership) {
+        ownership = await InstallmentOwnership.create({
+          user_id,
+          property_id,
+          start_date: today,
+          total_months: parseInt(property.duration),
+          months_paid: 1,
+          status: parseInt(property.duration) === 1 ? "completed" : "ongoing"
+        }, { transaction: t });
+      } else {
+        ownership.months_paid += 1;
+        if (ownership.months_paid >= ownership.total_months) {
+          ownership.status = "completed";
+        }
+        await ownership.save({ transaction: t });
+      }
+
+      await InstallmentPayment.create({
+        ownership_id: ownership.id,
+        user_id,
+        property_id,
+        amount_paid: paymentData.amount / 100,
+        payment_month: today.getMonth() + 1,
+        payment_year: today.getFullYear()
+      }, { transaction: t });
+    }
+    // RENTAL PAYMENT
+    else if (payment_type === "rental" && property?.isRental) {
+      const roomsBooked = parseInt(rooms) || 1;
+      
+      await RentalBooking.create({
+        user_id,
+        property_id,
+        rooms_booked: roomsBooked,
+        amount_paid: paymentData.amount / 100,
+        start_date: new Date(),
+        end_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
+      }, { transaction: t });
+
+      await Property.decrement('rental_rooms', {
+        by: roomsBooked,
+        where: { id: property.id },
+        transaction: t
+      });
+    }
+
+    // Final commit
     await t.commit();
 
     // Real-time notifications
     if (io) {
       io.to(`user_${user_id}`).emit('new_notification', clientNotification);
-      admins.forEach(admin => {
-        io.to(`user_${admin.id}`).emit('new_notification', {
-          title: 'New Payment',
-          message: `New ${payment_type} payment received`
-        });
+      adminNotifications.forEach(notif => {
+        io.to(`user_${notif.user_id}`).emit('new_notification', notif);
       });
     }
 
-    return res.status(200).json({
+    // Response
+    const responseData = {
       message: "Payment verified successfully",
       transaction: {
         id: transaction.id,
         reference: transaction.reference,
         amount: transaction.price,
-        status: transaction.status
+        status: transaction.status,
+        payment_type: transaction.payment_type,
+        date: transaction.transaction_date
       },
-      property: property ? {
+      user: {
+        id: user.id,
+        email: user.email
+      }
+    };
+
+    if (property) {
+      responseData.property = {
         id: property.id,
-        is_sold: payment_type === "full" || payment_type === "outright" ? true : property.is_sold
-      } : null
-    });
+        title: property.title,
+        is_sold: property.is_sold
+      };
+    }
+
+    return res.status(200).json(responseData);
 
   } catch (error) {
     console.error("Payment Verification Error:", {
       message: error.message,
+      stack: error.stack,
       reference: req.query.reference,
-      stack: error.stack
+      timestamp: new Date(),
+      errorDetails: error.errors // Sequelize validation errors
     });
-
-    if (t && !t.finished) {
-      await t.rollback();
+    
+    if (!t.finished) {
+      try {
+        await t.rollback();
+      } catch (rollbackError) {
+        console.error("Rollback failed:", rollbackError);
+      }
     }
-
-    return res.status(500).json({
-      message: "Payment processing failed",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    
+    return res.status(500).json({ 
+      message: "Payment verification failed",
+      error: process.env.NODE_ENV === 'development' ? {
+        message: error.message,
+        type: error.name,
+        reference: req.query.reference
+      } : undefined
     });
   }
 };

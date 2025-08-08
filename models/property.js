@@ -189,6 +189,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
+    is_sold: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,  
+      defaultValue: false 
+    },
     is_relisted: {
       type: DataTypes.BOOLEAN,
       defaultValue: false
