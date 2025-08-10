@@ -1242,10 +1242,11 @@ exports.getTopPerformingProperty = async (req, res) => {
 exports.getUserPropertiesAnalytics = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { Op } = require('sequelize');
 
     // Get all properties with creation dates
     const userProperties = await Property.findAll({
-      attributes: ['id', 'name', 'createdAt'],
+      attributes: ['id', 'name', 'createdAt', 'market_value'],
       include: [
         {
           model: Transaction,
@@ -1258,14 +1259,14 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
           as: 'installmentOwnerships',
           where: { user_id: userId },
           required: false,
-          attributes: ['id']
+          attributes: ['id', 'createdAt']
         },
         {
           model: FractionalOwnership,
           as: 'fractionalOwnerships',
           where: { user_id: userId },
           required: false,
-          attributes: ['id']
+          attributes: ['id', 'createdAt']
         }
       ],
       distinct: true
@@ -1296,49 +1297,134 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
         : 0
     };
 
-    // Helper function to calculate historical metrics
+    // Enhanced helper function to calculate historical metrics
     const calculateHistory = async (period) => {
       const now = new Date();
       let startDate, endDate;
 
       if (period === 'last_month') {
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+        // Daily breakdown for last month
+        const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+        const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+        const daysInMonth = new Date(year, lastMonth + 1, 0).getDate();
+        
+        const dailyData = [];
+        
+        for (let day = 1; day <= daysInMonth; day++) {
+          const date = new Date(year, lastMonth, day);
+          const nextDate = new Date(year, lastMonth, day + 1);
+          
+          // Get transactions for this day across all properties
+          const dayTransactions = await Transaction.findAll({
+            where: {
+              user_id: userId,
+              transaction_date: {
+                [Op.gte]: date,
+                [Op.lt]: nextDate
+              }
+            },
+            include: [{
+              model: Property,
+              attributes: ['id']
+            }]
+          });
+
+          // Group transactions by property
+          const transactionsByProperty = dayTransactions.reduce((acc, t) => {
+            if (!acc[t.Property.id]) acc[t.Property.id] = [];
+            acc[t.Property.id].push(t);
+            return acc;
+          }, {});
+
+          // Calculate analytics for each property with transactions
+          const propertyAnalytics = await Promise.all(
+            Object.keys(transactionsByProperty).map(propertyId => 
+              calculatePropertyAnalytics(propertyId, userId)
+            )
+          );
+
+          const dayIncome = dayTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
+          const dayExpenses = dayTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
+          const dayCashflow = dayIncome - dayExpenses;
+
+          dailyData.push({
+            date: date.toISOString().split('T')[0],
+            avg_potential_equity: propertyAnalytics.length > 0
+              ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0) / 
+                          propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0) * 100 * 100) / 100
+              : 0,
+            project_cashflow: Math.round(dayCashflow * 100) / 100,
+            avg_gross_yield: propertyAnalytics.length > 0
+              ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.gross_yield || 0), 0) / propertyAnalytics.length * 100) / 100
+              : 0,
+            avg_net_yield: propertyAnalytics.length > 0
+              ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / propertyAnalytics.length * 100) / 100
+              : 0
+          });
+        }
+
+        return dailyData;
       } else { // last_year
-        startDate = new Date(now.getFullYear() - 1, 0, 1);
-        endDate = new Date(now.getFullYear() - 1, 11, 31);
+        // Monthly breakdown for last year
+        const year = now.getFullYear() - 1;
+        const monthlyData = [];
+
+        for (let month = 0; month < 12; month++) {
+          const monthStart = new Date(year, month, 1);
+          const monthEnd = new Date(year, month + 1, 0);
+
+          // Get transactions for this month across all properties
+          const monthTransactions = await Transaction.findAll({
+            where: {
+              user_id: userId,
+              transaction_date: {
+                [Op.gte]: monthStart,
+                [Op.lte]: monthEnd
+              }
+            },
+            include: [{
+              model: Property,
+              attributes: ['id']
+            }]
+          });
+
+          // Group transactions by property
+          const transactionsByProperty = monthTransactions.reduce((acc, t) => {
+            if (!acc[t.Property.id]) acc[t.Property.id] = [];
+            acc[t.Property.id].push(t);
+            return acc;
+          }, {});
+
+          // Calculate analytics for each property with transactions
+          const propertyAnalytics = await Promise.all(
+            Object.keys(transactionsByProperty).map(propertyId => 
+              calculatePropertyAnalytics(propertyId, userId)
+            )
+          );
+
+          const monthIncome = monthTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
+          const monthExpenses = monthTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
+          const monthCashflow = monthIncome - monthExpenses;
+
+          monthlyData.push({
+            month: monthStart.toLocaleString('default', { month: 'long' }),
+            year,
+            avg_potential_equity: propertyAnalytics.length > 0
+              ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0) / 
+                          propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0) * 100 * 100) / 100
+              : 0,
+            project_cashflow: Math.round(monthCashflow * 100) / 100,
+            avg_gross_yield: propertyAnalytics.length > 0
+              ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.gross_yield || 0), 0) / propertyAnalytics.length * 100) / 100
+              : 0,
+            avg_net_yield: propertyAnalytics.length > 0
+              ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / propertyAnalytics.length * 100) / 100
+              : 0
+          });
+        }
+
+        return monthlyData;
       }
-
-      // Filter properties created in the period
-      const historicalProperties = userProperties.filter(property => {
-        const createdAt = new Date(property.createdAt);
-        return createdAt >= startDate && createdAt <= endDate;
-      });
-
-      // Calculate analytics for historical properties
-      const historicalAnalytics = await Promise.all(
-        historicalProperties.map(property => 
-          calculatePropertyAnalytics(property.id, userId)
-        )
-      );
-
-      const historicalPortfolioValue = historicalAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0);
-
-      return {
-        avg_potential_equity: historicalPortfolioValue > 0
-          ? Math.round((historicalAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0) / historicalPortfolioValue * 100) * 100) / 100
-          : 0,
-        project_cashflow: Math.round(historicalAnalytics.reduce(
-          (sum, a) => sum + (a.annual_income || 0) - (a.annual_expense || 0),
-          0
-        ) * 100) / 100,
-        avg_gross_yield: historicalAnalytics.length > 0
-          ? Math.round(historicalAnalytics.reduce((sum, a) => sum + (a.gross_yield || 0), 0) / historicalAnalytics.length * 100) / 100
-          : 0,
-        avg_net_yield: historicalAnalytics.length > 0
-          ? Math.round(historicalAnalytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / historicalAnalytics.length * 100) / 100
-          : 0
-      };
     };
 
     // Calculate history
