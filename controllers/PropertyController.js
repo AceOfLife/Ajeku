@@ -1240,9 +1240,6 @@ exports.getTopPerformingProperty = async (req, res) => {
 };
 
 
-
-const { Op } = require('sequelize');
-
 exports.getUserPropertiesAnalytics = async (req, res) => {
   try {
     // Get and validate user IDs
