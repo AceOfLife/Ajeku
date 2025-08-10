@@ -953,12 +953,13 @@ exports.getPropertyAnalytics = async (req, res) => {
 
 
 
+const { Op } = require('sequelize');
+
 exports.getTopPerformingProperty = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { Op } = require('sequelize');
     
-    // Get all rental properties with their details
+    // Get all rental properties with essential details
     const properties = await Property.findAll({
       where: { isRental: true },
       attributes: [
@@ -985,71 +986,103 @@ exports.getTopPerformingProperty = async (req, res) => {
           attributes: ['id', 'createdAt'],
           required: false
         }
-      ]
+      ],
+      limit: 100 // Prevent too many properties
     });
 
-    // Calculate analytics for each property
+    // Calculate analytics for each property (with timeout protection)
     const propertiesWithAnalytics = await Promise.all(
       properties.map(async (property) => {
-        const analytics = await calculatePropertyAnalytics(property.id, userId);
-        const purchaseDate = property.Transactions?.[0]?.transaction_date || 
-                           property.installmentOwnerships?.[0]?.createdAt ||
-                           property.fractionalOwnerships?.[0]?.createdAt ||
-                           property.createdAt;
-        
-        return {
-          ...property.get({ plain: true }), // Include all property data
-          purchase_date: purchaseDate,
-          analytics: {
-            ...analytics,
-            potential_equity: property.market_value > 0 
-              ? Math.round((analytics.estimated_value / property.market_value) * 100 * 100) / 100
-              : 0,
-            project_cashflow: Math.round((analytics.annual_income - analytics.annual_expense) * 100) / 100
-          }
-        };
+        try {
+          const analytics = await Promise.race([
+            calculatePropertyAnalytics(property.id, userId),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Calculation timeout')), 5000)
+          ]);
+
+          const purchaseDate = property.Transactions?.[0]?.transaction_date || 
+                             property.installmentOwnerships?.[0]?.createdAt ||
+                             property.fractionalOwnerships?.[0]?.createdAt ||
+                             property.createdAt;
+          
+          return {
+            ...property.get({ plain: true }),
+            purchase_date: purchaseDate,
+            analytics: {
+              ...analytics,
+              potential_equity: property.market_value > 0 
+                ? Math.round((analytics.estimated_value / property.market_value) * 100 * 100) / 100
+                : 0,
+              project_cashflow: Math.round((analytics.annual_income - analytics.annual_expense) * 100) / 100
+            }
+          };
+        } catch (error) {
+          console.error(`Error calculating analytics for property ${property.id}:`, error);
+          return null;
+        }
       })
-    );
+    ).then(results => results.filter(Boolean)); // Filter out failed calculations
+
+    if (propertiesWithAnalytics.length === 0) {
+      return res.status(200).json({
+        message: 'No rental properties found',
+        property: null,
+        history: null
+      });
+    }
 
     // Sort by net yield (descending)
     const sorted = propertiesWithAnalytics.sort((a, b) => 
       (b.analytics?.net_yield || 0) - (a.analytics?.net_yield || 0)
     );
     
-    const topProperty = sorted[0] || null;
+    const topProperty = sorted[0];
 
-    // Calculate historical data for the top property
+    // Calculate historical data with optimized queries
     let history = null;
     if (topProperty) {
-      const calculateHistory = async (period) => {
+      const getDailyData = async () => {
         const now = new Date();
-        let startDate, endDate;
+        const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+        const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+        const daysInMonth = new Date(year, lastMonth + 1, 0).getDate();
 
-        if (period === 'last_month') {
-          startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          endDate = new Date(now.getFullYear(), now.getMonth(), 0);
-        } else { // last_year
-          startDate = new Date(now.getFullYear() - 1, 0, 1);
-          endDate = new Date(now.getFullYear() - 1, 11, 31);
-        }
-
-        // Get historical transactions
-        const historicalTransactions = await Transaction.findAll({
+        // Get all transactions for the month in one query
+        const monthlyTransactions = await Transaction.findAll({
           where: {
             property_id: topProperty.id,
             user_id: userId,
-            transaction_date: { [Op.between]: [startDate, endDate] }
-          }
+            transaction_date: {
+              [Op.gte]: new Date(year, lastMonth, 1),
+              [Op.lt]: new Date(year, lastMonth + 1, 1)
+            }
+          },
+          attributes: [
+            'id',
+            'transaction_date',
+            'price',
+            [sequelize.fn('DATE', sequelize.col('transaction_date')), 'date']
+          ]
         });
 
-        // Get historical property value
-        const historicalProperty = await Property.findOne({
+        // Group transactions by day
+        const transactionsByDay = monthlyTransactions.reduce((acc, transaction) => {
+          const dateStr = transaction.get('date');
+          if (!acc[dateStr]) {
+            acc[dateStr] = [];
+          }
+          acc[dateStr].push(transaction);
+          return acc;
+        }, {});
+
+        // Get property value at start of month
+        const startValue = await Property.findOne({
           where: { id: topProperty.id },
           include: [{
             model: Transaction,
             where: { 
               user_id: userId,
-              transaction_date: { [Op.lte]: endDate }
+              transaction_date: { [Op.lt]: new Date(year, lastMonth, 1) }
             },
             order: [['transaction_date', 'DESC']],
             limit: 1,
@@ -1057,29 +1090,140 @@ exports.getTopPerformingProperty = async (req, res) => {
           }]
         });
 
-        const historicalMarketValue = historicalProperty?.market_value || topProperty.market_value || 0;
-        const historicalIncome = historicalTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
-        const historicalExpenses = historicalTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
-        const historicalCashflow = historicalIncome - historicalExpenses;
+        let runningValue = startValue?.market_value || topProperty.market_value || 0;
+        const dailyData = [];
 
-        return {
-          avg_potential_equity: historicalMarketValue > 0
-            ? Math.round((topProperty.analytics.estimated_value / historicalMarketValue) * 100 * 100) / 100
-            : 0,
-          project_cashflow: Math.round(historicalCashflow * 100) / 100,
-          avg_gross_yield: historicalMarketValue > 0
-            ? Math.round((historicalIncome / historicalMarketValue) * 100 * 100) / 100
-            : 0,
-          avg_net_yield: historicalMarketValue > 0
-            ? Math.round(((historicalIncome - historicalExpenses) / historicalMarketValue) * 100 * 100) / 100
-            : 0
+        for (let day = 1; day <= daysInMonth; day++) {
+          const date = new Date(year, lastMonth, day);
+          const dateStr = date.toISOString().split('T')[0];
+          const dayTransactions = transactionsByDay[dateStr] || [];
+
+          const income = dayTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
+          const expenses = dayTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
+          const cashflow = income - expenses;
+
+          // Update running value if there were relevant transactions
+          if (dayTransactions.some(t => t.price < 0 && t.description === 'Valuation Update')) {
+            runningValue = dayTransactions.find(t => t.price < 0).price * -1;
+          }
+
+          dailyData.push({
+            date: dateStr,
+            gross_yield: runningValue > 0 ? Math.round((income / runningValue) * 100 * 100) / 100 : 0,
+            net_yield: runningValue > 0 ? Math.round(((income - expenses) / runningValue) * 100 * 100) / 100 : 0,
+            potential_equity: runningValue > 0 
+              ? Math.round((topProperty.analytics.estimated_value / runningValue) * 100 * 100) / 100 
+              : 0,
+            cashflow: Math.round(cashflow * 100) / 100,
+            property_value: runningValue
+          });
+        }
+
+        return dailyData;
+      };
+
+      const getMonthlyData = async () => {
+        const now = new Date();
+        const year = now.getFullYear() - 1;
+        const monthlyData = [];
+
+        // Get all transactions for the year in one query
+        const yearlyTransactions = await Transaction.findAll({
+          where: {
+            property_id: topProperty.id,
+            user_id: userId,
+            transaction_date: {
+              [Op.gte]: new Date(year, 0, 1),
+              [Op.lt]: new Date(year + 1, 0, 1)
+            }
+          },
+          attributes: [
+            'id',
+            'transaction_date',
+            'price',
+            [sequelize.fn('DATE_TRUNC', 'month', sequelize.col('transaction_date')), 'month']
+          ]
+        });
+
+        // Group transactions by month
+        const transactionsByMonth = yearlyTransactions.reduce((acc, transaction) => {
+          const monthStr = transaction.get('month').toISOString().slice(0, 7);
+          if (!acc[monthStr]) {
+            acc[monthStr] = [];
+          }
+          acc[monthStr].push(transaction);
+          return acc;
+        }, {});
+
+        // Get property value at start of year
+        const startValue = await Property.findOne({
+          where: { id: topProperty.id },
+          include: [{
+            model: Transaction,
+            where: { 
+              user_id: userId,
+              transaction_date: { [Op.lt]: new Date(year, 0, 1) }
+            },
+            order: [['transaction_date', 'DESC']],
+            limit: 1,
+            required: false
+          }]
+        });
+
+        let runningValue = startValue?.market_value || topProperty.market_value || 0;
+
+        for (let month = 0; month < 12; month++) {
+          const monthStart = new Date(year, month, 1);
+          const monthEnd = new Date(year, month + 1, 0);
+          const monthStr = monthStart.toISOString().slice(0, 7);
+          const monthTransactions = transactionsByMonth[monthStr] || [];
+
+          const income = monthTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
+          const expenses = monthTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
+          const cashflow = income - expenses;
+
+          // Update running value if there were relevant transactions
+          const valuationUpdate = monthTransactions.find(t => t.price < 0 && t.description === 'Valuation Update');
+          if (valuationUpdate) {
+            runningValue = valuationUpdate.price * -1;
+          }
+
+          monthlyData.push({
+            month: monthStart.toLocaleString('default', { month: 'long' }),
+            year,
+            gross_yield: runningValue > 0 ? Math.round((income / runningValue) * 100 * 100) / 100 : 0,
+            net_yield: runningValue > 0 ? Math.round(((income - expenses) / runningValue) * 100 * 100) / 100 : 0,
+            potential_equity: runningValue > 0 
+              ? Math.round((topProperty.analytics.estimated_value / runningValue) * 100 * 100) / 100 
+              : 0,
+            cashflow: Math.round(cashflow * 100) / 100,
+            property_value: runningValue
+          });
+        }
+
+        return monthlyData;
+      };
+
+      // Calculate history with timeout protection
+      try {
+        history = {
+          last_month: await Promise.race([
+            getDailyData(),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Daily data timeout')), 10000)
+            )
+          ]).catch(() => []),
+          last_year: await Promise.race([
+            getMonthlyData(),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Monthly data timeout')), 10000)
+            )
+          ]).catch(() => [])
         };
-      };
-
-      history = {
-        last_month: await calculateHistory('last_month'),
-        last_year: await calculateHistory('last_year')
-      };
+      } catch (error) {
+        console.error('Error calculating history:', error);
+        history = { last_month: [], last_year: [] };
+      }
     }
 
     res.status(200).json({
