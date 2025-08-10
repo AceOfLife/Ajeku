@@ -1250,6 +1250,7 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       include: [
         {
           model: Transaction,
+          as: 'Transactions', // Specify the alias
           where: { user_id: userId },
           required: false,
           attributes: ['id', 'transaction_date', 'price', 'status']
@@ -1300,8 +1301,7 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
     // Enhanced helper function to calculate historical metrics
     const calculateHistory = async (period) => {
       const now = new Date();
-      let startDate, endDate;
-
+      
       if (period === 'last_month') {
         // Daily breakdown for last month
         const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
@@ -1325,14 +1325,15 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
             },
             include: [{
               model: Property,
-              attributes: ['id']
+              as: 'Property' // Specify the alias
             }]
           });
 
           // Group transactions by property
           const transactionsByProperty = dayTransactions.reduce((acc, t) => {
-            if (!acc[t.Property.id]) acc[t.Property.id] = [];
-            acc[t.Property.id].push(t);
+            const propertyId = t.Property.id;
+            if (!acc[propertyId]) acc[propertyId] = [];
+            acc[propertyId].push(t);
             return acc;
           }, {});
 
@@ -1340,8 +1341,7 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
           const propertyAnalytics = await Promise.all(
             Object.keys(transactionsByProperty).map(propertyId => 
               calculatePropertyAnalytics(propertyId, userId)
-            )
-          );
+          ));
 
           const dayIncome = dayTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
           const dayExpenses = dayTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
@@ -1349,9 +1349,9 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
 
           dailyData.push({
             date: date.toISOString().split('T')[0],
-            avg_potential_equity: propertyAnalytics.length > 0
+            avg_potential_equity: propertyAnalytics.length > 0 && propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0) > 0
               ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0) / 
-                          propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0) * 100 * 100) / 100
+                propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0) * 100 * 100) / 100
               : 0,
             project_cashflow: Math.round(dayCashflow * 100) / 100,
             avg_gross_yield: propertyAnalytics.length > 0
@@ -1384,14 +1384,15 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
             },
             include: [{
               model: Property,
-              attributes: ['id']
+              as: 'Property' // Specify the alias
             }]
           });
 
           // Group transactions by property
           const transactionsByProperty = monthTransactions.reduce((acc, t) => {
-            if (!acc[t.Property.id]) acc[t.Property.id] = [];
-            acc[t.Property.id].push(t);
+            const propertyId = t.Property.id;
+            if (!acc[propertyId]) acc[propertyId] = [];
+            acc[propertyId].push(t);
             return acc;
           }, {});
 
@@ -1409,9 +1410,9 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
           monthlyData.push({
             month: monthStart.toLocaleString('default', { month: 'long' }),
             year,
-            avg_potential_equity: propertyAnalytics.length > 0
+            avg_potential_equity: propertyAnalytics.length > 0 && propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0) > 0
               ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0) / 
-                          propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0) * 100 * 100) / 100
+                propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0) * 100 * 100) / 100
               : 0,
             project_cashflow: Math.round(monthCashflow * 100) / 100,
             avg_gross_yield: propertyAnalytics.length > 0
@@ -1427,11 +1428,16 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       }
     };
 
-    // Calculate history
-    const history = {
-      last_month: await calculateHistory('last_month'),
-      last_year: await calculateHistory('last_year')
-    };
+    // Calculate history with error handling
+    let history = { last_month: [], last_year: [] };
+    try {
+      history = {
+        last_month: await calculateHistory('last_month'),
+        last_year: await calculateHistory('last_year')
+      };
+    } catch (historyError) {
+      console.error("Error calculating history:", historyError);
+    }
 
     res.status(200).json({
       message: 'User property analytics retrieved',
