@@ -1266,13 +1266,13 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
     const userProperties = await Property.findAll({
       where: {
         [Op.or]: [
-          { owner_id: requestedUserId },
+          { original_owner_id: requestedUserId },
           { '$Transactions.user_id$': requestedUserId },
           { '$installmentOwnerships.user_id$': requestedUserId },
           { '$fractionalOwnerships.user_id$': requestedUserId }
         ]
       },
-      attributes: ['id', 'name', 'createdAt', 'market_value', 'owner_id'],
+      attributes: ['id', 'name', 'createdAt', 'market_value', 'original_owner_id'],
       include: [
         {
           model: Transaction,
