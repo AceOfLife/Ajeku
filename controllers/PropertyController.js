@@ -1241,6 +1241,8 @@ exports.getTopPerformingProperty = async (req, res) => {
 
 
 
+const { Op } = require('sequelize');
+
 exports.getUserPropertiesAnalytics = async (req, res) => {
   try {
     // Get and validate user IDs
@@ -1299,11 +1301,16 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       distinct: true
     });
 
-    // Calculate current analytics
+    // Calculate current analytics with property names
     const analytics = await Promise.all(
-      userProperties.map(property => 
-        calculatePropertyAnalytics(property.id, requestedUserId)
-      )
+      userProperties.map(property => {
+        return calculatePropertyAnalytics(property.id, requestedUserId)
+          .then(analytics => ({
+            ...analytics,
+            property_id: property.id,
+            property_name: property.name // Include property name
+          }));
+      })
     );
 
     // Calculate totals
@@ -1325,16 +1332,18 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       total_properties: userProperties.length
     };
 
-    // Enhanced historical data calculation
+    // Enhanced historical data calculation with debugging
     const calculateHistory = async (period) => {
       try {
         const now = new Date();
+        console.log(`Calculating ${period} history for user ${requestedUserId}`);
 
         if (period === 'last_month') {
           const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
           const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+          const daysInMonth = new Date(year, lastMonth + 1, 0).getDate();
           
-          // Get transactions for the month
+          // Get all transactions for the month
           const transactions = await Transaction.findAll({
             where: {
               user_id: requestedUserId,
@@ -1346,15 +1355,14 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
             include: [{
               model: Property,
               as: 'Property',
-              attributes: ['id']
+              attributes: ['id', 'name', 'market_value']
             }],
             order: [['transaction_date', 'ASC']]
           });
 
-          // Process daily data...
-          const daysInMonth = new Date(year, lastMonth + 1, 0).getDate();
-          const dailyData = [];
+          console.log(`Found ${transactions.length} transactions for last month`);
 
+          const dailyData = [];
           for (let day = 1; day <= daysInMonth; day++) {
             const date = new Date(year, lastMonth, day);
             const dateStr = date.toISOString().split('T')[0];
@@ -1362,38 +1370,167 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
               t.transaction_date.getDate() === day
             );
 
-            // Calculate daily metrics...
             if (dayTransactions.length > 0) {
-              const propertyIds = [...new Set(dayTransactions.map(t => t.Property.id))];
+              const dayIncome = dayTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
+              const dayExpenses = dayTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
+              
+              // Get unique properties for this day
+              const dayProperties = {};
+              dayTransactions.forEach(t => {
+                if (!dayProperties[t.Property.id]) {
+                  dayProperties[t.Property.id] = {
+                    ...t.Property.get({ plain: true }),
+                    transactions: []
+                  };
+                }
+                dayProperties[t.Property.id].transactions.push({
+                  amount: t.price,
+                  date: t.transaction_date,
+                  type: t.price > 0 ? 'income' : 'expense'
+                });
+              });
+
+              // Calculate analytics for each property
               const propertyAnalytics = await Promise.all(
-                propertyIds.map(id => calculatePropertyAnalytics(id, requestedUserId))
+                Object.keys(dayProperties).map(id => 
+                  calculatePropertyAnalytics(id, requestedUserId)
+                )
               );
+
+              const totalMarketValue = propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0);
+              const totalEstimatedValue = propertyAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0);
 
               dailyData.push({
                 date: dateStr,
-                // ... calculated metrics ...
+                properties: Object.values(dayProperties).map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  market_value: p.market_value,
+                  transactions: p.transactions
+                })),
+                avg_potential_equity: totalMarketValue > 0 
+                  ? Math.round((totalEstimatedValue / totalMarketValue) * 100 * 100) / 100
+                  : 0,
+                project_cashflow: Math.round((dayIncome - dayExpenses) * 100) / 100,
+                transaction_count: dayTransactions.length
               });
             } else {
               dailyData.push({
                 date: dateStr,
-                // ... zero values ...
+                properties: [],
+                avg_potential_equity: 0,
+                project_cashflow: 0,
+                transaction_count: 0
               });
             }
           }
-
           return dailyData;
-        } else { // last_year
+        } 
+        else { // last_year
           const year = now.getFullYear() - 1;
-          // Similar monthly processing...
+          console.log(`Calculating yearly history for ${year}`);
+
+          // Get all transactions for the year
+          const transactions = await Transaction.findAll({
+            where: {
+              user_id: requestedUserId,
+              transaction_date: {
+                [Op.gte]: new Date(year, 0, 1),
+                [Op.lt]: new Date(year + 1, 0, 1)
+              }
+            },
+            include: [{
+              model: Property,
+              as: 'Property',
+              attributes: ['id', 'name', 'market_value']
+            }],
+            order: [['transaction_date', 'ASC']]
+          });
+
+          console.log(`Found ${transactions.length} transactions for ${year}`);
+
+          const monthlyData = [];
+          for (let month = 0; month < 12; month++) {
+            const monthStart = new Date(year, month, 1);
+            const monthName = monthStart.toLocaleString('default', { month: 'long' });
+            const monthTransactions = transactions.filter(t => 
+              t.transaction_date.getMonth() === month
+            );
+
+            if (monthTransactions.length > 0) {
+              const monthIncome = monthTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
+              const monthExpenses = monthTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
+              
+              // Get unique properties for this month
+              const monthProperties = {};
+              monthTransactions.forEach(t => {
+                if (!monthProperties[t.Property.id]) {
+                  monthProperties[t.Property.id] = {
+                    ...t.Property.get({ plain: true }),
+                    transactions: []
+                  };
+                }
+                monthProperties[t.Property.id].transactions.push({
+                  amount: t.price,
+                  date: t.transaction_date,
+                  type: t.price > 0 ? 'income' : 'expense'
+                });
+              });
+
+              // Calculate analytics for each property
+              const propertyAnalytics = await Promise.all(
+                Object.keys(monthProperties).map(id => 
+                  calculatePropertyAnalytics(id, requestedUserId)
+                )
+              );
+
+              const totalMarketValue = propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0);
+              const totalEstimatedValue = propertyAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0);
+
+              monthlyData.push({
+                month: monthName,
+                year,
+                properties: Object.values(monthProperties).map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  market_value: p.market_value,
+                  transactions: p.transactions
+                })),
+                avg_potential_equity: totalMarketValue > 0
+                  ? Math.round((totalEstimatedValue / totalMarketValue) * 100 * 100) / 100
+                  : 0,
+                project_cashflow: Math.round((monthIncome - monthExpenses) * 100) / 100,
+                transaction_count: monthTransactions.length
+              });
+            } else {
+              monthlyData.push({
+                month: monthName,
+                year,
+                properties: [],
+                avg_potential_equity: 0,
+                project_cashflow: 0,
+                transaction_count: 0
+              });
+            }
+          }
           return monthlyData;
         }
       } catch (error) {
         console.error(`Error calculating ${period} history:`, error);
-        return [];
+        return period === 'last_month' 
+          ? [] 
+          : Array(12).fill().map((_, i) => ({
+              month: new Date(0, i).toLocaleString('default', { month: 'long' }),
+              year: new Date().getFullYear() - 1,
+              properties: [],
+              avg_potential_equity: 0,
+              project_cashflow: 0,
+              transaction_count: 0
+            }));
       }
     };
 
-    // Calculate history
+    // Calculate history with error handling
     const history = {
       last_month: await calculateHistory('last_month'),
       last_year: await calculateHistory('last_year')
