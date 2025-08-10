@@ -490,12 +490,6 @@ exports.getPropertyById = async (req, res) => {
   }
 };
 
-
-
-
-
-
-
 exports.getFilteredProperties = async (req, res) => {
     const { name, number_of_baths, number_of_rooms, type } = req.query;
 
@@ -1204,19 +1198,20 @@ exports.getTopPerformingProperty = async (req, res) => {
 
       // Calculate history with timeout protection
       try {
-        history = {
-          last_month: await Promise.race([
+        const [dailyData, monthlyData] = await Promise.all([
+          Promise.race([
             getDailyData(),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Daily data timeout')), 10000)
-            )
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Daily data timeout')), 10000)
           ]).catch(() => []),
-          last_year: await Promise.race([
+          Promise.race([
             getMonthlyData(),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Monthly data timeout')), 10000)
-            )
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Monthly data timeout')), 10000)
           ]).catch(() => [])
+        ]);
+
+        history = {
+          last_month: dailyData,
+          last_year: monthlyData
         };
       } catch (error) {
         console.error('Error calculating history:', error);
