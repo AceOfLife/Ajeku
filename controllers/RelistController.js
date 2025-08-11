@@ -1,4 +1,4 @@
-const { Property, FractionalOwnership, sequelize } = require('../models');
+const { Property, FullOwnership, FractionalOwnership, InstallmentOwnership, sequelize } = require('../models');
 const { Op } = require('sequelize'); 
 const OwnershipService = require('../services/OwnershipService');
 
@@ -176,49 +176,74 @@ exports.relistSlots = async (req, res) => {
     const { propertyId, slotIds, pricePerSlot } = req.body;
     const userId = req.user.id;
 
-    // Verify ownership (with explicit table name)
-    const canRelist = await FractionalOwnership.findAll({
-      where: { 
-        id: { [Op.in]: slotIds },
-        user_id: userId,
-        property_id: propertyId
-      },
-      transaction: t,
-      // 👇 Critical override
-      tableName: 'FractionalOwnerships' 
-    });
-    
-    if (canRelist.length !== slotIds.length) {
+    // Validate input
+    if (!Array.isArray(slotIds) || slotIds.length === 0 || !pricePerSlot || pricePerSlot <= 0) {
       await t.rollback();
-      return res.status(403).json({ 
+      return res.status(400).json({
         success: false,
-        message: "You don't own these slots or payments are incomplete" 
+        message: "Invalid request data. Provide valid slot IDs and positive price."
       });
     }
 
-    // Update slots (with explicit table name)
-    await sequelize.query(
-      `UPDATE "FractionalOwnerships" 
-       SET is_relisted = true, relist_price = :price 
-       WHERE id IN (:slotIds) AND user_id = :userId`,
+    // Verify ownership and payment status
+    const validSlots = await FractionalOwnership.findAll({
+      where: {
+        id: { [Op.in]: slotIds },
+        user_id: userId,
+        property_id: propertyId,
+        slots_purchased: { [Op.gt]: 0 } // Ensure slots are actually owned
+      },
+      transaction: t
+    });
+
+    // Check if all requested slots are valid
+    if (validSlots.length !== slotIds.length) {
+      await t.rollback();
+      return res.status(403).json({
+        success: false,
+        message: "You don't own all the specified slots or they're invalid"
+      });
+    }
+
+    // Check if any slots are already relisted
+    const alreadyRelisted = validSlots.some(slot => slot.is_relisted);
+    if (alreadyRelisted) {
+      await t.rollback();
+      return res.status(409).json({
+        success: false,
+        message: "One or more slots are already relisted"
+      });
+    }
+
+    // Update slots
+    await FractionalOwnership.update(
       {
-        replacements: { 
-          price: pricePerSlot,
-          slotIds: slotIds,
-          userId: userId
+        is_relisted: true,
+        relist_price: pricePerSlot,
+        updated_at: new Date()
+      },
+      {
+        where: {
+          id: { [Op.in]: slotIds }
         },
-        transaction: t,
-        type: sequelize.QueryTypes.UPDATE
+        transaction: t
       }
     );
 
     await t.commit();
-    res.status(200).json({ success: true, message: "Slots relisted successfully" });
+    res.status(200).json({
+      success: true,
+      message: "Slots relisted successfully",
+      data: {
+        relistedSlots: slotIds,
+        pricePerSlot
+      }
+    });
 
   } catch (error) {
     await t.rollback();
-    console.error('Relist error (raw query):', error);
-    res.status(500).json({ 
+    console.error('Relist slots error:', error);
+    res.status(500).json({
       success: false,
       message: "Failed to relist slots",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -231,17 +256,50 @@ exports.checkRelistEligibility = async (req, res) => {
     const { propertyId } = req.params;
     const userId = req.user.id;
 
-    const canRelist = await OwnershipService.verifyFullOwnership(userId, propertyId);
-    
+    // Check all ownership types
+    const [fullOwnership, fractionalOwnership, installmentOwnership] = await Promise.all([
+      // Check full ownership
+      FullOwnership.findOne({
+        where: {
+          user_id: userId,
+          property_id: propertyId
+        }
+      }),
+      
+      // Check fractional ownership
+      FractionalOwnership.findOne({
+        where: {
+          user_id: userId,
+          property_id: propertyId,
+          slots_purchased: { [Op.gt]: 0 } // At least one slot
+        }
+      }),
+      
+      // Check installment ownership
+      InstallmentOwnership.findOne({
+        where: {
+          user_id: userId,
+          property_id: propertyId,
+          status: 'completed' // Only completed installments
+        }
+      })
+    ]);
+
+    // Determine eligibility
+    const canRelist = fullOwnership !== null || 
+                     fractionalOwnership !== null || 
+                     installmentOwnership !== null;
+
     res.status(200).json({
       success: true,
       canRelist,
       message: canRelist 
         ? "User can relist this property" 
-        : "User cannot relist - incomplete payments"
+        : "User cannot relist - no valid ownership or incomplete payments"
     });
 
   } catch (error) {
+    console.error('Relist eligibility check error:', error);
     res.status(500).json({
       success: false,
       message: "Failed to check relist eligibility",
