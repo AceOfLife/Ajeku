@@ -1395,6 +1395,12 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
 
             const totalMarketValue = propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0);
             const totalEstimatedValue = propertyAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0);
+            const avgGrossYield = propertyAnalytics.length > 0 
+              ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.gross_yield || 0), 0) / propertyAnalytics.length * 100) / 100
+              : 0;
+            const avgNetYield = propertyAnalytics.length > 0 
+              ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / propertyAnalytics.length * 100) / 100
+              : 0;
 
             dailyData.push({
               date: dateStr,
@@ -1407,7 +1413,8 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
                 ? Math.round((totalEstimatedValue / totalMarketValue) * 100 * 100) / 100
                 : 0,
               project_cashflow: Math.round((dayIncome - dayExpenses) * 100) / 100,
-              transaction_count: dayTransactions.length
+              avg_gross_yield: avgGrossYield,
+              avg_net_yield: avgNetYield
             });
           }
 
@@ -1457,6 +1464,12 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
 
             const totalMarketValue = propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0);
             const totalEstimatedValue = propertyAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0);
+            const avgGrossYield = propertyAnalytics.length > 0 
+              ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.gross_yield || 0), 0) / propertyAnalytics.length * 100) / 100
+              : 0;
+            const avgNetYield = propertyAnalytics.length > 0 
+              ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / propertyAnalytics.length * 100) / 100
+              : 0;
 
             const monthIncome = monthTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
             const monthExpenses = monthTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
@@ -1473,7 +1486,8 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
                 ? Math.round((totalEstimatedValue / totalMarketValue) * 100 * 100) / 100
                 : 0,
               project_cashflow: Math.round((monthIncome - monthExpenses) * 100) / 100,
-              transaction_count: monthTransactions.length
+              avg_gross_yield: avgGrossYield,
+              avg_net_yield: avgNetYield
             });
           }
           return monthlyData;
@@ -1489,7 +1503,8 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
             properties: [],
             avg_potential_equity: 0,
             project_cashflow: 0,
-            transaction_count: 0
+            avg_gross_yield: 0,
+            avg_net_yield: 0
           }));
         } else {
           return Array(12).fill().map((_, i) => ({
@@ -1498,7 +1513,8 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
             properties: [],
             avg_potential_equity: 0,
             project_cashflow: 0,
-            transaction_count: 0
+            avg_gross_yield: 0,
+            avg_net_yield: 0
           }));
         }
       }
