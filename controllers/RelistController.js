@@ -177,11 +177,11 @@ exports.relistSlots = async (req, res) => {
     const userId = req.user.id;
 
     // 1. Input Validation
-    if (!Array.isArray(slotIds)) {
+    if (!Array.isArray(slotIds) || slotIds.some(id => typeof id !== 'number')) {
       await t.rollback();
       return res.status(400).json({
         success: false,
-        message: "slotIds must be an array"
+        message: "slotIds must be an array of numbers"
       });
     }
 
@@ -193,30 +193,28 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // 2. Verify Slot Ownership and Payments
+    // 2. Verify Slot Ownership and Completed Transactions
     const ownedSlots = await FractionalOwnership.findAll({
       where: {
         id: { [Op.in]: slotIds },
         user_id: userId,
-        property_id: propertyId,
-        // Add payment status if stored directly on FractionalOwnership
-        // payment_status: 'completed'
+        property_id: propertyId
       },
-      include: [
-        {
-          model: Payment,
-          where: {
-            status: 'completed'
-          },
-          required: true
-        }
-      ],
+      include: [{
+        model: Transaction,
+        where: {
+          status: 'success', // Assuming 'success' is your completed status
+          payment_type: {
+            [Op.in]: ['fractional', 'fractionalInstallment'] // Only these payment types
+          }
+        },
+        required: true // Must have at least one successful transaction
+      }],
       transaction: t
     });
 
     // 3. Check All Slots Are Valid
     if (ownedSlots.length !== slotIds.length) {
-      // Find which slots are invalid
       const invalidSlots = slotIds.filter(slotId => 
         !ownedSlots.some(s => s.id === slotId)
       );
@@ -224,42 +222,51 @@ exports.relistSlots = async (req, res) => {
       await t.rollback();
       return res.status(403).json({
         success: false,
-        message: "Some slots are invalid or unpaid",
-        invalidSlots: invalidSlots,
-        details: `Found ${ownedSlots.length} valid slots out of ${slotIds.length} requested`
+        message: "Cannot relist - some slots are invalid, unpaid, or not owned",
+        invalidSlots,
+        validSlots: ownedSlots.map(s => s.id),
+        details: `You requested ${slotIds.length} slots but only ${ownedSlots.length} are valid`
       });
     }
 
     // 4. Check for Already Relisted Slots
-    const alreadyRelisted = ownedSlots.some(slot => slot.is_relisted);
-    if (alreadyRelisted) {
+    const alreadyRelisted = ownedSlots.filter(slot => slot.is_relisted);
+    if (alreadyRelisted.length > 0) {
       await t.rollback();
       return res.status(409).json({
         success: false,
-        message: "One or more slots are already relisted"
+        message: "Some slots are already relisted",
+        alreadyRelisted: alreadyRelisted.map(s => s.id),
+        canRelist: ownedSlots.filter(s => !s.is_relisted).map(s => s.id)
       });
     }
 
     // 5. Update Slots
-    const [updateCount] = await FractionalOwnership.update(
+    const updatedSlots = await FractionalOwnership.update(
       {
         is_relisted: true,
         relist_price: pricePerSlot,
-        updated_at: new Date()
+        updatedAt: new Date()
       },
       {
         where: {
           id: { [Op.in]: slotIds }
         },
+        returning: true, // Return the updated records
         transaction: t
       }
     );
 
-    if (updateCount !== slotIds.length) {
+    // 6. Verify all slots were updated
+    if (updatedSlots[0] !== slotIds.length) {
       await t.rollback();
       return res.status(500).json({
         success: false,
-        message: "Failed to update all slots"
+        message: "Failed to update all slots",
+        updatedCount: updatedSlots[0],
+        failedSlots: slotIds.filter(id => 
+          !updatedSlots[1].map(s => s.id).includes(id)
+        )
       });
     }
 
@@ -268,7 +275,11 @@ exports.relistSlots = async (req, res) => {
       success: true,
       message: "Slots relisted successfully",
       data: {
-        relistedSlots: slotIds,
+        relistedSlots: updatedSlots[1].map(s => ({
+          id: s.id,
+          newPrice: s.relist_price,
+          updatedAt: s.updatedAt
+        })),
         pricePerSlot
       }
     });
@@ -279,7 +290,11 @@ exports.relistSlots = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to relist slots",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack.split('\n')
+      } : undefined
     });
   }
 };
