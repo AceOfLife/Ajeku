@@ -165,11 +165,6 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'client_id',
       as: 'client'
     });
-      FractionalOwnership.hasMany(models.Transaction, {
-    foreignKey: 'property_id', 
-    sourceKey: 'property_id',
-    constraints: false 
-  });
   };
 
   return Transaction;
