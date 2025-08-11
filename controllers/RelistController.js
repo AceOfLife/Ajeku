@@ -176,37 +176,62 @@ exports.relistSlots = async (req, res) => {
     const { propertyId, slotIds, pricePerSlot } = req.body;
     const userId = req.user.id;
 
-    // Validate input
-    if (!Array.isArray(slotIds) || slotIds.length === 0 || !pricePerSlot || pricePerSlot <= 0) {
+    // 1. Input Validation
+    if (!Array.isArray(slotIds)) {
       await t.rollback();
       return res.status(400).json({
         success: false,
-        message: "Invalid request data. Provide valid slot IDs and positive price."
+        message: "slotIds must be an array"
       });
     }
 
-    // Verify ownership and payment status
-    const validSlots = await FractionalOwnership.findAll({
+    if (slotIds.length === 0 || !pricePerSlot || pricePerSlot <= 0) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Provide valid slot IDs and positive price"
+      });
+    }
+
+    // 2. Verify Slot Ownership and Payments
+    const ownedSlots = await FractionalOwnership.findAll({
       where: {
         id: { [Op.in]: slotIds },
         user_id: userId,
         property_id: propertyId,
-        slots_purchased: { [Op.gt]: 0 } // Ensure slots are actually owned
+        // Add payment status if stored directly on FractionalOwnership
+        // payment_status: 'completed'
       },
+      include: [
+        {
+          model: Payment,
+          where: {
+            status: 'completed'
+          },
+          required: true
+        }
+      ],
       transaction: t
     });
 
-    // Check if all requested slots are valid
-    if (validSlots.length !== slotIds.length) {
+    // 3. Check All Slots Are Valid
+    if (ownedSlots.length !== slotIds.length) {
+      // Find which slots are invalid
+      const invalidSlots = slotIds.filter(slotId => 
+        !ownedSlots.some(s => s.id === slotId)
+      );
+      
       await t.rollback();
       return res.status(403).json({
         success: false,
-        message: "You don't own all the specified slots or they're invalid"
+        message: "Some slots are invalid or unpaid",
+        invalidSlots: invalidSlots,
+        details: `Found ${ownedSlots.length} valid slots out of ${slotIds.length} requested`
       });
     }
 
-    // Check if any slots are already relisted
-    const alreadyRelisted = validSlots.some(slot => slot.is_relisted);
+    // 4. Check for Already Relisted Slots
+    const alreadyRelisted = ownedSlots.some(slot => slot.is_relisted);
     if (alreadyRelisted) {
       await t.rollback();
       return res.status(409).json({
@@ -215,8 +240,8 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Update slots
-    await FractionalOwnership.update(
+    // 5. Update Slots
+    const [updateCount] = await FractionalOwnership.update(
       {
         is_relisted: true,
         relist_price: pricePerSlot,
@@ -230,8 +255,16 @@ exports.relistSlots = async (req, res) => {
       }
     );
 
+    if (updateCount !== slotIds.length) {
+      await t.rollback();
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update all slots"
+      });
+    }
+
     await t.commit();
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Slots relisted successfully",
       data: {
@@ -243,7 +276,7 @@ exports.relistSlots = async (req, res) => {
   } catch (error) {
     await t.rollback();
     console.error('Relist slots error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to relist slots",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
