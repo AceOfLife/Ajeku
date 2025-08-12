@@ -108,12 +108,12 @@ module.exports = (sequelize, DataTypes) => {
     },
     property_id: {
       type: DataTypes.INTEGER,
-      allowNull: true,
+      allowNull: true, // Matches your schema (is_nullable = YES)
       references: { model: 'Properties', key: 'id' }
     },
     client_id: {
       type: DataTypes.INTEGER,
-      allowNull: true,
+      allowNull: true, // Matches your schema
       references: { model: 'Users', key: 'id' }
     },
     reference: {
@@ -143,18 +143,16 @@ module.exports = (sequelize, DataTypes) => {
     transaction_date: {
       type: DataTypes.DATE,
       allowNull: false
-    },
-    slot_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: { model: 'FractionalOwnerships', key: 'id' }
     }
   }, {
     tableName: 'Transactions',
-    timestamps: true
+    timestamps: true, // Matches your createdAt/updatedAt columns
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
+    underscored: false // Column names are camelCase in your schema
   });
 
-  Transaction.associate = function(models) {
+  Transaction.associate = (models) => {
     Transaction.belongsTo(models.User, { 
       foreignKey: 'user_id',
       as: 'user'
@@ -166,10 +164,6 @@ module.exports = (sequelize, DataTypes) => {
     Transaction.belongsTo(models.User, {
       foreignKey: 'client_id',
       as: 'client'
-    });
-    Transaction.belongsTo(models.FractionalOwnership, {
-      foreignKey: 'slot_id',
-      as: 'slot'
     });
   };
 

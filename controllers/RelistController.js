@@ -1,4 +1,4 @@
-const { Property, FullOwnership, FractionalOwnership, InstallmentOwnership, sequelize, Transaction } = require('../models');
+const { Property, FullOwnership, FractionalOwnership, InstallmentOwnership, sequelize } = require('../models');
 const { Op } = require('sequelize'); 
 const OwnershipService = require('../services/OwnershipService');
 
@@ -170,110 +170,80 @@ exports.relistProperty = async (req, res) => {
 //   }
 // };
 
-// In RelistController.js
 exports.relistSlots = async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const { propertyId, slotIds, pricePerSlot } = req.body;
     const userId = req.user.id;
 
-    // 1. Validate input
+    // Validate input
     if (!Array.isArray(slotIds) || slotIds.length === 0 || !pricePerSlot || pricePerSlot <= 0) {
       await t.rollback();
       return res.status(400).json({
         success: false,
-        message: "Invalid request data"
+        message: "Invalid request data. Provide valid slot IDs and positive price."
       });
     }
 
-    // 2. Verify slot ownership
-    const ownedSlots = await FractionalOwnership.findAll({
+    // Verify ownership and payment status
+    const validSlots = await FractionalOwnership.findAll({
       where: {
         id: { [Op.in]: slotIds },
         user_id: userId,
-        property_id: propertyId
+        property_id: propertyId,
+        slots_purchased: { [Op.gt]: 0 } // Ensure slots are actually owned
       },
       transaction: t
     });
 
-    if (ownedSlots.length !== slotIds.length) {
+    // Check if all requested slots are valid
+    if (validSlots.length !== slotIds.length) {
       await t.rollback();
-      const invalidSlots = slotIds.filter(id => !ownedSlots.some(s => s.id === id));
       return res.status(403).json({
         success: false,
-        message: "You don't own all specified slots",
-        invalidSlots
+        message: "You don't own all the specified slots or they're invalid"
       });
     }
 
-    // 3. Verify payment at property level (since no slot_id in transactions)
-    const hasPaid = await Transaction.findOne({
-      where: {
-        property_id: propertyId,
-        user_id: userId,
-        status: 'success',
-        payment_type: {
-          [Op.in]: ['fractional', 'fractionalInstallment']
-        }
-      },
-      transaction: t
-    });
-
-    if (!hasPaid) {
-      await t.rollback();
-      return res.status(402).json({
-        success: false,
-        message: "No completed payment found for this property"
-      });
-    }
-
-    // 4. Check for already relisted slots
-    const alreadyRelisted = ownedSlots.filter(slot => slot.is_relisted);
-    if (alreadyRelisted.length > 0) {
+    // Check if any slots are already relisted
+    const alreadyRelisted = validSlots.some(slot => slot.is_relisted);
+    if (alreadyRelisted) {
       await t.rollback();
       return res.status(409).json({
         success: false,
-        message: "Some slots are already relisted",
-        alreadyRelisted: alreadyRelisted.map(s => s.id)
+        message: "One or more slots are already relisted"
       });
     }
 
-    // 5. Update slots to mark as relisted
-    const [updateCount] = await FractionalOwnership.update(
+    // Update slots
+    await FractionalOwnership.update(
       {
         is_relisted: true,
         relist_price: pricePerSlot,
-        updatedAt: new Date()
+        updated_at: new Date()
       },
       {
-        where: { id: { [Op.in]: slotIds } },
+        where: {
+          id: { [Op.in]: slotIds }
+        },
         transaction: t
       }
     );
 
-    if (updateCount !== slotIds.length) {
-      await t.rollback();
-      return res.status(500).json({
-        success: false,
-        message: "Failed to update all slots"
-      });
-    }
-
     await t.commit();
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
       message: "Slots relisted successfully",
       data: {
         relistedSlots: slotIds,
-        pricePerSlot,
-        updatedAt: new Date().toISOString()
+        pricePerSlot
       }
     });
 
   } catch (error) {
     await t.rollback();
-    console.error('Relist error:', error);
-    return res.status(500).json({
+    console.error('Relist slots error:', error);
+    res.status(500).json({
       success: false,
       message: "Failed to relist slots",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
