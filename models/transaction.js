@@ -127,7 +127,8 @@ module.exports = (sequelize, DataTypes) => {
     },
     status: {
       type: DataTypes.STRING(255),
-      allowNull: false
+      allowNull: false,
+      defaultValue: 'pending'
     },
     payment_type: {
       type: DataTypes.ENUM(
@@ -142,9 +143,10 @@ module.exports = (sequelize, DataTypes) => {
     },
     transaction_date: {
       type: DataTypes.DATE,
-      allowNull: false
+      allowNull: false,
+      defaultValue: DataTypes.NOW
     },
-    slot_id: {  // NEW FIELD
+    slot_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: { model: 'FractionalOwnerships', key: 'id' }
@@ -170,7 +172,6 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'client_id',
       as: 'client'
     });
-    
   };
 
   return Transaction;

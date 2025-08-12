@@ -185,87 +185,109 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Verify ownership and payment status
-    const validSlots = await FractionalOwnership.findAll({
+    // Verify ownership first
+    const ownedSlots = await FractionalOwnership.findAll({
       where: {
         id: { [Op.in]: slotIds },
         user_id: userId,
         property_id: propertyId,
-        slots_purchased: { [Op.gt]: 0 },
-        payment_status: 'completed'  // NEW PAYMENT CHECK
+        slots_purchased: { [Op.gt]: 0 }
       },
-      include: [{  // NEW TRANSACTION VERIFICATION
-        model: Transaction,
-        as: 'transactions',
-        where: {
-          status: 'success',
-          payment_type: {
-            [Op.in]: ['fractional', 'fractionalInstallment']
-          }
-        },
-        required: true
-      }],
       transaction: t
     });
 
-    // Check if all requested slots are valid
-    if (validSlots.length !== slotIds.length) {
-      const invalidSlots = slotIds.filter(slotId => 
-        !validSlots.some(s => s.id === slotId)
-      );
+    if (ownedSlots.length !== slotIds.length) {
       await t.rollback();
       return res.status(403).json({
         success: false,
-        message: "Cannot relist - some slots are invalid, unpaid, or not owned",
-        invalidSlots
+        message: "You don't own all the specified slots"
       });
     }
 
-    // Check if any slots are already relisted
-    const alreadyRelisted = validSlots.some(slot => slot.is_relisted);
-    if (alreadyRelisted) {
+    // Verify payments separately to avoid transaction issues
+    const slotsWithPayments = await Transaction.findAll({
+      where: {
+        slot_id: { [Op.in]: slotIds },
+        status: 'success',
+        payment_type: {
+          [Op.in]: ['fractional', 'fractionalInstallment']
+        }
+      },
+      attributes: ['slot_id'],
+      group: ['slot_id'],
+      transaction: t
+    });
+
+    const paidSlotIds = slotsWithPayments.map(t => t.slot_id);
+    const unpaidSlots = slotIds.filter(id => !paidSlotIds.includes(id));
+
+    if (unpaidSlots.length > 0) {
+      await t.rollback();
+      return res.status(402).json({
+        success: false,
+        message: "Some slots have incomplete payments",
+        unpaidSlots
+      });
+    }
+
+    // Check for already relisted slots
+    const alreadyRelisted = ownedSlots.filter(slot => slot.is_relisted);
+    if (alreadyRelisted.length > 0) {
       await t.rollback();
       return res.status(409).json({
         success: false,
-        message: "One or more slots are already relisted"
+        message: "Some slots are already relisted",
+        alreadyRelisted: alreadyRelisted.map(s => s.id)
       });
     }
 
     // Update slots
-    await FractionalOwnership.update(
+    const [updateCount] = await FractionalOwnership.update(
       {
         is_relisted: true,
         relist_price: pricePerSlot,
-        updated_at: new Date()
+        updatedAt: new Date()
       },
       {
-        where: {
-          id: { [Op.in]: slotIds }
-        },
+        where: { id: { [Op.in]: slotIds } },
         transaction: t
       }
     );
 
+    if (updateCount !== slotIds.length) {
+      await t.rollback();
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update all slots"
+      });
+    }
+
     await t.commit();
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Slots relisted successfully",
       data: {
         relistedSlots: slotIds,
-        pricePerSlot
+        pricePerSlot,
+        updatedAt: new Date().toISOString()
       }
     });
 
   } catch (error) {
     await t.rollback();
     console.error('Relist slots error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to relist slots",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      } : undefined
     });
   }
 };
+
 
 exports.checkRelistEligibility = async (req, res) => {
   try {
