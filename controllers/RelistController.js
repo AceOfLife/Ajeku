@@ -1,4 +1,4 @@
-const { Property, FullOwnership, FractionalOwnership, InstallmentOwnership, sequelize, Transaction } = require('../models');
+const { Property, FullOwnership, FractionalOwnership, InstallmentOwnership, sequelize } = require('../models');
 const { Op } = require('sequelize'); 
 const OwnershipService = require('../services/OwnershipService');
 
@@ -170,67 +170,67 @@ exports.relistProperty = async (req, res) => {
 //   }
 // };
 
+// In RelistController.js
 exports.relistSlots = async (req, res) => {
-  let t;
+  const t = await sequelize.transaction();
   try {
     const { propertyId, slotIds, pricePerSlot } = req.body;
     const userId = req.user.id;
 
-    // Validate input
+    // 1. Validate input
     if (!Array.isArray(slotIds) || slotIds.length === 0 || !pricePerSlot || pricePerSlot <= 0) {
+      await t.rollback();
       return res.status(400).json({
         success: false,
-        message: "Invalid request data. Provide valid slot IDs and positive price."
+        message: "Invalid request data"
       });
     }
 
-    // Verify ownership and payments in separate queries to avoid association issues
+    // 2. Verify slot ownership
     const ownedSlots = await FractionalOwnership.findAll({
       where: {
         id: { [Op.in]: slotIds },
         user_id: userId,
         property_id: propertyId
-      }
+      },
+      transaction: t
     });
 
     if (ownedSlots.length !== slotIds.length) {
-      const invalidSlots = slotIds.filter(slotId => 
-        !ownedSlots.some(s => s.id === slotId)
-      );
+      await t.rollback();
+      const invalidSlots = slotIds.filter(id => !ownedSlots.some(s => s.id === id));
       return res.status(403).json({
         success: false,
-        message: "Cannot relist - some slots are invalid or not owned",
+        message: "You don't own all specified slots",
         invalidSlots
       });
     }
 
-    // Verify payments separately
-    const paidSlots = await Transaction.findAll({
+    // 3. Verify payment at property level (since no slot_id in transactions)
+    const hasPaid = await Transaction.findOne({
       where: {
-        slot_id: { [Op.in]: slotIds },
+        property_id: propertyId,
+        user_id: userId,
         status: 'success',
         payment_type: {
           [Op.in]: ['fractional', 'fractionalInstallment']
         }
       },
-      attributes: ['slot_id'],
-      group: ['slot_id']
+      transaction: t
     });
 
-    const paidSlotIds = paidSlots.map(t => t.slot_id);
-    const unpaidSlots = slotIds.filter(id => !paidSlotIds.includes(id));
-
-    if (unpaidSlots.length > 0) {
+    if (!hasPaid) {
+      await t.rollback();
       return res.status(402).json({
         success: false,
-        message: "Some slots have incomplete payments",
-        unpaidSlots
+        message: "No completed payment found for this property"
       });
     }
 
-    // Check for already relisted slots
+    // 4. Check for already relisted slots
     const alreadyRelisted = ownedSlots.filter(slot => slot.is_relisted);
     if (alreadyRelisted.length > 0) {
+      await t.rollback();
       return res.status(409).json({
         success: false,
         message: "Some slots are already relisted",
@@ -238,10 +238,7 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Start transaction for updates
-    t = await sequelize.transaction();
-
-    // Update slots
+    // 5. Update slots to mark as relisted
     const [updateCount] = await FractionalOwnership.update(
       {
         is_relisted: true,
@@ -274,16 +271,12 @@ exports.relistSlots = async (req, res) => {
     });
 
   } catch (error) {
-    if (t) await t.rollback();
-    console.error('Relist slots error:', error);
+    await t.rollback();
+    console.error('Relist error:', error);
     return res.status(500).json({
       success: false,
       message: "Failed to relist slots",
-      error: process.env.NODE_ENV === 'development' ? {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      } : undefined
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
