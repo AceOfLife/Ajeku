@@ -184,35 +184,47 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Verify ownership and payments
+    // Verify ownership and payments in separate queries to avoid association issues
     const ownedSlots = await FractionalOwnership.findAll({
       where: {
         id: { [Op.in]: slotIds },
         user_id: userId,
         property_id: propertyId
-      },
-      include: [{
-        model: Transaction,
-        as: 'transactions',
-        where: {
-          status: 'success',
-          payment_type: {
-            [Op.in]: ['fractional', 'fractionalInstallment']
-          }
-        },
-        required: true
-      }]
+      }
     });
 
-    // Check if all requested slots are valid
     if (ownedSlots.length !== slotIds.length) {
       const invalidSlots = slotIds.filter(slotId => 
         !ownedSlots.some(s => s.id === slotId)
       );
       return res.status(403).json({
         success: false,
-        message: "Cannot relist - some slots are invalid, unpaid, or not owned",
+        message: "Cannot relist - some slots are invalid or not owned",
         invalidSlots
+      });
+    }
+
+    // Verify payments separately
+    const paidSlots = await Transaction.findAll({
+      where: {
+        slot_id: { [Op.in]: slotIds },
+        status: 'success',
+        payment_type: {
+          [Op.in]: ['fractional', 'fractionalInstallment']
+        }
+      },
+      attributes: ['slot_id'],
+      group: ['slot_id']
+    });
+
+    const paidSlotIds = paidSlots.map(t => t.slot_id);
+    const unpaidSlots = slotIds.filter(id => !paidSlotIds.includes(id));
+
+    if (unpaidSlots.length > 0) {
+      return res.status(402).json({
+        success: false,
+        message: "Some slots have incomplete payments",
+        unpaidSlots
       });
     }
 

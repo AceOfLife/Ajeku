@@ -1,5 +1,10 @@
 module.exports = (sequelize, DataTypes) => {
   const FractionalOwnership = sequelize.define('FractionalOwnership', {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
+    },
     user_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -28,11 +33,18 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.FLOAT,
       allowNull: true
     }
+  }, {
+    tableName: 'FractionalOwnerships',
+    timestamps: true
   });
 
-  FractionalOwnership.associate = (models) => {
+  FractionalOwnership.associate = function(models) {
     FractionalOwnership.belongsTo(models.User, { foreignKey: 'user_id' });
     FractionalOwnership.belongsTo(models.Property, { foreignKey: 'property_id' });
+    FractionalOwnership.hasMany(models.Transaction, {
+      foreignKey: 'slot_id',
+      as: 'transactions'
+    });
   };
 
   return FractionalOwnership;

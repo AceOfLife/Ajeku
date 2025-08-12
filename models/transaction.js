@@ -144,20 +144,17 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: false
     },
-    slot_id: {  // Add this field to reference the slot
+    slot_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: { model: 'FractionalOwnerships', key: 'id' }
     }
   }, {
     tableName: 'Transactions',
-    timestamps: true,
-    createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
-    underscored: false
+    timestamps: true
   });
 
-  Transaction.associate = (models) => {
+  Transaction.associate = function(models) {
     Transaction.belongsTo(models.User, { 
       foreignKey: 'user_id',
       as: 'user'
