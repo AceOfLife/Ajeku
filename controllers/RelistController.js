@@ -191,17 +191,33 @@ exports.relistSlots = async (req, res) => {
         id: { [Op.in]: slotIds },
         user_id: userId,
         property_id: propertyId,
-        slots_purchased: { [Op.gt]: 0 } // Ensure slots are actually owned
+        slots_purchased: { [Op.gt]: 0 },
+        payment_status: 'completed'  // NEW PAYMENT CHECK
       },
+      include: [{  // NEW TRANSACTION VERIFICATION
+        model: Transaction,
+        as: 'transactions',
+        where: {
+          status: 'success',
+          payment_type: {
+            [Op.in]: ['fractional', 'fractionalInstallment']
+          }
+        },
+        required: true
+      }],
       transaction: t
     });
 
     // Check if all requested slots are valid
     if (validSlots.length !== slotIds.length) {
+      const invalidSlots = slotIds.filter(slotId => 
+        !validSlots.some(s => s.id === slotId)
+      );
       await t.rollback();
       return res.status(403).json({
         success: false,
-        message: "You don't own all the specified slots or they're invalid"
+        message: "Cannot relist - some slots are invalid, unpaid, or not owned",
+        invalidSlots
       });
     }
 
