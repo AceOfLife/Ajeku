@@ -173,7 +173,6 @@ exports.relistProperty = async (req, res) => {
 exports.relistSlots = async (req, res) => {
   let t;
   try {
-    t = await sequelize.transaction();
     const { propertyId, slotIds, pricePerSlot } = req.body;
     const userId = req.user.id;
 
@@ -185,7 +184,7 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Verify ownership first (without transaction to avoid locking issues)
+    // Verify ownership first
     const ownedSlots = await FractionalOwnership.findAll({
       where: {
         id: { [Op.in]: slotIds },
@@ -206,27 +205,24 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Verify payments separately
-    const slotsWithPayments = await Transaction.findAll({
+    // Verify payments through transactions
+    const paidSlots = await Transaction.findAll({
       where: {
-        slot_id: { [Op.in]: slotIds },
+        property_id: propertyId,
+        user_id: userId,
         status: 'success',
         payment_type: {
           [Op.in]: ['fractional', 'fractionalInstallment']
         }
       },
-      attributes: ['slot_id'],
-      group: ['slot_id']
+      attributes: ['property_id'],
+      group: ['property_id']
     });
 
-    const paidSlotIds = slotsWithPayments.map(t => t.slot_id);
-    const unpaidSlots = slotIds.filter(id => !paidSlotIds.includes(id));
-
-    if (unpaidSlots.length > 0) {
+    if (paidSlots.length === 0) {
       return res.status(402).json({
         success: false,
-        message: "Some slots have incomplete payments",
-        unpaidSlots
+        message: "No completed payments found for this property"
       });
     }
 
@@ -240,7 +236,7 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Start actual transaction for updates
+    // Start transaction for updates
     t = await sequelize.transaction();
 
     // Update slots
@@ -283,8 +279,7 @@ exports.relistSlots = async (req, res) => {
       message: "Failed to relist slots",
       error: process.env.NODE_ENV === 'development' ? {
         name: error.name,
-        message: error.message,
-        stack: error.stack
+        message: error.message
       } : undefined
     });
   }
