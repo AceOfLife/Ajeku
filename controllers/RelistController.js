@@ -184,45 +184,34 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Verify ownership first
+    // Verify slot ownership - modified to properly check slot ownership
     const ownedSlots = await FractionalOwnership.findAll({
       where: {
         id: { [Op.in]: slotIds },
         user_id: userId,
-        property_id: propertyId,
-        slots_purchased: { [Op.gt]: 0 }
-      }
+        property_id: propertyId
+      },
+      include: [{
+        model: Transaction,
+        where: {
+          status: 'success',
+          payment_type: {
+            [Op.in]: ['fractional', 'fractionalInstallment']
+          }
+        },
+        required: true
+      }]
     });
 
+    // Check if all requested slots are owned and paid for
     if (ownedSlots.length !== slotIds.length) {
-      const invalidSlots = slotIds.filter(id => 
-        !ownedSlots.some(s => s.id === id)
+      const invalidSlots = slotIds.filter(slotId => 
+        !ownedSlots.some(s => s.id === slotId)
       );
       return res.status(403).json({
         success: false,
-        message: "You don't own all the specified slots",
+        message: "Cannot relist - some slots are invalid, unpaid, or not owned",
         invalidSlots
-      });
-    }
-
-    // Verify payments through transactions
-    const paidSlots = await Transaction.findAll({
-      where: {
-        property_id: propertyId,
-        user_id: userId,
-        status: 'success',
-        payment_type: {
-          [Op.in]: ['fractional', 'fractionalInstallment']
-        }
-      },
-      attributes: ['property_id'],
-      group: ['property_id']
-    });
-
-    if (paidSlots.length === 0) {
-      return res.status(402).json({
-        success: false,
-        message: "No completed payments found for this property"
       });
     }
 
@@ -279,7 +268,8 @@ exports.relistSlots = async (req, res) => {
       message: "Failed to relist slots",
       error: process.env.NODE_ENV === 'development' ? {
         name: error.name,
-        message: error.message
+        message: error.message,
+        stack: error.stack
       } : undefined
     });
   }
