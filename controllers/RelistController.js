@@ -171,40 +171,42 @@ exports.relistProperty = async (req, res) => {
 // };
 
 exports.relistSlots = async (req, res) => {
-  const t = await sequelize.transaction();
+  let t;
   try {
+    t = await sequelize.transaction();
     const { propertyId, slotIds, pricePerSlot } = req.body;
     const userId = req.user.id;
 
     // Validate input
     if (!Array.isArray(slotIds) || slotIds.length === 0 || !pricePerSlot || pricePerSlot <= 0) {
-      await t.rollback();
       return res.status(400).json({
         success: false,
         message: "Invalid request data. Provide valid slot IDs and positive price."
       });
     }
 
-    // Verify ownership first
+    // Verify ownership first (without transaction to avoid locking issues)
     const ownedSlots = await FractionalOwnership.findAll({
       where: {
         id: { [Op.in]: slotIds },
         user_id: userId,
         property_id: propertyId,
         slots_purchased: { [Op.gt]: 0 }
-      },
-      transaction: t
+      }
     });
 
     if (ownedSlots.length !== slotIds.length) {
-      await t.rollback();
+      const invalidSlots = slotIds.filter(id => 
+        !ownedSlots.some(s => s.id === id)
+      );
       return res.status(403).json({
         success: false,
-        message: "You don't own all the specified slots"
+        message: "You don't own all the specified slots",
+        invalidSlots
       });
     }
 
-    // Verify payments separately to avoid transaction issues
+    // Verify payments separately
     const slotsWithPayments = await Transaction.findAll({
       where: {
         slot_id: { [Op.in]: slotIds },
@@ -214,15 +216,13 @@ exports.relistSlots = async (req, res) => {
         }
       },
       attributes: ['slot_id'],
-      group: ['slot_id'],
-      transaction: t
+      group: ['slot_id']
     });
 
     const paidSlotIds = slotsWithPayments.map(t => t.slot_id);
     const unpaidSlots = slotIds.filter(id => !paidSlotIds.includes(id));
 
     if (unpaidSlots.length > 0) {
-      await t.rollback();
       return res.status(402).json({
         success: false,
         message: "Some slots have incomplete payments",
@@ -233,13 +233,15 @@ exports.relistSlots = async (req, res) => {
     // Check for already relisted slots
     const alreadyRelisted = ownedSlots.filter(slot => slot.is_relisted);
     if (alreadyRelisted.length > 0) {
-      await t.rollback();
       return res.status(409).json({
         success: false,
         message: "Some slots are already relisted",
         alreadyRelisted: alreadyRelisted.map(s => s.id)
       });
     }
+
+    // Start actual transaction for updates
+    t = await sequelize.transaction();
 
     // Update slots
     const [updateCount] = await FractionalOwnership.update(
@@ -274,7 +276,7 @@ exports.relistSlots = async (req, res) => {
     });
 
   } catch (error) {
-    await t.rollback();
+    if (t) await t.rollback();
     console.error('Relist slots error:', error);
     return res.status(500).json({
       success: false,
@@ -287,7 +289,6 @@ exports.relistSlots = async (req, res) => {
     });
   }
 };
-
 
 exports.checkRelistEligibility = async (req, res) => {
   try {
