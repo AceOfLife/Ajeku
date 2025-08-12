@@ -1,4 +1,4 @@
-const { Property, FullOwnership, FractionalOwnership, InstallmentOwnership, sequelize, Transaction } = require('../models');
+const { Property, FullOwnership, FractionalOwnership, InstallmentOwnership, sequelize } = require('../models');
 const { Op } = require('sequelize'); 
 const OwnershipService = require('../services/OwnershipService');
 
@@ -184,7 +184,7 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Verify slot ownership - modified to properly check slot ownership
+    // Verify ownership and payments
     const ownedSlots = await FractionalOwnership.findAll({
       where: {
         id: { [Op.in]: slotIds },
@@ -193,6 +193,7 @@ exports.relistSlots = async (req, res) => {
       },
       include: [{
         model: Transaction,
+        as: 'transactions',
         where: {
           status: 'success',
           payment_type: {
@@ -203,7 +204,7 @@ exports.relistSlots = async (req, res) => {
       }]
     });
 
-    // Check if all requested slots are owned and paid for
+    // Check if all requested slots are valid
     if (ownedSlots.length !== slotIds.length) {
       const invalidSlots = slotIds.filter(slotId => 
         !ownedSlots.some(s => s.id === slotId)
