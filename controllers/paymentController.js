@@ -135,24 +135,42 @@ exports.initializePayment = async (req, res) => {
 };
 
 exports.verifyPayment = async (req, res) => {
-  const t = await sequelize.transaction();
+  let t;
   let transactionCommitted = false;
 
   try {
+    // Initialize transaction with logging
+    t = await sequelize.transaction();
+    console.log("Transaction created:", t);
+
     const { reference } = req.query;
     if (!reference) {
+      await t.rollback();
+      transactionCommitted = true; // Mark as handled
       return res.status(400).json({ message: "Transaction reference is required" });
     }
 
-    // 1. Check for existing transaction
-    const existingTransaction = await Transaction.findOne({ 
-      where: { reference },
-      transaction: t,
-      include: [
-        { model: User, as: 'user', attributes: ['id', 'email'] },
-        { model: Property, as: 'property', attributes: ['id', 'title'] }
-      ]
-    });
+    // 1. Check for existing transaction with error handling
+    let existingTransaction;
+    try {
+      existingTransaction = await Transaction.findOne({ 
+        where: { reference },
+        transaction: t,
+        include: [
+          { model: User, as: 'user', attributes: ['id', 'email'] },
+          { model: Property, as: 'property', attributes: ['id', 'title'] }
+        ]
+      });
+    } catch (error) {
+      console.error("Transaction findOne error:", {
+        message: error.message,
+        stack: error.stack,
+        reference
+      });
+      await t.rollback();
+      transactionCommitted = true;
+      return res.status(500).json({ message: "Database query failed", error: error.message });
+    }
     
     if (existingTransaction) {
       await t.commit();
@@ -174,6 +192,8 @@ exports.verifyPayment = async (req, res) => {
 
     const paymentData = response.data.data;
     if (paymentData.status !== "success") {
+      await t.rollback();
+      transactionCommitted = true;
       return res.status(400).json({
         message: "Payment not successful",
         status: paymentData.status,
@@ -194,6 +214,8 @@ exports.verifyPayment = async (req, res) => {
     });
 
     if (!user_id || !payment_type) {
+      await t.rollback();
+      transactionCommitted = true;
       return res.status(400).json({ 
         message: "Incomplete payment metadata",
         required_fields: {
@@ -216,6 +238,8 @@ exports.verifyPayment = async (req, res) => {
     ]);
 
     if (!user) {
+      await t.rollback();
+      transactionCommitted = true;
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -306,6 +330,8 @@ exports.verifyPayment = async (req, res) => {
     else if (payment_type === "fractional" && property?.is_fractional) {
       const availableSlots = await getAvailableFractionalSlots(property.id);
       if (slots > availableSlots) {
+        await t.rollback();
+        transactionCommitted = true;
         return res.status(400).json({ 
           message: 'Not enough fractional slots available',
           availableSlots,
@@ -330,6 +356,8 @@ exports.verifyPayment = async (req, res) => {
       if (!ownership) {
         const availableSlots = await getAvailableFractionalSlots(property.id);
         if (slots > availableSlots) {
+          await t.rollback();
+          transactionCommitted = true;
           return res.status(400).json({ 
             message: 'Not enough fractional slots available',
             availableSlots,
@@ -468,7 +496,7 @@ exports.verifyPayment = async (req, res) => {
       timestamp: new Date()
     });
     
-    if (!transactionCommitted && !t.finished) {
+    if (!transactionCommitted && t && !t.finished) {
       await t.rollback();
     }
     
