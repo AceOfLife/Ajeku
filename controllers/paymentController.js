@@ -135,7 +135,6 @@ exports.initializePayment = async (req, res) => {
 };
 
 exports.verifyPayment = async (req, res) => {
-  // Initialize transaction with proper isolation level
   const t = await sequelize.transaction({
     isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
   });
@@ -147,12 +146,12 @@ exports.verifyPayment = async (req, res) => {
       return res.status(400).json({ message: "Transaction reference is required" });
     }
 
-    // First check if transaction exists WITHOUT using the transaction
-    const existingCheck = await Transaction.findOne({
+    // 1. Check for existing transaction (without transaction first)
+    const existingCheck = await Transaction.findOne({ 
       where: { reference },
       include: [
         { model: User, as: 'user', attributes: ['id', 'email'] },
-        { model: Property, as: 'property', attributes: ['id', 'title'] }
+        { model: Property, as: 'property', attributes: ['id', 'name'] } // Changed title to name
       ]
     });
     
@@ -163,7 +162,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // Verify with Paystack
+    // 2. Verify with Paystack
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
@@ -182,6 +181,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
+    // 3. Extract and validate metadata
     const { user_id, property_id, payment_type, client_id, slots = 1, rooms = 1 } = paymentData.metadata || {};
     
     if (!user_id || !payment_type) {
@@ -195,7 +195,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // Get user and property WITH transaction
+    // 4. Get user and property (with transaction)
     const [user, property] = await Promise.all([
       User.findByPk(user_id, { 
         transaction: t,
@@ -203,7 +203,7 @@ exports.verifyPayment = async (req, res) => {
       }),
       property_id ? Property.findByPk(property_id, { 
         transaction: t,
-        attributes: ['id', 'title', 'is_fractional', 'isInstallment', 'isRental']
+        attributes: ['id', 'name', 'is_fractional', 'isInstallment', 'isRental'] // Changed title to name
       }) : Promise.resolve(null)
     ]);
 
@@ -212,7 +212,7 @@ exports.verifyPayment = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Create transaction record
+    // 5. Create transaction record
     const transaction = await Transaction.create({
       user_id,
       property_id: property_id || null,
@@ -225,13 +225,14 @@ exports.verifyPayment = async (req, res) => {
       transaction_date: new Date(paymentData.transaction_date || Date.now())
     }, { transaction: t });
 
-    /* ========== NOTIFICATION INTEGRATION ========== */
+    // ========== NOTIFICATION INTEGRATION ==========
     const io = req.app.get('socketio');
 
+    // Client notification (updated property.name)
     const clientNotification = await Notification.create({
       user_id,
       title: 'Payment Successful',
-      message: `Your ${payment_type} payment ${property ? `for ${property.title}` : ''} was completed successfully`,
+      message: `Your ${payment_type} payment ${property ? `for ${property.name}` : ''} was completed successfully`,
       type: 'payment',
       related_entity_id: property_id || transaction.id,
       metadata: {
@@ -242,6 +243,7 @@ exports.verifyPayment = async (req, res) => {
       }
     }, { transaction: t });
 
+    // Admin notifications (updated property.name)
     const admins = await User.findAll({ 
       where: { role: 'admin' },
       transaction: t,
@@ -253,7 +255,7 @@ exports.verifyPayment = async (req, res) => {
         Notification.create({
           user_id: admin.id,
           title: 'New Payment Received',
-          message: `Client ${user.email} completed a ${payment_type} payment (${paymentData.currency} ${paymentData.amount/100}) ${property ? `for ${property.title}` : ''}`,
+          message: `Client ${user.email} completed a ${payment_type} payment (${paymentData.currency} ${paymentData.amount/100}) ${property ? `for ${property.name}` : ''}`,
           type: 'admin_alert',
           related_entity_id: transaction.id,
           metadata: {
@@ -266,7 +268,16 @@ exports.verifyPayment = async (req, res) => {
       )
     );
 
-    /* ========== PAYMENT TYPE PROCESSING ========== */
+    // ========== PAYMENT TYPE PROCESSING ==========
+    const getAvailableFractionalSlots = async (propertyId) => {
+      const sum = await FractionalOwnership.sum('slots_purchased', {
+        where: { property_id: propertyId },
+        transaction: t
+      });
+      return property.fractional_slots - (sum || 0);
+    };
+
+    // FULL/OUTRIGHT PAYMENT
     if (payment_type === "full" || payment_type === "outright") {
       if (property) {
         await FullOwnership.create({
@@ -282,12 +293,9 @@ exports.verifyPayment = async (req, res) => {
         );
       }
     } 
+    // FRACTIONAL PAYMENT
     else if (payment_type === "fractional" && property?.is_fractional) {
-      const availableSlots = await FractionalOwnership.sum('slots_purchased', {
-        where: { property_id: property.id },
-        transaction: t
-      }).then(sum => property.fractional_slots - (sum || 0));
-
+      const availableSlots = await getAvailableFractionalSlots(property.id);
       if (slots > availableSlots) {
         await t.rollback();
         return res.status(400).json({ 
@@ -303,6 +311,7 @@ exports.verifyPayment = async (req, res) => {
         slots_purchased: slots
       }, { transaction: t });
     }
+    // FRACTIONAL INSTALLMENT
     else if (payment_type === "fractionalInstallment" && property?.is_fractional && property.isFractionalInstallment) {
       const today = new Date();
       let ownership = await InstallmentOwnership.findOne({
@@ -311,11 +320,7 @@ exports.verifyPayment = async (req, res) => {
       });
 
       if (!ownership) {
-        const availableSlots = await FractionalOwnership.sum('slots_purchased', {
-          where: { property_id: property.id },
-          transaction: t
-        }).then(sum => property.fractional_slots - (sum || 0));
-
+        const availableSlots = await getAvailableFractionalSlots(property.id);
         if (slots > availableSlots) {
           await t.rollback();
           return res.status(400).json({ 
@@ -356,6 +361,7 @@ exports.verifyPayment = async (req, res) => {
         payment_year: today.getFullYear()
       }, { transaction: t });
     }
+    // STANDARD INSTALLMENT
     else if (payment_type === "installment" && property?.isInstallment && !property.is_fractional) {
       const today = new Date();
       let ownership = await InstallmentOwnership.findOne({
@@ -389,6 +395,7 @@ exports.verifyPayment = async (req, res) => {
         payment_year: today.getFullYear()
       }, { transaction: t });
     }
+    // RENTAL PAYMENT
     else if (payment_type === "rental" && property?.isRental) {
       const roomsBooked = parseInt(rooms) || 1;
       
@@ -408,8 +415,10 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
+    // Final commit
     await t.commit();
 
+    // Real-time notifications
     if (io) {
       io.to(`user_${user_id}`).emit('new_notification', clientNotification);
       adminNotifications.forEach(notif => {
@@ -417,6 +426,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
+    // Response (updated property.name)
     const responseData = {
       message: "Payment verified successfully",
       transaction: {
@@ -436,7 +446,7 @@ exports.verifyPayment = async (req, res) => {
     if (property) {
       responseData.property = {
         id: property.id,
-        title: property.title
+        name: property.name // Changed title to name
       };
     }
 
