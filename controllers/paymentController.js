@@ -10,8 +10,7 @@ const {
   Notification,
   Sequelize,
   sequelize,
-  RentalBooking,
-  FullOwnership
+  RentalBooking
 } = require('../models');
 
 exports.initializePayment = async (req, res) => {
@@ -136,12 +135,14 @@ exports.initializePayment = async (req, res) => {
 };
 
 exports.verifyPayment = async (req, res) => {
-  const t = await sequelize.transaction();
-  let transactionCommitted = false;
+  const t = await sequelize.transaction({
+    isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
+  });
 
   try {
     const { reference } = req.query;
     if (!reference) {
+      await t.rollback();
       return res.status(400).json({ message: "Transaction reference is required" });
     }
 
@@ -157,7 +158,6 @@ exports.verifyPayment = async (req, res) => {
     
     if (existingTransaction) {
       await t.commit();
-      transactionCommitted = true;
       return res.status(200).json({
         message: "Payment already verified",
         transaction: existingTransaction
@@ -175,6 +175,7 @@ exports.verifyPayment = async (req, res) => {
 
     const paymentData = response.data.data;
     if (paymentData.status !== "success") {
+      await t.rollback();
       return res.status(400).json({
         message: "Payment not successful",
         status: paymentData.status,
@@ -195,6 +196,7 @@ exports.verifyPayment = async (req, res) => {
     });
 
     if (!user_id || !payment_type) {
+      await t.rollback();
       return res.status(400).json({ 
         message: "Incomplete payment metadata",
         required_fields: {
@@ -217,6 +219,7 @@ exports.verifyPayment = async (req, res) => {
     ]);
 
     if (!user) {
+      await t.rollback();
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -232,7 +235,8 @@ exports.verifyPayment = async (req, res) => {
       payment_type,
       transaction_date: new Date(paymentData.transaction_date || Date.now())
     }, { 
-      transaction: t
+      transaction: t,
+      logging: console.log
     });
 
     // ========== NOTIFICATION INTEGRATION ==========
@@ -307,6 +311,7 @@ exports.verifyPayment = async (req, res) => {
     else if (payment_type === "fractional" && property?.is_fractional) {
       const availableSlots = await getAvailableFractionalSlots(property.id);
       if (slots > availableSlots) {
+        await t.rollback();
         return res.status(400).json({ 
           message: 'Not enough fractional slots available',
           availableSlots,
@@ -331,6 +336,7 @@ exports.verifyPayment = async (req, res) => {
       if (!ownership) {
         const availableSlots = await getAvailableFractionalSlots(property.id);
         if (slots > availableSlots) {
+          await t.rollback();
           return res.status(400).json({ 
             message: 'Not enough fractional slots available',
             availableSlots,
@@ -425,7 +431,6 @@ exports.verifyPayment = async (req, res) => {
 
     // Final commit
     await t.commit();
-    transactionCommitted = true;
 
     // Real-time notifications
     if (io) {
@@ -469,7 +474,7 @@ exports.verifyPayment = async (req, res) => {
       timestamp: new Date()
     });
     
-    if (!transactionCommitted && !t.finished) {
+    if (!t.finished) {
       await t.rollback();
     }
     
