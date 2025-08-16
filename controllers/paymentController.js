@@ -263,6 +263,59 @@ exports.verifyPayment = async (req, res) => {
       return property.fractional_slots - ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
     };
 
+    // Full Payment (NEW LOGIC)
+    if (payment_type === "full") {
+      // Check if property is already sold
+      if (property.is_sold) {
+        await t.rollback();
+        return res.status(400).json({ message: 'Property has already been sold' });
+      }
+
+      // Create full ownership record
+      await FullOwnership.create({
+        user_id,
+        property_id,
+        purchase_amount: paymentData.amount / 100,
+        purchase_date: new Date()
+      }, { transaction: t });
+
+      // Mark property as sold
+      await Property.update({
+        is_sold: true,
+        original_owner_id: user_id
+      }, {
+        where: { id: property_id },
+        transaction: t
+      });
+
+      await t.commit();
+      
+      // Real-time notifications after successful commit
+      if (io) {
+        io.to(`user_${user_id}`).emit('new_notification', {
+          event: 'payment_success',
+          data: clientNotification
+        });
+
+        adminNotifications.forEach(notif => {
+          io.to(`user_${notif.user_id}`).emit('new_notification', {
+            event: 'admin_payment_alert',
+            data: notif
+          });
+        });
+      }
+
+      return res.status(200).json({
+        message: "Full property purchase verified successfully",
+        transaction,
+        ownership: {
+          type: 'full',
+          purchase_amount: paymentData.amount / 100,
+          purchase_date: new Date()
+        }
+      });
+    }
+
     // Fractional Outright Payment
     if (payment_type === "fractional" && property.is_fractional) {
       const availableSlots = await getAvailableFractionalSlots(property.id);
