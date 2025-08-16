@@ -135,7 +135,10 @@ exports.initializePayment = async (req, res) => {
 };
 
 exports.verifyPayment = async (req, res) => {
-  const t = await sequelize.transaction();
+  // Initialize transaction with proper isolation level
+  const t = await sequelize.transaction({
+    isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
+  });
 
   try {
     const { reference } = req.query;
@@ -144,23 +147,23 @@ exports.verifyPayment = async (req, res) => {
       return res.status(400).json({ message: "Transaction reference is required" });
     }
 
-    const existingTransaction = await Transaction.findOne({ 
+    // First check if transaction exists WITHOUT using the transaction
+    const existingCheck = await Transaction.findOne({
       where: { reference },
-      transaction: t,
       include: [
         { model: User, as: 'user', attributes: ['id', 'email'] },
         { model: Property, as: 'property', attributes: ['id', 'title'] }
       ]
     });
     
-    if (existingTransaction) {
-      await t.commit();
+    if (existingCheck) {
       return res.status(200).json({
         message: "Payment already verified",
-        transaction: existingTransaction
+        transaction: existingCheck
       });
     }
 
+    // Verify with Paystack
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
@@ -181,15 +184,6 @@ exports.verifyPayment = async (req, res) => {
 
     const { user_id, property_id, payment_type, client_id, slots = 1, rooms = 1 } = paymentData.metadata || {};
     
-    console.log('Payment Verification Metadata:', {
-      user_id,
-      property_id,
-      payment_type,
-      client_id,
-      amount: paymentData.amount / 100,
-      currency: paymentData.currency
-    });
-
     if (!user_id || !payment_type) {
       await t.rollback();
       return res.status(400).json({ 
@@ -201,6 +195,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
+    // Get user and property WITH transaction
     const [user, property] = await Promise.all([
       User.findByPk(user_id, { 
         transaction: t,
@@ -217,6 +212,7 @@ exports.verifyPayment = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Create transaction record
     const transaction = await Transaction.create({
       user_id,
       property_id: property_id || null,
@@ -227,11 +223,9 @@ exports.verifyPayment = async (req, res) => {
       status: paymentData.status,
       payment_type,
       transaction_date: new Date(paymentData.transaction_date || Date.now())
-    }, { 
-      transaction: t,
-      logging: console.log
-    });
+    }, { transaction: t });
 
+    /* ========== NOTIFICATION INTEGRATION ========== */
     const io = req.app.get('socketio');
 
     const clientNotification = await Notification.create({
@@ -272,14 +266,7 @@ exports.verifyPayment = async (req, res) => {
       )
     );
 
-    const getAvailableFractionalSlots = async (propertyId) => {
-      const ownerships = await FractionalOwnership.findAll({ 
-        where: { property_id: propertyId },
-        transaction: t
-      });
-      return property.fractional_slots - ownerships.reduce((sum, o) => sum + o.slots_purchased, 0);
-    };
-
+    /* ========== PAYMENT TYPE PROCESSING ========== */
     if (payment_type === "full" || payment_type === "outright") {
       if (property) {
         await FullOwnership.create({
@@ -296,7 +283,11 @@ exports.verifyPayment = async (req, res) => {
       }
     } 
     else if (payment_type === "fractional" && property?.is_fractional) {
-      const availableSlots = await getAvailableFractionalSlots(property.id);
+      const availableSlots = await FractionalOwnership.sum('slots_purchased', {
+        where: { property_id: property.id },
+        transaction: t
+      }).then(sum => property.fractional_slots - (sum || 0));
+
       if (slots > availableSlots) {
         await t.rollback();
         return res.status(400).json({ 
@@ -320,7 +311,11 @@ exports.verifyPayment = async (req, res) => {
       });
 
       if (!ownership) {
-        const availableSlots = await getAvailableFractionalSlots(property.id);
+        const availableSlots = await FractionalOwnership.sum('slots_purchased', {
+          where: { property_id: property.id },
+          transaction: t
+        }).then(sum => property.fractional_slots - (sum || 0));
+
         if (slots > availableSlots) {
           await t.rollback();
           return res.status(400).json({ 
