@@ -328,10 +328,21 @@ exports.verifyPayment = async (req, res) => {
       transaction: {
         id: transaction.id,
         reference: transaction.reference,
-        amount: transaction.price,
+        amount: Number(transaction.price).toLocaleString('en-NG', {
+          style: 'currency',
+          currency: transaction.currency || 'NGN'
+        }),
         status: transaction.status,
         payment_type: transaction.payment_type,
-        date: transaction.transaction_date},
+        date: new Date(transaction.transaction_date).toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        slots_purchased: slots // Added slots purchased
+      },
       user: {
         id: user.id,
         email: user.email
@@ -341,7 +352,7 @@ exports.verifyPayment = async (req, res) => {
     if (property) {
       responseData.property = {
         id: property.id,
-        name: property.title 
+        name: property.name // Changed to use 'name'
       };
     }
 
@@ -368,7 +379,6 @@ exports.verifyPayment = async (req, res) => {
     });
   }
 };
-
 
 // exports.initializePayment = async (req, res) => {
 //   try {
