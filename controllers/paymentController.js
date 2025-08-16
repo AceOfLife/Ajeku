@@ -10,7 +10,8 @@ const {
   Notification,
   Sequelize,
   sequelize,
-  RentalBooking
+  RentalBooking,
+  FullOwnership
 } = require('../models');
 
 exports.initializePayment = async (req, res) => {
