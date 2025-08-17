@@ -6,58 +6,131 @@ const OwnershipService = require('../services/OwnershipService');
 exports.relistProperty = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { propertyId } = req.params; // Get from URL params
-    const { price: relistPrice, reason } = req.body;
+    const { propertyId } = req.params;
+    const { relistPrice, reason } = req.body;
     const userId = req.user.id;
 
-    // 1. Verify full ownership using positional parameters
-    const [ownershipResult] = await sequelize.query(
-      `SELECT 1 FROM "FractionalOwnerships"
-       WHERE property_id = $1 AND user_id = $2
-       GROUP BY property_id
-       HAVING COUNT(*) = (
-         SELECT fractional_slots FROM "Properties" WHERE id = $1
-       )`,
+    // 1. Verify full ownership
+    const ownership = await FullOwnership.findOne({
+      where: {
+        property_id: propertyId,
+        user_id: userId
+      },
+      transaction: t
+    });
+
+    if (!ownership) {
+      await t.rollback();
+      return res.status(403).json({ 
+        success: false,
+        message: "You must fully own the property before relisting",
+        details: `User ${userId} doesn't own property ${propertyId}`
+      });
+    }
+
+    // 2. Check if already relisted
+    const property = await Property.findByPk(propertyId, { transaction: t });
+    if (property.is_relisted) {
+      await t.rollback();
+      return res.status(409).json({
+        success: false,
+        message: "Property is already relisted"
+      });
+    }
+
+    // 3. Update property
+    await Property.update(
       {
-        bind: [propertyId, userId],
-        type: sequelize.QueryTypes.SELECT,
+        is_relisted: true,
+        original_owner_id: userId,
+        price: relistPrice,
+        relist_reason: reason,
+        agent_id: null,
+        updated_at: new Date()
+      },
+      {
+        where: { id: propertyId },
         transaction: t
       }
     );
 
-    if (!ownershipResult) {
-      await t.rollback();
-      return res.status(403).json({ 
-        success: false,
-        message: "You must complete all payments before relisting",
-        details: `User ${userId} doesn't fully own property ${propertyId}`
+    // 4. Get user for notifications
+    const user = await User.findByPk(userId, { transaction: t });
+
+    // 5. Notification handling
+    let notificationsSent = false;
+    try {
+      const io = req.app.get('socketio');
+
+      // Client notification
+      const clientNotification = await Notification.create({
+        user_id: userId,
+        title: 'Property Relisted',
+        message: `You've relisted ${property.name} for ₦${relistPrice.toLocaleString()}`,
+        type: 'property_update',
+        related_entity_id: propertyId,
+        metadata: {
+          action: 'relist',
+          new_price: relistPrice,
+          reason: reason
+        }
+      }, { transaction: t });
+
+      // Admin notifications
+      const admins = await User.findAll({ 
+        where: { role: 'admin' },
+        transaction: t
       });
+
+      const adminNotifications = await Promise.all(
+        admins.map(admin => 
+          Notification.create({
+            user_id: admin.id,
+            title: 'Property Relisted',
+            message: `User ${user.email} relisted ${property.name} (ID: ${propertyId})`,
+            type: 'admin_alert',
+            related_entity_id: propertyId,
+            metadata: {
+              user_id: userId,
+              new_price: relistPrice,
+              reason: reason
+            }
+          }, { transaction: t })
+        )
+      );
+
+      notificationsSent = true;
+
+      // Real-time notifications
+      if (io) {
+        io.to(`user_${userId}`).emit('new_notification', {
+          event: 'property_relisted',
+          data: clientNotification
+        });
+
+        adminNotifications.forEach(notif => {
+          io.to(`user_${notif.user_id}`).emit('new_notification', {
+            event: 'admin_property_alert',
+            data: notif
+          });
+        });
+      }
+    } catch (notificationError) {
+      console.error('Notification failed:', notificationError);
     }
 
-    // 2. Update property using positional parameters
-    await sequelize.query(
-      `UPDATE "Properties"
-       SET is_relisted = true,
-           original_owner_id = $1,
-           price = $2,
-           relist_reason = $3,
-           agent_id = NULL,
-           updated_at = NOW()
-       WHERE id = $4`,
-      {
-        bind: [userId, relistPrice, reason, propertyId],
-        transaction: t,
-        type: sequelize.QueryTypes.UPDATE
-      }
-    );
-
     await t.commit();
-    
-    res.status(200).json({ 
+
+    return res.status(200).json({
       success: true,
-      message: "Property relisted successfully",
-      propertyId,
-      newPrice: relistPrice
+      message: notificationsSent 
+        ? "Property relisted successfully" 
+        : "Property relisted but notifications failed",
+      data: {
+        propertyId,
+        newPrice: relistPrice,
+        notificationsEnabled: notificationsSent
+      }
     });
 
   } catch (error) {
@@ -68,7 +141,7 @@ exports.relistProperty = async (req, res) => {
       params: req.params,
       body: req.body
     });
-    res.status(500).json({ 
+    return res.status(500).json({ 
       success: false,
       message: "Failed to relist property",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
