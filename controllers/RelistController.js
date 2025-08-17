@@ -4,8 +4,7 @@ const OwnershipService = require('../services/OwnershipService');
 
 
 exports.relistProperty = async (req, res) => {
-  // Main transaction for property relisting
-  const mainTransaction = await sequelize.transaction();
+  const t = await sequelize.transaction();
   try {
     const { propertyId } = req.params;
     const { relistPrice, reason } = req.body;
@@ -17,11 +16,11 @@ exports.relistProperty = async (req, res) => {
         property_id: propertyId,
         user_id: userId
       },
-      transaction: mainTransaction
+      transaction: t
     });
 
     if (!ownership) {
-      await mainTransaction.rollback();
+      await t.rollback();
       return res.status(403).json({ 
         success: false,
         message: "You must fully own the property before relisting",
@@ -30,12 +29,9 @@ exports.relistProperty = async (req, res) => {
     }
 
     // 2. Get property and check status
-    const property = await Property.findByPk(propertyId, { 
-      transaction: mainTransaction 
-    });
-
+    const property = await Property.findByPk(propertyId, { transaction: t });
     if (property.is_relisted) {
-      await mainTransaction.rollback();
+      await t.rollback();
       return res.status(409).json({
         success: false,
         message: "Property is already relisted"
@@ -53,86 +49,78 @@ exports.relistProperty = async (req, res) => {
       },
       {
         where: { id: propertyId },
-        transaction: mainTransaction
+        transaction: t
       }
     );
 
-    // Commit main transaction first
-    await mainTransaction.commit();
-
-    // 4. Handle notifications in separate transaction
+    // 4. Notification handling (using only existing types)
     let notificationsSent = false;
-    const notificationTransaction = await sequelize.transaction();
-    try {
-      const io = req.app.get('socketio');
-      const user = await User.findByPk(userId, { 
-        transaction: notificationTransaction 
-      });
+    const io = req.app.get('socketio');
+    const user = await User.findByPk(userId, { transaction: t });
 
-      // Client notification
+    try {
+      // Client notification using existing 'payment' type
       const clientNotification = await Notification.create({
         user_id: userId,
         title: 'Property Relisted',
         message: `You've relisted ${property.name} for ₦${relistPrice.toLocaleString()}`,
-        type: 'property_update', // Must exist in your enum
+        type: 'payment', // Using existing type from your enum
         related_entity_id: propertyId,
         metadata: {
           action: 'relist',
-          new_price: relistPrice,
+          amount: relistPrice,
           reason: reason,
           property_id: propertyId
-        }
-      }, { transaction: notificationTransaction });
+        },
+        transaction: t
+      });
 
-      // Admin notifications
+      // Admin notifications using existing 'admin_alert' type
       const admins = await User.findAll({ 
         where: { role: 'admin' },
-        transaction: notificationTransaction
+        transaction: t
       });
 
       const adminNotifications = await Promise.all(
         admins.map(admin => 
           Notification.create({
             user_id: admin.id,
-            title: 'New Property Relisted',
-            message: `User ${user.email} relisted ${property.name}`,
-            type: 'admin_alert', // Must exist in your enum
+            title: 'Property Relisted',
+            message: `User ${user.email} relisted ${property.name} for ₦${relistPrice.toLocaleString()}`,
+            type: 'admin_alert', // Using existing type from your enum
             related_entity_id: propertyId,
             metadata: {
               user_id: userId,
-              new_price: relistPrice,
+              amount: relistPrice,
               reason: reason,
               property_id: propertyId
-            }
-          }, { transaction: notificationTransaction })
+            },
+            transaction: t
+          })
         )
       );
 
-      await notificationTransaction.commit();
       notificationsSent = true;
 
       // Real-time notifications
       if (io) {
         io.to(`user_${userId}`).emit('new_notification', {
-          event: 'property_relisted',
+          event: 'payment_success',
           data: clientNotification
         });
 
         adminNotifications.forEach(notif => {
           io.to(`user_${notif.user_id}`).emit('new_notification', {
-            event: 'admin_property_alert',
+            event: 'admin_payment_alert',
             data: notif
           });
         });
       }
     } catch (notificationError) {
-      await notificationTransaction.rollback();
-      console.error('Notification subsystem failed:', {
-        message: notificationError.message,
-        stack: notificationError.stack
-      });
-      // Continue with response even if notifications failed
+      console.error('Notification failed:', notificationError);
     }
+
+    await t.commit();
 
     return res.status(200).json({
       success: true,
@@ -142,31 +130,17 @@ exports.relistProperty = async (req, res) => {
       data: {
         propertyId,
         newPrice: relistPrice,
-        notificationsEnabled: notificationsSent,
-        ...(notificationsSent && {
-          notificationIds: {
-            client: clientNotification?.id,
-            admins: adminNotifications?.map(n => n.id)
-          }
-        })
+        notificationsEnabled: notificationsSent
       }
     });
 
   } catch (error) {
-    await mainTransaction.rollback();
-    console.error('Property relist failed:', {
-      message: error.message,
-      stack: error.stack,
-      user: userId,
-      property: propertyId
-    });
+    await t.rollback();
+    console.error('Property relist error:', error);
     return res.status(500).json({ 
       success: false,
       message: "Failed to relist property",
-      error: process.env.NODE_ENV === 'development' ? {
-        message: error.message,
-        code: error.code
-      } : undefined
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
