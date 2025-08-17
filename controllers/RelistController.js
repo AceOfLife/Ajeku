@@ -176,7 +176,7 @@ exports.relistSlots = async (req, res) => {
     const { propertyId, slotIds, pricePerSlot } = req.body;
     const userId = req.user.id;
 
-    // Validate input (EXISTING CODE - UNCHANGED)
+    // Validate input (EXISTING CODE)
     if (!Array.isArray(slotIds) || slotIds.length === 0 || !pricePerSlot || pricePerSlot <= 0) {
       await t.rollback();
       return res.status(400).json({
@@ -185,7 +185,7 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Verify ownership (EXISTING CODE - UNCHANGED)
+    // Verify ownership (EXISTING CODE)
     const validSlots = await FractionalOwnership.findAll({
       where: {
         id: { [Op.in]: slotIds },
@@ -196,7 +196,7 @@ exports.relistSlots = async (req, res) => {
       transaction: t
     });
 
-    // Check slots valid (EXISTING CODE - UNCHANGED)
+    // Check if all requested slots are valid (EXISTING CODE)
     if (validSlots.length !== slotIds.length) {
       await t.rollback();
       return res.status(403).json({
@@ -205,7 +205,7 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Check already relisted (EXISTING CODE - UNCHANGED)
+    // Check if any slots are already relisted (EXISTING CODE)
     const alreadyRelisted = validSlots.some(slot => slot.is_relisted);
     if (alreadyRelisted) {
       await t.rollback();
@@ -215,7 +215,7 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Update slots (EXISTING CODE - UNCHANGED)
+    // Update slots (EXISTING CODE)
     await FractionalOwnership.update(
       {
         is_relisted: true,
@@ -228,89 +228,120 @@ exports.relistSlots = async (req, res) => {
       }
     );
 
-    /* ===== ONLY NEW CODE BELOW ===== */
-    // Get property for notifications
-    const property = await Property.findByPk(propertyId, { transaction: t });
-    const user = await User.findByPk(userId, { transaction: t });
-
-    // Notifications (EXACT SAME PATTERN AS verifyPayment)
-    const io = req.app.get('socketio');
-    
-    // 1. Client notification
-    const clientNotification = await Notification.create({
-      user_id: userId,
-      title: 'Slots Relisted',
-      message: `You relisted ${slotIds.length} slot(s) in ${property.name}`,
-      type: 'relist_confirmation',
-      related_entity_id: propertyId,
-      metadata: {
-        slot_ids: slotIds,
-        price_per_slot: pricePerSlot
-      }
-    }, { transaction: t });
-
-    // 2. Admin notifications
-    const admins = await User.findAll({ 
-      where: { role: 'admin' },
-      transaction: t 
+    // NEW: Verify update was successful
+    const updatedSlots = await FractionalOwnership.findAll({
+      where: { id: { [Op.in]: slotIds } },
+      transaction: t
     });
 
-    const adminNotifications = await Promise.all(
-      admins.map(admin => 
-        Notification.create({
-          user_id: admin.id,
-          title: 'Slots Relisted',
-          message: `User ${user.email} relisted slots in ${property.name}`,
-          type: 'admin_alert',
-          related_entity_id: propertyId,
-          metadata: {
-            user_id: userId,
-            slot_ids: slotIds,
-            price_per_slot: pricePerSlot
-          }
-        }, { transaction: t })
-      )
-    );
+    if (updatedSlots.some(slot => !slot.is_relisted)) {
+      throw new Error('Slot update verification failed');
+    }
+
+    // NEW: Get property and user for notifications
+    const [property, user] = await Promise.all([
+      Property.findByPk(propertyId, { transaction: t }),
+      User.findByPk(userId, { transaction: t })
+    ]);
+
+    // NEW: Notification transaction
+    const notificationTransaction = await sequelize.transaction();
+    let notificationsSent = false;
+    try {
+      const io = req.app.get('socketio');
+
+      // Client notification (SAME PATTERN AS verifyPayment)
+      const clientNotification = await Notification.create({
+        user_id: userId,
+        title: 'Slots Relisted Successfully',
+        message: `You've successfully relisted ${slotIds.length} slot(s) in ${property.name}`,
+        type: 'relist_confirmation',
+        related_entity_id: propertyId,
+        metadata: {
+          slot_ids: slotIds,
+          price_per_slot: pricePerSlot,
+          property_id: propertyId
+        }
+      }, { transaction: notificationTransaction });
+
+      // Admin notifications (SAME PATTERN AS verifyPayment)
+      const admins = await User.findAll({ 
+        where: { role: 'admin' },
+        transaction: notificationTransaction
+      });
+
+      const adminNotifications = await Promise.all(
+        admins.map(admin => 
+          Notification.create({
+            user_id: admin.id,
+            title: 'New Slots Relisted',
+            message: `User ${user.email} relisted ${slotIds.length} slot(s) in ${property.name}`,
+            type: 'admin_alert',
+            related_entity_id: propertyId,
+            metadata: {
+              user_id: userId,
+              slot_ids: slotIds,
+              price_per_slot: pricePerSlot,
+              property_id: propertyId
+            }
+          }, { transaction: notificationTransaction })
+        )
+      );
+
+      await notificationTransaction.commit();
+      notificationsSent = true;
+
+      // Real-time notifications (EXISTING PATTERN)
+      if (io) {
+        io.to(`user_${userId}`).emit('new_notification', {
+          event: 'slots_relisted',
+          data: clientNotification
+        });
+
+        adminNotifications.forEach(notif => {
+          io.to(`user_${notif.user_id}`).emit('new_notification', {
+            event: 'admin_slots_alert',
+            data: notif
+          });
+        });
+      }
+    } catch (notificationError) {
+      await notificationTransaction.rollback();
+      console.error('Notification creation failed:', notificationError);
+    }
 
     await t.commit();
 
-    // 3. Real-time notifications (same as verifyPayment)
-    if (io) {
-      io.to(`user_${userId}`).emit('new_notification', {
-        event: 'slots_relisted',
-        data: clientNotification
-      });
-
-      adminNotifications.forEach(notif => {
-        io.to(`user_${notif.user_id}`).emit('new_notification', {
-          event: 'admin_slots_alert',
-          data: notif
-        });
-      });
-    }
-    /* ===== ONLY NEW CODE ABOVE ===== */
-
-    // Response (EXISTING CODE - UNCHANGED except added notifications)
-    res.status(200).json({
+    // Response (EXISTING CODE with added notification status)
+    return res.status(200).json({
       success: true,
-      message: "Slots relisted successfully",
+      message: notificationsSent 
+        ? "Slots relisted successfully" 
+        : "Slots relisted but notifications failed",
       data: {
         relistedSlots: slotIds,
         pricePerSlot,
-        notifications: { // Added this field
-          client: clientNotification.id,
-          admins: adminNotifications.map(n => n.id)
-        }
+        notificationsEnabled: notificationsSent
       }
     });
 
   } catch (error) {
     await t.rollback();
-    console.error('Relist slots error:', error);
-    res.status(500).json({
+    console.error('Relist slots error:', {
+      message: error.message,
+      stack: error.stack,
+      request: {
+        user: req.user.id,
+        body: req.body
+      }
+    });
+    return res.status(500).json({
       success: false,
       message: "Failed to relist slots",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? {
+        message: error.message,
+        code: error.code
+      } : undefined
     });
   }
 };
