@@ -176,7 +176,7 @@ exports.relistSlots = async (req, res) => {
     const { propertyId, slotIds, pricePerSlot } = req.body;
     const userId = req.user.id;
 
-    // Validate input (EXISTING CODE)
+    // [KEEP ALL YOUR EXISTING VALIDATION CODE]
     if (!Array.isArray(slotIds) || slotIds.length === 0 || !pricePerSlot || pricePerSlot <= 0) {
       await t.rollback();
       return res.status(400).json({
@@ -185,7 +185,7 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Verify ownership (EXISTING CODE)
+    // [KEEP ALL YOUR EXISTING OWNERSHIP VERIFICATION CODE]
     const validSlots = await FractionalOwnership.findAll({
       where: {
         id: { [Op.in]: slotIds },
@@ -196,7 +196,6 @@ exports.relistSlots = async (req, res) => {
       transaction: t
     });
 
-    // Check if all requested slots are valid (EXISTING CODE)
     if (validSlots.length !== slotIds.length) {
       await t.rollback();
       return res.status(403).json({
@@ -205,9 +204,7 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Check if any slots are already relisted (EXISTING CODE)
-    const alreadyRelisted = validSlots.some(slot => slot.is_relisted);
-    if (alreadyRelisted) {
+    if (validSlots.some(slot => slot.is_relisted)) {
       await t.rollback();
       return res.status(409).json({
         success: false,
@@ -215,7 +212,7 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
-    // Update slots (EXISTING CODE)
+    // [KEEP YOUR EXISTING SLOT UPDATE CODE]
     await FractionalOwnership.update(
       {
         is_relisted: true,
@@ -244,14 +241,16 @@ exports.relistSlots = async (req, res) => {
       User.findByPk(userId, { transaction: t })
     ]);
 
-    // NEW: Notification transaction
-    const notificationTransaction = await sequelize.transaction();
+    // NEW: Notification handling with proper error isolation
     let notificationsSent = false;
+    let clientNotification = null;
+    let adminNotifications = [];
+
     try {
       const io = req.app.get('socketio');
 
-      // Client notification (SAME PATTERN AS verifyPayment)
-      const clientNotification = await Notification.create({
+      // Client notification
+      clientNotification = await Notification.create({
         user_id: userId,
         title: 'Slots Relisted Successfully',
         message: `You've successfully relisted ${slotIds.length} slot(s) in ${property.name}`,
@@ -262,15 +261,11 @@ exports.relistSlots = async (req, res) => {
           price_per_slot: pricePerSlot,
           property_id: propertyId
         }
-      }, { transaction: notificationTransaction });
-
-      // Admin notifications (SAME PATTERN AS verifyPayment)
-      const admins = await User.findAll({ 
-        where: { role: 'admin' },
-        transaction: notificationTransaction
       });
 
-      const adminNotifications = await Promise.all(
+      // Admin notifications
+      const admins = await User.findAll({ where: { role: 'admin' } });
+      adminNotifications = await Promise.all(
         admins.map(admin => 
           Notification.create({
             user_id: admin.id,
@@ -284,14 +279,13 @@ exports.relistSlots = async (req, res) => {
               price_per_slot: pricePerSlot,
               property_id: propertyId
             }
-          }, { transaction: notificationTransaction })
+          })
         )
       );
 
-      await notificationTransaction.commit();
       notificationsSent = true;
 
-      // Real-time notifications (EXISTING PATTERN)
+      // Real-time notifications
       if (io) {
         io.to(`user_${userId}`).emit('new_notification', {
           event: 'slots_relisted',
@@ -306,13 +300,11 @@ exports.relistSlots = async (req, res) => {
         });
       }
     } catch (notificationError) {
-      await notificationTransaction.rollback();
-      console.error('Notification creation failed:', notificationError);
+      console.error('Notification failed but continuing:', notificationError);
     }
 
     await t.commit();
 
-    // Response (EXISTING CODE with added notification status)
     return res.status(200).json({
       success: true,
       message: notificationsSent 
@@ -321,27 +313,23 @@ exports.relistSlots = async (req, res) => {
       data: {
         relistedSlots: slotIds,
         pricePerSlot,
-        notificationsEnabled: notificationsSent
+        notificationsEnabled: notificationsSent,
+        ...(notificationsSent && {
+          notificationIds: {
+            client: clientNotification?.id,
+            admins: adminNotifications.map(n => n.id)
+          }
+        })
       }
     });
 
   } catch (error) {
     await t.rollback();
-    console.error('Relist slots error:', {
-      message: error.message,
-      stack: error.stack,
-      request: {
-        user: req.user.id,
-        body: req.body
-      }
-    });
+    console.error('Relist slots error:', error);
     return res.status(500).json({
       success: false,
       message: "Failed to relist slots",
-      error: process.env.NODE_ENV === 'development' ? {
-        message: error.message,
-        code: error.code
-      } : undefined
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
