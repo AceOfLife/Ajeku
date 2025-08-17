@@ -1,4 +1,4 @@
-const { Property, FullOwnership, FractionalOwnership, InstallmentOwnership, sequelize, User } = require('../models');
+const { Property, FullOwnership, FractionalOwnership, InstallmentOwnership, sequelize, User, Notification } = require('../models');
 const { Op } = require('sequelize'); 
 const OwnershipService = require('../services/OwnershipService');
 
