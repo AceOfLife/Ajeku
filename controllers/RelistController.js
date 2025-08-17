@@ -28,7 +28,7 @@ exports.relistProperty = async (req, res) => {
       });
     }
 
-    // 2. Check if already relisted
+    // 2. Get property and check if already relisted
     const property = await Property.findByPk(propertyId, { transaction: t });
     if (property.is_relisted) {
       await t.rollback();
@@ -38,14 +38,14 @@ exports.relistProperty = async (req, res) => {
       });
     }
 
-    // 3. Update property
+    // 3. Update property (preserve agent_id if required)
     await Property.update(
       {
         is_relisted: true,
         original_owner_id: userId,
         price: relistPrice,
         relist_reason: reason,
-        agent_id: null,
+        // Keep the existing agent_id instead of setting to null
         updated_at: new Date()
       },
       {
