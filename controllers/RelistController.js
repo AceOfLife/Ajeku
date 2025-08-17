@@ -175,6 +175,7 @@ exports.relistSlots = async (req, res) => {
   try {
     const { propertyId, slotIds, pricePerSlot } = req.body;
     const userId = req.user.id;
+    const io = req.app.get('socketio'); // Get socket.io instance
 
     // Validate input
     if (!Array.isArray(slotIds) || slotIds.length === 0 || !pricePerSlot || pricePerSlot <= 0) {
@@ -191,7 +192,7 @@ exports.relistSlots = async (req, res) => {
         id: { [Op.in]: slotIds },
         user_id: userId,
         property_id: propertyId,
-        slots_purchased: { [Op.gt]: 0 } // Ensure slots are actually owned
+        slots_purchased: { [Op.gt]: 0 }
       },
       transaction: t
     });
@@ -215,6 +216,10 @@ exports.relistSlots = async (req, res) => {
       });
     }
 
+    // Get property details for notifications
+    const property = await Property.findByPk(propertyId, { transaction: t });
+    const user = await User.findByPk(userId, { transaction: t });
+
     // Update slots
     await FractionalOwnership.update(
       {
@@ -230,13 +235,75 @@ exports.relistSlots = async (req, res) => {
       }
     );
 
+    // ========== NOTIFICATION INTEGRATION ==========
+    // Client notification
+    const clientNotification = await Notification.create({
+      user_id: userId,
+      title: 'Slots Relisted Successfully',
+      message: `You've successfully relisted ${slotIds.length} slot(s) for ${property.name} at ₦${pricePerSlot.toLocaleString()} per slot`,
+      type: 'relist_confirmation',
+      related_entity_id: propertyId,
+      metadata: {
+        slot_ids: slotIds,
+        price_per_slot: pricePerSlot,
+        property_id: propertyId
+      }
+    }, { transaction: t });
+
+    // Admin notifications
+    const admins = await User.findAll({ 
+      where: { role: 'admin' },
+      transaction: t
+    });
+
+    const adminNotifications = await Promise.all(
+      admins.map(admin => 
+        Notification.create({
+          user_id: admin.id,
+          title: 'New Slots Relisted',
+          message: `User ${user.email} relisted ${slotIds.length} slot(s) for property ${property.name} (ID: ${propertyId})`,
+          type: 'admin_alert',
+          related_entity_id: propertyId,
+          metadata: {
+            user_id: userId,
+            property_id: propertyId,
+            slot_ids: slotIds,
+            price_per_slot: pricePerSlot
+          }
+        }, { transaction: t })
+      )
+    );
+    // ========== END NOTIFICATION INTEGRATION ==========
+
     await t.commit();
+
+    // Real-time notifications after successful commit
+    if (io) {
+      // Notify the user who relisted slots
+      io.to(`user_${userId}`).emit('new_notification', {
+        event: 'slots_relisted',
+        data: clientNotification
+      });
+
+      // Notify all admins
+      adminNotifications.forEach(notif => {
+        io.to(`user_${notif.user_id}`).emit('new_notification', {
+          event: 'admin_slots_relist_alert',
+          data: notif
+        });
+      });
+    }
+
     res.status(200).json({
       success: true,
       message: "Slots relisted successfully",
       data: {
         relistedSlots: slotIds,
-        pricePerSlot
+        pricePerSlot,
+        notification: {
+          client: clientNotification,
+          admins: adminNotifications.map(n => n.id)
+        }
       }
     });
 
