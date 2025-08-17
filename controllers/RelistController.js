@@ -4,7 +4,8 @@ const OwnershipService = require('../services/OwnershipService');
 
 
 exports.relistProperty = async (req, res) => {
-  const t = await sequelize.transaction();
+  // Main transaction for property relisting
+  const mainTransaction = await sequelize.transaction();
   try {
     const { propertyId } = req.params;
     const { relistPrice, reason } = req.body;
@@ -16,11 +17,11 @@ exports.relistProperty = async (req, res) => {
         property_id: propertyId,
         user_id: userId
       },
-      transaction: t
+      transaction: mainTransaction
     });
 
     if (!ownership) {
-      await t.rollback();
+      await mainTransaction.rollback();
       return res.status(403).json({ 
         success: false,
         message: "You must fully own the property before relisting",
@@ -28,77 +29,86 @@ exports.relistProperty = async (req, res) => {
       });
     }
 
-    // 2. Get property and check if already relisted
-    const property = await Property.findByPk(propertyId, { transaction: t });
+    // 2. Get property and check status
+    const property = await Property.findByPk(propertyId, { 
+      transaction: mainTransaction 
+    });
+
     if (property.is_relisted) {
-      await t.rollback();
+      await mainTransaction.rollback();
       return res.status(409).json({
         success: false,
         message: "Property is already relisted"
       });
     }
 
-    // 3. Update property (preserve agent_id if required)
+    // 3. Update property
     await Property.update(
       {
         is_relisted: true,
         original_owner_id: userId,
         price: relistPrice,
         relist_reason: reason,
-        // Keep the existing agent_id instead of setting to null
         updated_at: new Date()
       },
       {
         where: { id: propertyId },
-        transaction: t
+        transaction: mainTransaction
       }
     );
 
-    // 4. Get user for notifications
-    const user = await User.findByPk(userId, { transaction: t });
+    // Commit main transaction first
+    await mainTransaction.commit();
 
-    // 5. Notification handling
+    // 4. Handle notifications in separate transaction
     let notificationsSent = false;
+    const notificationTransaction = await sequelize.transaction();
     try {
       const io = req.app.get('socketio');
+      const user = await User.findByPk(userId, { 
+        transaction: notificationTransaction 
+      });
 
       // Client notification
       const clientNotification = await Notification.create({
         user_id: userId,
         title: 'Property Relisted',
         message: `You've relisted ${property.name} for ₦${relistPrice.toLocaleString()}`,
-        type: 'property_update',
+        type: 'property_update', // Must exist in your enum
         related_entity_id: propertyId,
         metadata: {
           action: 'relist',
           new_price: relistPrice,
-          reason: reason
+          reason: reason,
+          property_id: propertyId
         }
-      }, { transaction: t });
+      }, { transaction: notificationTransaction });
 
       // Admin notifications
       const admins = await User.findAll({ 
         where: { role: 'admin' },
-        transaction: t
+        transaction: notificationTransaction
       });
 
       const adminNotifications = await Promise.all(
         admins.map(admin => 
           Notification.create({
             user_id: admin.id,
-            title: 'Property Relisted',
-            message: `User ${user.email} relisted ${property.name} (ID: ${propertyId})`,
-            type: 'admin_alert',
+            title: 'New Property Relisted',
+            message: `User ${user.email} relisted ${property.name}`,
+            type: 'admin_alert', // Must exist in your enum
             related_entity_id: propertyId,
             metadata: {
               user_id: userId,
               new_price: relistPrice,
-              reason: reason
+              reason: reason,
+              property_id: propertyId
             }
-          }, { transaction: t })
+          }, { transaction: notificationTransaction })
         )
       );
 
+      await notificationTransaction.commit();
       notificationsSent = true;
 
       // Real-time notifications
@@ -116,10 +126,13 @@ exports.relistProperty = async (req, res) => {
         });
       }
     } catch (notificationError) {
-      console.error('Notification failed:', notificationError);
+      await notificationTransaction.rollback();
+      console.error('Notification subsystem failed:', {
+        message: notificationError.message,
+        stack: notificationError.stack
+      });
+      // Continue with response even if notifications failed
     }
-
-    await t.commit();
 
     return res.status(200).json({
       success: true,
@@ -129,22 +142,31 @@ exports.relistProperty = async (req, res) => {
       data: {
         propertyId,
         newPrice: relistPrice,
-        notificationsEnabled: notificationsSent
+        notificationsEnabled: notificationsSent,
+        ...(notificationsSent && {
+          notificationIds: {
+            client: clientNotification?.id,
+            admins: adminNotifications?.map(n => n.id)
+          }
+        })
       }
     });
 
   } catch (error) {
-    await t.rollback();
-    console.error('Property relist error:', {
+    await mainTransaction.rollback();
+    console.error('Property relist failed:', {
       message: error.message,
       stack: error.stack,
-      params: req.params,
-      body: req.body
+      user: userId,
+      property: propertyId
     });
     return res.status(500).json({ 
       success: false,
       message: "Failed to relist property",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: process.env.NODE_ENV === 'development' ? {
+        message: error.message,
+        code: error.code
+      } : undefined
     });
   }
 };
