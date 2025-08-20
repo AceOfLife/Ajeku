@@ -1690,15 +1690,6 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
     };
 
     // Calculate overview metadata
-// 4. Average purchase price - average of all purchase transactions
-const allTransactions = userProperties.flatMap(prop => 
-  prop.Transactions?.filter(t => t.price > 0) || []
-);
-const transactionTotal = allTransactions.reduce((sum, t) => sum + (t.price || 0), 0);
-const avgPurchasePrice = allTransactions.length > 0 
-  ? Math.round((transactionTotal / allTransactions.length) * 100) / 100 
-  : 0;
-
 const overview = {
   // 1. States - total number of unique states from location field
   states: new Set(userProperties
@@ -1717,14 +1708,23 @@ const overview = {
     const rentalTransactions = userProperties.flatMap(prop => 
       prop.Transactions?.filter(t => t.payment_type === 'rental' && t.price > 0) || []
     );
-    const rentalTotal = rentalTransactions.reduce((sum, t) => sum + (t.price || 0), 0);
+    const rentalTotal = rentalTransactions.reduce((sum, t) => sum + t.price, 0);
     return rentalTransactions.length > 0 
       ? Math.round((rentalTotal / rentalTransactions.length) * 100) / 100 
       : 0;
   })(),
 
-  // 4. Average purchase price
-  avg_purchase_price: avgPurchasePrice,
+  // 4. Average purchase price - total transaction amount divided by number of transactions (all payment types)
+  avg_purchase_price: (() => {
+    const allTransactions = userProperties.flatMap(prop => 
+      prop.Transactions?.filter(t => t.price > 0) || []
+    );
+    
+    const totalAmount = allTransactions.reduce((sum, t) => sum + t.price, 0);
+    return allTransactions.length > 0 
+      ? Math.round((totalAmount / allTransactions.length) * 100) / 100 
+      : 0;
+  })(),
 
   // 5. Number of properties
   number_of_properties: userProperties.length
