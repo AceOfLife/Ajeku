@@ -1704,20 +1704,26 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       }, 0) / (userProperties.length || 1) * 100) / 100,
 
       // 3. Average rent - average of rental transactions
-      avg_rent: Math.round(userProperties.reduce((sum, prop) => {
-        const rentalTransactions = prop.Transactions?.filter(t => 
-          t.payment_type === 'rental' && t.price > 0
-        ) || [];
-        const rentalTotal = rentalTransactions.reduce((rentSum, t) => rentSum + t.price, 0);
-        return sum + (rentalTransactions.length > 0 ? rentalTotal / rentalTransactions.length : 0);
-      }, 0) / (userProperties.length || 1) * 100) / 100,
+      avg_rent: (() => {
+        const rentalTransactions = userProperties.flatMap(prop => 
+          prop.Transactions?.filter(t => t.payment_type === 'rental' && t.price > 0) || []
+        );
+        const rentalTotal = rentalTransactions.reduce((sum, t) => sum + t.price, 0);
+        return rentalTransactions.length > 0 
+          ? Math.round((rentalTotal / rentalTransactions.length) * 100) / 100 
+          : 0;
+      })(),
 
-      // 4. Average purchase price - average of all transactions
-      avg_purchase_price: Math.round(userProperties.reduce((sum, prop) => {
-        const validTransactions = prop.Transactions?.filter(t => t.price > 0) || [];
-        const transactionTotal = validTransactions.reduce((transSum, t) => transSum + t.price, 0);
-        return sum + (validTransactions.length > 0 ? transactionTotal / validTransactions.length : 0);
-      }, 0) / (userProperties.length || 1) * 100) / 100,
+      // 4. Average purchase price - average of all purchase transactions
+      avg_purchase_price: (() => {
+        const allTransactions = userProperties.flatMap(prop => 
+          prop.Transactions?.filter(t => t.price > 0) || []
+        );
+        const transactionTotal = allTransactions.reduce((sum, t) => sum + t.price, 0);
+        return allTransactions.length > 0 
+          ? Math.round((transactionTotal / allTransactions.length) * 100) / 100 
+          : 0;
+      })(),
 
       // 5. Number of properties
       number_of_properties: userProperties.length
@@ -1981,7 +1987,7 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       user_id: requestedUserId,
       properties: analytics,
       totals,
-      overview, // Added overview metadata
+      overview,
       history
     });
 
