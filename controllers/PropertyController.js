@@ -1240,6 +1240,366 @@ exports.getTopPerformingProperty = async (req, res) => {
 };
 
 
+// exports.getUserPropertiesAnalytics = async (req, res) => {
+//   try {
+//     // Get and validate user IDs
+//     const requestedUserId = parseInt(req.params.userId);
+//     const authenticatedUserId = req.user.id;
+
+//     // Verify the request is for the authenticated user's own data
+//     if (requestedUserId !== authenticatedUserId) {
+//       return res.status(403).json({
+//         message: "Unauthorized - You can only view your own analytics"
+//       });
+//     }
+
+//     // Verify user exists
+//     const userExists = await User.findByPk(requestedUserId);
+//     if (!userExists) {
+//       return res.status(404).json({ 
+//         message: "User not found" 
+//       });
+//     }
+
+//     // Get all properties associated with this user (current ownership)
+//     const userProperties = await Property.findAll({
+//       where: {
+//         [Op.or]: [
+//           { original_owner_id: requestedUserId },
+//           { '$Transactions.user_id$': requestedUserId },
+//           { '$installmentOwnerships.user_id$': requestedUserId },
+//           { '$fractionalOwnerships.user_id$': requestedUserId }
+//         ]
+//       },
+//       attributes: ['id', 'name', 'createdAt', 'market_value', 'original_owner_id'],
+//       include: [
+//         {
+//           model: Transaction,
+//           as: 'Transactions',
+//           where: { user_id: requestedUserId },
+//           required: false,
+//           attributes: ['id', 'transaction_date', 'price', 'status']
+//         },
+//         {
+//           model: InstallmentOwnership,
+//           as: 'installmentOwnerships',
+//           where: { user_id: requestedUserId },
+//           required: false,
+//           attributes: ['id', 'createdAt']
+//         },
+//         {
+//           model: FractionalOwnership,
+//           as: 'fractionalOwnerships',
+//           where: { user_id: requestedUserId },
+//           required: false,
+//           attributes: ['id', 'createdAt']
+//         }
+//       ],
+//       distinct: true
+//     });
+
+//     // Calculate current analytics with property names
+//     const analytics = await Promise.all(
+//       userProperties.map(property => {
+//         return calculatePropertyAnalytics(property.id, requestedUserId)
+//           .then(analytics => ({
+//             ...analytics,
+//             property_id: property.id,
+//             property_name: property.name
+//           }));
+//       })
+//     );
+
+//     // Calculate totals
+//     const totalPortfolioValue = analytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0);
+//     const totals = {
+//       avg_potential_equity: totalPortfolioValue > 0 
+//         ? Math.round((analytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0) / totalPortfolioValue * 100) * 100) / 100
+//         : 0,
+//       project_cashflow: Math.round(analytics.reduce(
+//         (sum, a) => sum + (a.annual_income || 0) - (a.annual_expense || 0), 
+//         0
+//       ) * 100) / 100,
+//       avg_gross_yield: analytics.length > 0 
+//         ? Math.round(analytics.reduce((sum, a) => sum + (a.gross_yield || 0), 0) / analytics.length * 100) / 100
+//         : 0,
+//       avg_net_yield: analytics.length > 0 
+//         ? Math.round(analytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / analytics.length * 100) / 100
+//         : 0,
+//       total_properties: userProperties.length
+//     };
+
+//     // Enhanced historical data calculation
+//     const calculateHistory = async (period) => {
+//       try {
+//         const now = new Date();
+//         console.log(`Calculating ${period} history for user ${requestedUserId}`);
+
+//         if (period === 'last_month') {
+//           // Calculate last month's dates
+//           const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+//           const year = lastMonth.getFullYear();
+//           const month = lastMonth.getMonth();
+//           const daysInMonth = new Date(year, month + 1, 0).getDate();
+          
+//           // Get all transactions for the month
+//           const transactions = await Transaction.findAll({
+//             where: {
+//               user_id: requestedUserId,
+//               transaction_date: {
+//                 [Op.gte]: new Date(year, month, 1),
+//                 [Op.lt]: new Date(year, month + 1, 1)
+//               }
+//             },
+//             include: [{
+//               model: Property,
+//               as: 'Property',
+//               attributes: ['id', 'name', 'market_value']
+//             }],
+//             order: [['transaction_date', 'ASC']]
+//           });
+
+//           console.log(`Found ${transactions.length} transactions for last month (${year}-${month + 1})`);
+
+//           // Get all properties owned at the end of last month
+//           const monthEndDate = new Date(year, month + 1, 0);
+//           const propertiesAtMonthEnd = await getPropertiesOwnedByUserAtDate(requestedUserId, monthEndDate);
+
+//           // Prepare daily data
+//           const dailyData = [];
+//           for (let day = 1; day <= daysInMonth; day++) {
+//             const currentDate = new Date(year, month, day);
+//             const dateStr = currentDate.toISOString().split('T')[0];
+            
+//             // Filter transactions for this specific day
+//             const dayTransactions = transactions.filter(t => {
+//               const tDate = t.transaction_date;
+//               return tDate.getDate() === day && 
+//                      tDate.getMonth() === month && 
+//                      tDate.getFullYear() === year;
+//             });
+
+//             // Get properties owned on this specific day
+//             const propertiesOnDay = await getPropertiesOwnedByUserAtDate(requestedUserId, currentDate);
+
+//             // Calculate daily metrics
+//             const dayIncome = dayTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
+//             const dayExpenses = dayTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
+
+//             // Calculate analytics for properties owned on this day
+//             const propertyAnalytics = await Promise.all(
+//               propertiesOnDay.map(property => 
+//                 calculatePropertyAnalytics(property.id, requestedUserId, currentDate)
+//               )
+//             );
+
+//             const totalMarketValue = propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0);
+//             const totalEstimatedValue = propertyAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0);
+//             const avgGrossYield = propertyAnalytics.length > 0 
+//               ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.gross_yield || 0), 0) / propertyAnalytics.length * 100) / 100
+//               : 0;
+//             const avgNetYield = propertyAnalytics.length > 0 
+//               ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / propertyAnalytics.length * 100) / 100
+//               : 0;
+
+//             dailyData.push({
+//               date: dateStr,
+//               properties: propertiesOnDay.map(p => ({
+//                 id: p.id,
+//                 name: p.name,
+//                 market_value: p.market_value
+//               })),
+//               avg_potential_equity: totalMarketValue > 0 
+//                 ? Math.round((totalEstimatedValue / totalMarketValue) * 100 * 100) / 100
+//                 : 0,
+//               project_cashflow: Math.round((dayIncome - dayExpenses) * 100) / 100,
+//               avg_gross_yield: avgGrossYield,
+//               avg_net_yield: avgNetYield
+//             });
+//           }
+
+//           return dailyData;
+//         } 
+//         else { // last_year
+//           const year = now.getFullYear() - 1;
+//           console.log(`Calculating yearly history for ${year}`);
+
+//           // Get all transactions for the year
+//           const transactions = await Transaction.findAll({
+//             where: {
+//               user_id: requestedUserId,
+//               transaction_date: {
+//                 [Op.gte]: new Date(year, 0, 1),
+//                 [Op.lt]: new Date(year + 1, 0, 1)
+//               }
+//             },
+//             include: [{
+//               model: Property,
+//               as: 'Property',
+//               attributes: ['id', 'name', 'market_value']
+//             }],
+//             order: [['transaction_date', 'ASC']]
+//           });
+
+//           console.log(`Found ${transactions.length} transactions for ${year}`);
+
+//           const monthlyData = [];
+//           for (let month = 0; month < 12; month++) {
+//             const monthStart = new Date(year, month, 1);
+//             const monthEnd = new Date(year, month + 1, 0);
+//             const monthName = monthStart.toLocaleString('default', { month: 'long' });
+//             const monthTransactions = transactions.filter(t => 
+//               t.transaction_date.getMonth() === month
+//             );
+
+//             // Get properties owned at the end of the month
+//             const propertiesAtMonthEnd = await getPropertiesOwnedByUserAtDate(requestedUserId, monthEnd);
+            
+//             // Calculate analytics for each property
+//             const propertyAnalytics = await Promise.all(
+//               propertiesAtMonthEnd.map(property => 
+//                 calculatePropertyAnalytics(property.id, requestedUserId, monthEnd)
+//               )
+//             );
+
+//             const totalMarketValue = propertyAnalytics.reduce((sum, a) => sum + (a.market_value || 0), 0);
+//             const totalEstimatedValue = propertyAnalytics.reduce((sum, a) => sum + (a.estimated_value || 0), 0);
+//             const avgGrossYield = propertyAnalytics.length > 0 
+//               ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.gross_yield || 0), 0) / propertyAnalytics.length * 100) / 100
+//               : 0;
+//             const avgNetYield = propertyAnalytics.length > 0 
+//               ? Math.round(propertyAnalytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / propertyAnalytics.length * 100) / 100
+//               : 0;
+
+//             const monthIncome = monthTransactions.reduce((sum, t) => sum + (t.price > 0 ? t.price : 0), 0);
+//             const monthExpenses = monthTransactions.reduce((sum, t) => sum + (t.price < 0 ? Math.abs(t.price) : 0), 0);
+
+//             monthlyData.push({
+//               month: monthName,
+//               year,
+//               properties: propertiesAtMonthEnd.map(p => ({
+//                 id: p.id,
+//                 name: p.name,
+//                 market_value: p.market_value
+//               })),
+//               avg_potential_equity: totalMarketValue > 0
+//                 ? Math.round((totalEstimatedValue / totalMarketValue) * 100 * 100) / 100
+//                 : 0,
+//               project_cashflow: Math.round((monthIncome - monthExpenses) * 100) / 100,
+//               avg_gross_yield: avgGrossYield,
+//               avg_net_yield: avgNetYield
+//             });
+//           }
+//           return monthlyData;
+//         }
+//       } catch (error) {
+//         console.error(`Error calculating ${period} history:`, error);
+//         // Return empty data structure matching expected format
+//         if (period === 'last_month') {
+//           const lastMonth = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
+//           const daysInMonth = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0).getDate();
+//           return Array(daysInMonth).fill().map((_, i) => ({
+//             date: new Date(lastMonth.getFullYear(), lastMonth.getMonth(), i + 1).toISOString().split('T')[0],
+//             properties: [],
+//             avg_potential_equity: 0,
+//             project_cashflow: 0,
+//             avg_gross_yield: 0,
+//             avg_net_yield: 0
+//           }));
+//         } else {
+//           return Array(12).fill().map((_, i) => ({
+//             month: new Date(0, i).toLocaleString('default', { month: 'long' }),
+//             year: new Date().getFullYear() - 1,
+//             properties: [],
+//             avg_potential_equity: 0,
+//             project_cashflow: 0,
+//             avg_gross_yield: 0,
+//             avg_net_yield: 0
+//           }));
+//         }
+//       }
+//     };
+
+//     // Helper function to get properties owned by user at a specific date
+//     const getPropertiesOwnedByUserAtDate = async (userId, date) => {
+//       return await Property.findAll({
+//         where: {
+//           [Op.or]: [
+//             { 
+//               original_owner_id: userId,
+//               createdAt: { [Op.lte]: date }
+//             },
+//             { 
+//               '$Transactions.user_id$': userId,
+//               '$Transactions.transaction_date$': { [Op.lte]: date }
+//             },
+//             { 
+//               '$installmentOwnerships.user_id$': userId,
+//               '$installmentOwnerships.createdAt$': { [Op.lte]: date }
+//             },
+//             { 
+//               '$fractionalOwnerships.user_id$': userId,
+//               '$fractionalOwnerships.createdAt$': { [Op.lte]: date }
+//             }
+//           ]
+//         },
+//         include: [
+//           {
+//             model: Transaction,
+//             as: 'Transactions',
+//             where: { 
+//               user_id: userId,
+//               transaction_date: { [Op.lte]: date }
+//             },
+//             required: false
+//           },
+//           {
+//             model: InstallmentOwnership,
+//             as: 'installmentOwnerships',
+//             where: { 
+//               user_id: userId,
+//               createdAt: { [Op.lte]: date }
+//             },
+//             required: false
+//           },
+//           {
+//             model: FractionalOwnership,
+//             as: 'fractionalOwnerships',
+//             where: { 
+//               user_id: userId,
+//               createdAt: { [Op.lte]: date }
+//             },
+//             required: false
+//           }
+//         ],
+//         distinct: true
+//       });
+//     };
+
+//     // Calculate history with error handling
+//     const history = {
+//       last_month: await calculateHistory('last_month'),
+//       last_year: await calculateHistory('last_year')
+//     };
+
+//     res.status(200).json({
+//       message: `Property analytics for user ${requestedUserId}`,
+//       user_id: requestedUserId,
+//       properties: analytics,
+//       totals,
+//       history
+//     });
+
+//   } catch (error) {
+//     console.error(`Error fetching analytics for user ${req.params.userId}:`, error);
+//     res.status(500).json({ 
+//       message: "Error retrieving analytics",
+//       error: process.env.NODE_ENV === 'development' ? error.message : undefined
+//     });
+//   }
+// };
+
+// Updated 20/08/2025
 exports.getUserPropertiesAnalytics = async (req, res) => {
   try {
     // Get and validate user IDs
@@ -1271,14 +1631,14 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
           { '$fractionalOwnerships.user_id$': requestedUserId }
         ]
       },
-      attributes: ['id', 'name', 'createdAt', 'market_value', 'original_owner_id'],
+      attributes: ['id', 'name', 'createdAt', 'market_value', 'original_owner_id', 'location', 'size'],
       include: [
         {
           model: Transaction,
           as: 'Transactions',
           where: { user_id: requestedUserId },
           required: false,
-          attributes: ['id', 'transaction_date', 'price', 'status']
+          attributes: ['id', 'transaction_date', 'price', 'status', 'payment_type']
         },
         {
           model: InstallmentOwnership,
@@ -1327,6 +1687,40 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
         ? Math.round(analytics.reduce((sum, a) => sum + (a.net_yield || 0), 0) / analytics.length * 100) / 100
         : 0,
       total_properties: userProperties.length
+    };
+
+    // Calculate overview metadata
+    const overview = {
+      // 1. States - total number of unique states from location field
+      states: new Set(userProperties
+        .map(prop => prop.location?.split(',')?.[1]?.trim() || prop.location?.trim())
+        .filter(location => location && location !== '')
+      ).size,
+
+      // 2. Average land size - average of size field (convert to number)
+      avg_land_size: Math.round(userProperties.reduce((sum, prop) => {
+        const size = parseFloat(prop.size) || 0;
+        return sum + size;
+      }, 0) / (userProperties.length || 1) * 100) / 100,
+
+      // 3. Average rent - average of rental transactions
+      avg_rent: Math.round(userProperties.reduce((sum, prop) => {
+        const rentalTransactions = prop.Transactions?.filter(t => 
+          t.payment_type === 'rental' && t.price > 0
+        ) || [];
+        const rentalTotal = rentalTransactions.reduce((rentSum, t) => rentSum + t.price, 0);
+        return sum + (rentalTransactions.length > 0 ? rentalTotal / rentalTransactions.length : 0);
+      }, 0) / (userProperties.length || 1) * 100) / 100,
+
+      // 4. Average purchase price - average of all transactions
+      avg_purchase_price: Math.round(userProperties.reduce((sum, prop) => {
+        const validTransactions = prop.Transactions?.filter(t => t.price > 0) || [];
+        const transactionTotal = validTransactions.reduce((transSum, t) => transSum + t.price, 0);
+        return sum + (validTransactions.length > 0 ? transactionTotal / validTransactions.length : 0);
+      }, 0) / (userProperties.length || 1) * 100) / 100,
+
+      // 5. Number of properties
+      number_of_properties: userProperties.length
     };
 
     // Enhanced historical data calculation
@@ -1587,6 +1981,7 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       user_id: requestedUserId,
       properties: analytics,
       totals,
+      overview, // Added overview metadata
       history
     });
 
