@@ -1728,6 +1728,7 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
       // 5. Number of properties
       number_of_properties: userProperties.length
     };
+    console.log(avg_purchase_price);
 
     // Enhanced historical data calculation
     const calculateHistory = async (period) => {
