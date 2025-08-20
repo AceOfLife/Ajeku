@@ -1690,44 +1690,45 @@ exports.getUserPropertiesAnalytics = async (req, res) => {
     };
 
     // Calculate overview metadata
-    const overview = {
-      // 1. States - total number of unique states from location field
-      states: new Set(userProperties
-        .map(prop => prop.location?.split(',')?.[1]?.trim() || prop.location?.trim())
-        .filter(location => location && location !== '')
-      ).size,
+// 4. Average purchase price - average of all purchase transactions
+const allTransactions = userProperties.flatMap(prop => 
+  prop.Transactions?.filter(t => t.price > 0) || []
+);
+const transactionTotal = allTransactions.reduce((sum, t) => sum + (t.price || 0), 0);
+const avgPurchasePrice = allTransactions.length > 0 
+  ? Math.round((transactionTotal / allTransactions.length) * 100) / 100 
+  : 0;
 
-      // 2. Average land size - average of size field (convert to number)
-      avg_land_size: Math.round(userProperties.reduce((sum, prop) => {
-        const size = parseFloat(prop.size) || 0;
-        return sum + size;
-      }, 0) / (userProperties.length || 1) * 100) / 100,
+const overview = {
+  // 1. States - total number of unique states from location field
+  states: new Set(userProperties
+    .map(prop => prop.location?.split(',')?.[1]?.trim() || prop.location?.trim())
+    .filter(location => location && location !== '')
+  ).size,
 
-      // 3. Average rent - average of rental transactions
-      avg_rent: (() => {
-        const rentalTransactions = userProperties.flatMap(prop => 
-          prop.Transactions?.filter(t => t.payment_type === 'rental' && t.price > 0) || []
-        );
-        const rentalTotal = rentalTransactions.reduce((sum, t) => sum + t.price, 0);
-        return rentalTransactions.length > 0 
-          ? Math.round((rentalTotal / rentalTransactions.length) * 100) / 100 
-          : 0;
-      })(),
+  // 2. Average land size - average of size field (convert to number)
+  avg_land_size: Math.round(userProperties.reduce((sum, prop) => {
+    const size = parseFloat(prop.size) || 0;
+    return sum + size;
+  }, 0) / (userProperties.length || 1) * 100) / 100,
 
-      // 4. Average purchase price - average of all purchase transactions
-      avg_purchase_price: (() => {
-        const allTransactions = userProperties.flatMap(prop => 
-          prop.Transactions?.filter(t => t.price > 0) || []
-        );
-        const transactionTotal = allTransactions.reduce((sum, t) => sum + t.price, 0);
-        return allTransactions.length > 0 
-          ? Math.round((transactionTotal / allTransactions.length) * 100) / 100 
-          : 0;
-      })(),
+  // 3. Average rent - average of rental transactions
+  avg_rent: (() => {
+    const rentalTransactions = userProperties.flatMap(prop => 
+      prop.Transactions?.filter(t => t.payment_type === 'rental' && t.price > 0) || []
+    );
+    const rentalTotal = rentalTransactions.reduce((sum, t) => sum + (t.price || 0), 0);
+    return rentalTransactions.length > 0 
+      ? Math.round((rentalTotal / rentalTransactions.length) * 100) / 100 
+      : 0;
+  })(),
 
-      // 5. Number of properties
-      number_of_properties: userProperties.length
-    };
+  // 4. Average purchase price
+  avg_purchase_price: avgPurchasePrice,
+
+  // 5. Number of properties
+  number_of_properties: userProperties.length
+};
 
     // Enhanced historical data calculation
     const calculateHistory = async (period) => {
