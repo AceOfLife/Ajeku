@@ -70,7 +70,7 @@ router.delete('/agents/:id', authenticate, authorizeAdmin, AgentController.delet
 // Property routes
 router.get('/properties', authenticate, PropertyController.getAllProperties);
 router.get('/properties/filter', authenticate, PropertyController.getFilteredProperties);
-// router.get('/rental-bookings', authenticate, authorizeAdmin, rentalController.getAllRentalBookings);
+router.get('/rental-bookings', authenticate, authorizeAdmin, rentalController.getAllRentalBookings);
 router.post('/properties', authenticate, authorizeAdmin, PropertyController.createProperty); // Admin-only route
 router.put('/properties/:id', authenticate, authorizeAdmin, PropertyController.updateProperty);
 router.delete('/properties/:id', authenticate, authorizeAdmin, PropertyController.deleteProperty);
