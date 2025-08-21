@@ -221,7 +221,7 @@ exports.verifyPayment = async (req, res) => {
     const clientNotification = await Notification.create({
       user_id: user_id,
       title: 'Payment Successful',
-      message: `Your ${payment_type} payment for ${property.title} was completed successfully`,
+      message: `Your ${payment_type} payment for ${property.name} was completed successfully`,
       type: 'payment',
       related_entity_id: property_id,
       metadata: {
