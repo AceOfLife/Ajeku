@@ -143,7 +143,7 @@ exports.getAllRentalBookings = async (req, res) => {
         {
           model: Property,
           as: 'Property',
-          attributes: ['id', 'title', 'location']
+          attributes: ['id', 'name', 'location']
         }
       ],
       order: [['created_at', 'DESC']],
