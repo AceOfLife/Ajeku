@@ -7,7 +7,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Clients', // This references the Clients table
+        model: 'Users', 
         key: 'id',
       },
       onUpdate: 'CASCADE',
@@ -17,7 +17,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Agents', // This references the Agents table
+        model: 'Users', 
         key: 'id',
       },
       onUpdate: 'CASCADE',
@@ -36,7 +36,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'sent',
     },
-  }, {});
+  }, {tableName: 'Messages',});
 
   Message.associate = function(models) {
     Message.belongsTo(models.User, {
