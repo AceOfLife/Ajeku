@@ -1,6 +1,6 @@
 // controllers/MessageController.js
 const { Op, Sequelize } = require('sequelize'); 
-const { Message, User } = require('../models');
+const { Message, User, sequelize } = require('../models');
 
 exports.getAllMessages = async (req, res) => {
   try {
