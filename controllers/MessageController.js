@@ -126,3 +126,124 @@ exports.markAsRead = async (req, res) => {
     res.status(500).json({ message: 'Error marking message as read', error: error.message });
   }
 };
+
+exports.getRecentChats = async (req, res) => {
+  try {
+    const currentUserId = req.user.id;
+
+    // Get all chat partners with their last message time
+    const chatPartners = await Message.findAll({
+      where: {
+        [Op.or]: [
+          { sender_id: currentUserId },
+          { recipient_id: currentUserId }
+        ]
+      },
+      attributes: [
+        [sequelize.literal(`CASE WHEN sender_id = ${currentUserId} THEN recipient_id ELSE sender_id END`), 'partner_id'],
+        [sequelize.fn('MAX', sequelize.col('Message.createdAt')), 'last_message_at']
+      ],
+      group: ['partner_id'],
+      order: [[sequelize.literal('last_message_at'), 'DESC']],
+      raw: true
+    });
+
+    if (chatPartners.length === 0) {
+      return res.status(200).json({
+        message: 'No recent chats found',
+        data: []
+      });
+    }
+
+    const partnerIds = chatPartners.map(chat => chat.partner_id);
+
+    // Get all partner details in one query
+    const partners = await User.findAll({
+      where: { id: partnerIds },
+      attributes: ['id', 'name', 'profileImage', 'role'],
+      raw: true
+    });
+
+    const partnerMap = partners.reduce((acc, partner) => {
+      acc[partner.id] = partner;
+      return acc;
+    }, {});
+
+    // Get unread counts for all partners in one query
+    const unreadCounts = await Message.findAll({
+      where: {
+        sender_id: partnerIds,
+        recipient_id: currentUserId,
+        status: 'sent'
+      },
+      attributes: [
+        'sender_id',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'unread_count']
+      ],
+      group: ['sender_id'],
+      raw: true
+    });
+
+    const unreadMap = unreadCounts.reduce((acc, item) => {
+      acc[item.sender_id] = parseInt(item.unread_count);
+      return acc;
+    }, {});
+
+    // Get last messages for all conversations
+    const lastMessages = await Message.findAll({
+      where: {
+        [Op.or]: partnerIds.map(partnerId => [
+          { sender_id: currentUserId, recipient_id: partnerId },
+          { sender_id: partnerId, recipient_id: currentUserId }
+        ]).flat()
+      },
+      attributes: [
+        'sender_id',
+        'recipient_id',
+        'message',
+        'createdAt',
+        [sequelize.literal(`CASE WHEN sender_id = ${currentUserId} THEN recipient_id ELSE sender_id END`), 'partner_id']
+      ],
+      order: [['createdAt', 'DESC']],
+      raw: true
+    });
+
+    const lastMessageMap = {};
+    lastMessages.forEach(msg => {
+      const partnerId = msg.partner_id;
+      if (!lastMessageMap[partnerId] || new Date(msg.createdAt) > new Date(lastMessageMap[partnerId].createdAt)) {
+        lastMessageMap[partnerId] = {
+          message: msg.message,
+          createdAt: msg.createdAt
+        };
+      }
+    });
+
+    // Build the response
+    const recentChats = chatPartners.map(chat => {
+      const partner = partnerMap[chat.partner_id];
+      if (!partner) return null;
+
+      return {
+        id: partner.id,
+        name: partner.name,
+        avatar: partner.profileImage,
+        role: partner.role,
+        unreadCount: unreadMap[partner.id] || 0,
+        lastMessage: lastMessageMap[partner.id]?.message || '',
+        lastMessageTime: lastMessageMap[partner.id]?.createdAt || null
+      };
+    }).filter(chat => chat !== null);
+
+    res.status(200).json({
+      message: 'Recent chats retrieved successfully',
+      data: recentChats
+    });
+  } catch (error) {
+    console.error('Error fetching recent chats:', error);
+    res.status(500).json({ 
+      message: 'Error fetching recent chats', 
+      error: error.message 
+    });
+  }
+};

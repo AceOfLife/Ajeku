@@ -12,4 +12,7 @@ router.get('/conversation/:recipientId', authenticate, MessageController.getMess
 // Mark a message as read (only if it belongs to the authenticated user)
 router.put('/mark-read/:messageId', authenticate, MessageController.markAsRead);
 
+// Get recent chats for the authenticated user
+router.get('/recent-chats', authenticate, MessageController.getRecentChats);
+
 module.exports = router;
