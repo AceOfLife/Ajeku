@@ -9,10 +9,10 @@ router.post('/send', authenticate, MessageController.sendMessage);
 // Get messages between the authenticated user and another user
 router.get('/conversation/:recipientId', authenticate, MessageController.getMessages);
 
-// Mark a message as read (only if it belongs to the authenticated user)
-router.put('/mark-read/:messageId', authenticate, MessageController.markAsRead);
-
 // Get recent chats for the authenticated user
 router.get('/recent-chats', authenticate, MessageController.getRecentChats);
+
+// Mark a message as read (only if it belongs to the authenticated user)
+router.put('/mark-read/:messageId', authenticate, MessageController.markAsRead);
 
 module.exports = router;
