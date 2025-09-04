@@ -323,7 +323,9 @@ exports.sendMessage = async (req, res) => {
       }
     }
 
-    const newMessage = await Message.create(messageData);
+    const newMessage = await Message.create(messageData, {
+      attributes: { exclude: ['subject'] } 
+    });
 
     res.status(201).json({
       message: 'Message sent successfully',
