@@ -2049,7 +2049,7 @@ exports.getRelistedProperties = async (req, res) => {
   }
 };
 
-// controllers/PropertyController.js
+
 exports.getAssemblage = async (req, res) => {
   try {
     const { payment_type } = req.query; // Get filter from query params
@@ -2088,8 +2088,8 @@ exports.getAssemblage = async (req, res) => {
         'price',
         'isInstallment',
         'is_fractional',
-        'fractional_slots',
-        // 'currency'
+        'fractional_slots'
+        // ✅ Currency removed from here
       ]
     });
 
@@ -2121,10 +2121,8 @@ exports.getAssemblage = async (req, res) => {
     const formattedProperties = properties.map(property => {
       const propertyData = property.toJSON();
       
-      // Format price with currency
-      // const price = propertyData.currency && propertyData.currency !== 'USD' 
-      //   ? `${propertyData.currency} ${propertyData.price.toLocaleString()}`
-      //   : `$${propertyData.price.toLocaleString()}`;
+      // ✅ Simplified price formatting without currency
+      const price = `$${propertyData.price.toLocaleString()}`;
 
       // Determine ownership type (same logic as getAllProperties)
       let ownershipType;
@@ -2151,7 +2149,7 @@ exports.getAssemblage = async (req, res) => {
           number_of_rooms: propertyData.number_of_rooms,
           number_of_baths: propertyData.number_of_baths
         },
-        price: price, // Simple string like name/location
+        price: price, // Simple string with dollar sign
         ownership: ownershipType, // Just the string like getAllProperties
         image: propertyData.images && propertyData.images.length > 0 
           ? propertyData.images[0].image_url 
@@ -2159,9 +2157,9 @@ exports.getAssemblage = async (req, res) => {
       };
     });
 
-    res.status(200).json(formattedProperties); // Direct array response (no count/success wrapper)
+    res.status(200).json(formattedProperties); // Direct array response
   } catch (error) {
-    console.error("Error in getAllPublicProperties:", error);
+    console.error("Error in getAssemblage:", error);
     res.status(500).json({ 
       message: 'Error retrieving properties', 
       error: error.message 
