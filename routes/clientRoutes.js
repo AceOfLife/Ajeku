@@ -11,16 +11,6 @@ const RelistController = require('../controllers/RelistController');
 // Client registration (no authentication)
 router.post('/register', ClientController.createClient);
 
-// Route to update profile
-// router.put('/profile', authenticate, upload, async (req, res, next) => {
-//     // Ensure the authenticated user is updating their own profile
-//     if (req.user.id !== parseInt(req.params.id)) {
-//       return res.status(403).json({ message: 'You can only update your own profile' });
-//     }
-  
-//     next();  // Proceed to the updateProfile controller if the user owns the profile
-//   }, ClientController.updateProfile);
-
 router.put('/profile', authenticate, upload, ClientController.updateProfile);
 
   // Admin route to update client status
@@ -96,5 +86,7 @@ router.post(
 // Get Relisted properties & slots
 router.get('/properties/relisted', PropertyController.getRelistedProperties);
 router.get('/properties/:propertyId/relisted-slots', RelistController.getRelistedSlots);
+
+router.get('/properties', PropertyController.getAssemblage);
 
 module.exports = router;
