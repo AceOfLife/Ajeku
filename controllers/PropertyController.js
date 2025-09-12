@@ -2089,7 +2089,7 @@ exports.getAssemblage = async (req, res) => {
         'isInstallment',
         'is_fractional',
         'fractional_slots',
-        'currency'
+        // 'currency'
       ]
     });
 
@@ -2122,9 +2122,9 @@ exports.getAssemblage = async (req, res) => {
       const propertyData = property.toJSON();
       
       // Format price with currency
-      const price = propertyData.currency && propertyData.currency !== 'USD' 
-        ? `${propertyData.currency} ${propertyData.price.toLocaleString()}`
-        : `$${propertyData.price.toLocaleString()}`;
+      // const price = propertyData.currency && propertyData.currency !== 'USD' 
+      //   ? `${propertyData.currency} ${propertyData.price.toLocaleString()}`
+      //   : `$${propertyData.price.toLocaleString()}`;
 
       // Determine ownership type (same logic as getAllProperties)
       let ownershipType;
