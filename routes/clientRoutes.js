@@ -87,6 +87,6 @@ router.post(
 router.get('/properties/relisted', PropertyController.getRelistedProperties);
 router.get('/properties/:propertyId/relisted-slots', RelistController.getRelistedSlots);
 
-router.get('/properties', PropertyController.getAssemblage);
+router.get('/assemblage', PropertyController.getAssemblage);
 
 module.exports = router;
