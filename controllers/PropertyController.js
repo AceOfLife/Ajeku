@@ -2050,6 +2050,127 @@ exports.getRelistedProperties = async (req, res) => {
 };
 
 
+// exports.getAssemblage = async (req, res) => {
+
+//   try {
+//     const { payment_type } = req.query; // Get filter from query params
+    
+//     // Build where clause based on filter
+//     const whereClause = {};
+//     if (payment_type) {
+//       if (payment_type === 'installment') {
+//         whereClause.isInstallment = true;
+//         whereClause.is_fractional = false;
+//       } else if (payment_type === 'fractional') {
+//         whereClause.is_fractional = true;
+//       } else if (payment_type === 'full') {
+//         whereClause.isInstallment = false;
+//         whereClause.is_fractional = false;
+//       }
+//     }
+
+//     const properties = await Property.findAll({
+//       where: whereClause,
+//       include: [
+//         {
+//           model: PropertyImage,
+//           as: 'images',
+//           attributes: ['image_url'],
+//           limit: 1 // Just get the first image for thumbnail
+//         }
+//       ],
+//       attributes: [
+//         'id',
+//         'name', 
+//         'location',
+//         'size',
+//         'number_of_rooms',
+//         'number_of_baths',
+//         'price',
+//         'isInstallment',
+//         'is_fractional',
+//         'fractional_slots'
+//         // ✅ Currency removed from here
+//       ]
+//     });
+
+//     // Get all ownership data in parallel
+//     const [allInstallmentOwnerships, allFractionalOwnerships] = await Promise.all([
+//       InstallmentOwnership.findAll(),
+//       FractionalOwnership.findAll()
+//     ]);
+
+//     // Create lookup maps
+//     const installmentOwnershipMap = {};
+//     const fractionalOwnershipMap = {};
+
+//     allInstallmentOwnerships.forEach(ownership => {
+//       if (!installmentOwnershipMap[ownership.property_id]) {
+//         installmentOwnershipMap[ownership.property_id] = [];
+//       }
+//       installmentOwnershipMap[ownership.property_id].push(ownership);
+//     });
+
+//     allFractionalOwnerships.forEach(ownership => {
+//       if (!fractionalOwnershipMap[ownership.property_id]) {
+//         fractionalOwnershipMap[ownership.property_id] = [];
+//       }
+//       fractionalOwnershipMap[ownership.property_id].push(ownership);
+//     });
+
+//     // Process each property for the response
+//     const formattedProperties = properties.map(property => {
+//       const propertyData = property.toJSON();
+      
+//       // ✅ Simplified price formatting without currency
+//       const price = `$${propertyData.price.toLocaleString()}`;
+
+//       // Determine ownership type (same logic as getAllProperties)
+//       let ownershipType;
+//       if (propertyData.isInstallment && !propertyData.is_fractional) {
+//         ownershipType = 'installment';
+//       } else if (propertyData.is_fractional) {
+//         ownershipType = 'fractional';
+        
+//         // Calculate available slots for fractional properties
+//         const fractionalOwnerships = fractionalOwnershipMap[propertyData.id] || [];
+//         const totalPurchased = fractionalOwnerships.reduce((sum, o) => sum + o.slots_purchased, 0);
+//         propertyData.available_slots = propertyData.fractional_slots - totalPurchased;
+//       } else {
+//         ownershipType = 'full';
+//       }
+
+//       // Format the response as requested
+//       return {
+//         id: propertyData.id,
+//         name: propertyData.name,
+//         location: propertyData.location,
+//         info: {
+//           size: propertyData.size,
+//           number_of_rooms: propertyData.number_of_rooms,
+//           number_of_baths: propertyData.number_of_baths
+//         },
+//         price: price, // Simple string with dollar sign
+//         ownership: ownershipType, // Just the string like getAllProperties
+//         image: propertyData.images && propertyData.images.length > 0 
+//           ? propertyData.images[0].image_url 
+//           : null
+//       };
+//     });
+
+//     res.status(200).json(formattedProperties); // Direct array response
+//   } catch (error) {
+//     console.error("Error in getAssemblage:", error);
+//     res.status(500).json({ 
+//       message: 'Error retrieving properties', 
+//       error: error.message 
+//     });
+//   }
+// };
+
+
+// September 22, 2025 update
+
 exports.getAssemblage = async (req, res) => {
   try {
     const { payment_type } = req.query; // Get filter from query params
@@ -2089,7 +2210,6 @@ exports.getAssemblage = async (req, res) => {
         'isInstallment',
         'is_fractional',
         'fractional_slots'
-        // ✅ Currency removed from here
       ]
     });
 
@@ -2121,20 +2241,35 @@ exports.getAssemblage = async (req, res) => {
     const formattedProperties = properties.map(property => {
       const propertyData = property.toJSON();
       
-      // ✅ Simplified price formatting without currency
+      // Simplified price formatting without currency
       const price = `$${propertyData.price.toLocaleString()}`;
 
       // Determine ownership type (same logic as getAllProperties)
       let ownershipType;
+      let installmentProgress = null;
+      let available_slots = null;
+
       if (propertyData.isInstallment && !propertyData.is_fractional) {
         ownershipType = 'installment';
+        
+        // ✅ ADDED: Installment progress data
+        const ownerships = installmentOwnershipMap[propertyData.id] || [];
+        const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
+        const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
+        
+        installmentProgress = {
+          totalOwnerships: ownerships.length,
+          totalMonths,
+          paidMonths,
+          remainingMonths: totalMonths - paidMonths
+        };
       } else if (propertyData.is_fractional) {
         ownershipType = 'fractional';
         
-        // Calculate available slots for fractional properties
+        // ✅ ADDED: Available slots calculation for fractional properties
         const fractionalOwnerships = fractionalOwnershipMap[propertyData.id] || [];
         const totalPurchased = fractionalOwnerships.reduce((sum, o) => sum + o.slots_purchased, 0);
-        propertyData.available_slots = propertyData.fractional_slots - totalPurchased;
+        available_slots = propertyData.fractional_slots - totalPurchased;
       } else {
         ownershipType = 'full';
       }
@@ -2149,15 +2284,18 @@ exports.getAssemblage = async (req, res) => {
           number_of_rooms: propertyData.number_of_rooms,
           number_of_baths: propertyData.number_of_baths
         },
-        price: price, // Simple string with dollar sign
-        ownership: ownershipType, // Just the string like getAllProperties
+        price: price,
+        ownership: ownershipType,
         image: propertyData.images && propertyData.images.length > 0 
           ? propertyData.images[0].image_url 
-          : null
+          : null,
+        // ✅ ADDED: Installment progress and available slots data
+        installmentProgress: installmentProgress,
+        available_slots: available_slots
       };
     });
 
-    res.status(200).json(formattedProperties); // Direct array response
+    res.status(200).json(formattedProperties);
   } catch (error) {
     console.error("Error in getAssemblage:", error);
     res.status(500).json({ 
