@@ -2169,7 +2169,7 @@ exports.getRelistedProperties = async (req, res) => {
 // };
 
 
-// September 22, 2025 update
+// September 29, 2025 update
 
 exports.getAssemblage = async (req, res) => {
   try {
@@ -2248,11 +2248,12 @@ exports.getAssemblage = async (req, res) => {
       let ownershipType;
       let installmentProgress = null;
       let available_slots = null;
+      let fractionalProgress = null; // ✅ NEW: Added fractionalProgress variable
 
       if (propertyData.isInstallment && !propertyData.is_fractional) {
         ownershipType = 'installment';
         
-        // ✅ ADDED: Installment progress data
+        // Installment progress data
         const ownerships = installmentOwnershipMap[propertyData.id] || [];
         const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
         const paidMonths = ownerships.reduce((sum, o) => sum + o.months_paid, 0);
@@ -2266,10 +2267,18 @@ exports.getAssemblage = async (req, res) => {
       } else if (propertyData.is_fractional) {
         ownershipType = 'fractional';
         
-        // ✅ ADDED: Available slots calculation for fractional properties
+        // Available slots calculation for fractional properties
         const fractionalOwnerships = fractionalOwnershipMap[propertyData.id] || [];
         const totalPurchased = fractionalOwnerships.reduce((sum, o) => sum + o.slots_purchased, 0);
         available_slots = propertyData.fractional_slots - totalPurchased;
+        
+        // ✅ NEW: Added fractionalProgress metadata (same as getPropertyById)
+        fractionalProgress = {
+          totalSlots: propertyData.fractional_slots,
+          purchasedSlots: totalPurchased,
+          availableSlots: propertyData.fractional_slots - totalPurchased,
+          totalInvestors: fractionalOwnerships.length
+        };
       } else {
         ownershipType = 'full';
       }
@@ -2289,9 +2298,10 @@ exports.getAssemblage = async (req, res) => {
         image: propertyData.images && propertyData.images.length > 0 
           ? propertyData.images[0].image_url 
           : null,
-        // ✅ ADDED: Installment progress and available slots data
+        // Installment progress and available slots data
         installmentProgress: installmentProgress,
-        available_slots: available_slots
+        available_slots: available_slots,
+        fractionalProgress: fractionalProgress // ✅ NEW: Added fractionalProgress to response
       };
     });
 
