@@ -955,7 +955,7 @@ exports.getTopPerformingProperty = async (req, res) => {
     const properties = await Property.findAll({
       where: { isRental: true },
       attributes: [
-        'id', 'name', 'number_of_baths', 'number_of_rooms', 
+        'id', 'name', 'address', 'number_of_baths', 'number_of_rooms', 
         'features', 'market_value', 'imageUrl', 'createdAt',
         'annual_rent', 'monthly_expense', 'estimated_value'
       ],
