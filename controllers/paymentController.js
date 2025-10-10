@@ -706,6 +706,12 @@ exports.initializePayment = async (req, res) => {
 
 
 exports.verifyPayment = async (req, res) => {
+  // ✅ ADD EXPLICIT CORS HEADERS
+  res.header('Access-Control-Allow-Origin', 'https://ajeku-developing.vercel.app');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
   console.log('🔍 verifyPayment STARTED - Headers:', req.headers);
   console.log('🔍 verifyPayment - Query params:', req.query);
   console.log('🔍 verifyPayment - Origin:', req.headers.origin);
