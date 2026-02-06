@@ -8,10 +8,10 @@
     "port": 5432
   },
   "production": {
-    "username": "ajeku_realty_12_user",
-    "password": "UoW8iJ7VMeuL5qy9UImlQZjGid3XUued",
-    "database": "ajeku_realty_12",
-    "host": "dpg-d4jdvmuuk2gs73bisumg-a.oregon-postgres.render.com",
+    "username": "ajeku_realty_13_user",
+    "password": "a4LBeUvZHWt76AdXrgMux3CoXgKzdrk8",
+    "database": "ajeku_realty_13",
+    "host": "dpg-d62rgh94tr6s73fkt4bg-a.oregon-postgres.render.com",
     "dialect": "postgres",
     "port": 5432,
     "dialectOptions": {
